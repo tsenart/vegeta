@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -24,13 +21,6 @@ func main() {
 		requests = flag.Uint("requests", 5000, "Number of requests to do")
 		duration = flag.Duration("duration", 10*time.Second, "Maximum duration of execution")
 	)
-
-	var (
-		urls    []*url.URL
-		clients []*http.Client
-		err     error
-	)
-
 	flag.Parse()
 
 	// Validate QPS argument
@@ -39,16 +29,23 @@ func main() {
 	}
 	// Magic formula that assumes each client can
 	// sustain 500 QPS under normal circumstances
-	clients = make([]*http.Client, int(math.Ceil(float64(*qps)/500.0)))
+	clients := make([]*Client, int(math.Ceil(float64(*qps)/500.0)))
+	qpsClient := *qps / uint(len(clients))
+	for i := 0; i < len(clients); i++ {
+		clients[i] = NewClient(qpsClient)
+	}
 
 	// Parse URLs file
-	if urls, err = readURLsFromFile(*urlsFile); err != nil {
+	urls, err := NewURLsFromFile(*urlsFile)
+	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Parse mode argument
+	random := false
 	if *mode == "random" {
 		rand.Seed(time.Now().UnixNano())
+		random = true
 	} else if *mode != "sequential" {
 		log.Fatal("Unknown mode %s", *mode)
 	}
@@ -60,21 +57,17 @@ func main() {
 
 	fmt.Printf("Hitting %d URLs in %s mode for %s with %d requests and %d clients.",
 		len(urls), *mode, duration.String(), *requests, len(clients))
-}
 
-func readURLsFromFile(filename string) ([]*url.URL, error) {
-	lines, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return []*url.URL{}, err
+	reqs := make(chan *http.Request, *requests)
+	for _, client := range clients {
+		go client.Drill(reqs)
 	}
-
-	var urls []*url.URL
-	for _, line := range bytes.Split(lines, []byte("\n")) {
-		uri, err := url.Parse(string(line))
+	for _, index := range urls.Iter(random) {
+		url := urls[index]
+		req, err := http.NewRequest("GET", url.String(), nil)
 		if err != nil {
-			return []*url.URL{}, fmt.Errorf("Failed to parse URI (%s): %s", line, err)
+			log.Fatal("Bad request: %s", err)
 		}
-		urls = append(urls, uri)
+		reqs <- req
 	}
-	return urls, nil
 }
