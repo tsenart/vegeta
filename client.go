@@ -1,49 +1,62 @@
 package main
 
 import (
+	"errors"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-// Client is an http.Client with rate limiting and time series instrumentation.
+// Client is an http.Client with rate limiting
+// TODO: Add timeouts
 type Client struct {
-	cli      http.Client
-	qps      uint
-	codes    []uint64
-	timings  []time.Duration
-	bytesOut []int64
-	bytesIn  []int64
+	http.Client
+	rate uint
 }
 
-func NewClient(qps uint) *Client {
-	return &Client{
-		cli:      http.Client{},
-		qps:      qps,
-		codes:    []uint64{},
-		timings:  []time.Duration{},
-		bytesOut: []int64{},
-		bytesIn:  []int64{},
-	}
+// Response represents the metrics we want out of an http.Response
+type Response struct {
+	code      uint64
+	timestamp time.Time
+	timing    time.Duration
+	bytesOut  uint64
+	bytesIn   uint64
+	err       error
+}
+
+// NewClient returns an initialized Client
+func NewClient(rate uint) *Client {
+	return &Client{http.Client{}, rate}
 }
 
 // Drill loops over the passed reqs channel and executes each request.
 // It is throttled to the qps specified in the initializer
-func (c *Client) Drill(reqs chan *http.Request) {
-	throttle := time.Tick(time.Duration(1e9 / c.qps))
-	for req := range reqs {
-		<-throttle
-		go c.Do(req)
+func (c *Client) Drill(reqs chan *http.Request, res chan *Response) {
+	for _ = range time.Tick(time.Duration(1e9 / c.rate)) {
+		if req, ok := <-reqs; !ok {
+			break
+		} else {
+			go c.Do(req, res)
+		}
 	}
 }
 
-// Do executes the passed http.Request and saves some metrics
-// (timings, bytesIn, bytesOut, codes)
-func (c *Client) Do(req *http.Request) (*http.Response, error) {
+// Do executes the passed http.Request and puts a generated *Response into res.
+func (c *Client) Do(req *http.Request, res chan *Response) {
 	began := time.Now()
-	resp, err := c.cli.Do(req)
-	c.timings = append(c.timings, time.Since(began))
-	c.bytesOut = append(c.bytesOut, req.ContentLength)
-	c.bytesIn = append(c.bytesIn, resp.ContentLength)
-	c.codes[resp.StatusCode]++
-	return resp, err
+	r, err := c.Client.Do(req)
+	resp := &Response{
+		timestamp: began,
+		timing:    time.Since(began),
+		bytesOut:  uint64(req.ContentLength),
+		err:       err,
+	}
+	if err == nil {
+		resp.bytesIn, resp.code = uint64(r.ContentLength), uint64(r.StatusCode)
+		if body, err := ioutil.ReadAll(r.Body); err != nil && resp.code < 200 || resp.code >= 300 {
+			resp.err = errors.New(string(body))
+		}
+	}
+
+	res <- resp
 }

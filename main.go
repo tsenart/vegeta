@@ -2,72 +2,90 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 )
-
-// -qps=10 -urls=xxx.txt -mode={sequential,random} {-requests=N,-duration=T}
 
 func main() {
 	var (
 		// Flags
-		qps      = flag.Uint("qps", 50, "Queries Per Second")
-		urlsFile = flag.String("urls", "urls.txt", "URLs file")
-		mode     = flag.String("mode", "random", "sequential or random")
-		requests = flag.Uint("requests", 5000, "Number of requests to do")
-		duration = flag.Duration("duration", 10*time.Second, "Maximum duration of execution")
+		rate     = flag.Uint("rate", 50, "Requests per second")
+		targetsf = flag.String("targets", "targets.txt", "Targets file")
+		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
+		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
+		reporter = flag.String("reporter", "text", "Reporter to use [text]")
 	)
 	flag.Parse()
 
-	// Validate QPS argument
-	if *qps == 0 {
-		log.Fatal("qps can't be zero")
-	}
-	// Magic formula that assumes each client can
-	// sustain 500 QPS under normal circumstances
-	clients := make([]*Client, int(math.Ceil(float64(*qps)/500.0)))
-	qpsClient := *qps / uint(len(clients))
-	for i := 0; i < len(clients); i++ {
-		clients[i] = NewClient(qpsClient)
+	if flag.NFlag() == 0 {
+		flag.Usage()
+		return
 	}
 
-	// Parse URLs file
-	urls, err := NewURLsFromFile(*urlsFile)
+	// Validate rate argument
+	if *rate == 0 {
+		log.Fatal("rate can't be zero")
+	}
+	// Magic formula that assumes each client can
+	// sustain 200 RPS under normal circumstances
+	clients := make([]*Client, int(math.Ceil(float64(*rate)/200.0)))
+	ratePerClient := *rate / uint(len(clients))
+	for i := 0; i < len(clients); i++ {
+		clients[i] = NewClient(ratePerClient)
+	}
+
+	// Parse targets file
+	targets, err := NewTargetsFromFile(*targetsf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Parse mode argument
+	// Parse ordering argument
 	random := false
-	if *mode == "random" {
+	if *ordering == "random" {
 		rand.Seed(time.Now().UnixNano())
 		random = true
-	} else if *mode != "sequential" {
-		log.Fatal("Unknown mode %s", *mode)
+	} else if *ordering != "sequential" {
+		log.Fatalf("Unknown ordering %s", *ordering)
 	}
 
-	// Parse number of requests and duration
-	if *requests == 0 && *duration == 0 {
-		log.Fatal("Neither requests or duration was provided")
+	// Parse duration
+	if *duration == 0 {
+		log.Fatal("Duration provided is invalid")
 	}
 
-	fmt.Printf("Hitting %d URLs in %s mode for %s with %d requests and %d clients.",
-		len(urls), *mode, duration.String(), *requests, len(clients))
-
-	reqs := make(chan *http.Request, *requests)
+	hits := make(chan *http.Request, *rate*uint((*duration).Seconds()))
+	for i, idxs := 0, targets.Iter(random); i < cap(hits); i++ {
+		hits <- targets[idxs[i%len(idxs)]]
+	}
+	// Attack!
+	responses := make(chan *Response, cap(hits))
 	for _, client := range clients {
-		go client.Drill(reqs)
+		go client.Drill(hits, responses)
 	}
-	for _, index := range urls.Iter(random) {
-		url := urls[index]
-		req, err := http.NewRequest("GET", url.String(), nil)
-		if err != nil {
-			log.Fatal("Bad request: %s", err)
-		}
-		reqs <- req
+	log.Printf("Vegeta is attacking ")
+	log.Printf("%d targets in %s order for %s with %d clients.\n", len(targets), *ordering, duration, len(clients))
+
+	var rep Reporter
+	switch *reporter {
+	case "text":
+		rep = NewTextReporter(len(responses))
+	default:
+		log.Println("reporter provided is not supported. using text")
+		rep = NewTextReporter(len(responses))
+	}
+	// Wait for all requests to finish
+	for i := 0; i < cap(responses); i++ {
+		rep.Add(<-responses)
+	}
+	close(hits)
+	close(responses)
+
+	if rep.Report(os.Stdout) != nil {
+		log.Fatal("Failed to report!")
 	}
 }
