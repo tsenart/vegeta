@@ -60,10 +60,6 @@ func main() {
 		rep = NewTextReporter()
 	}
 
-	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
-	attack(targets, *ordering, *rate, *duration, rep)
-	log.Println("Done!")
-
 	var out io.WriteCloser
 	switch *output {
 	case "stdout":
@@ -71,10 +67,15 @@ func main() {
 	default:
 		out, err = os.Create(*output)
 		if err != nil {
-			log.Printf("Couldn't open `%s` for writing report: %s", *output, err)
+			log.Fatalf("Couldn't open `%s` for writing report: %s", *output, err)
 		}
 		defer out.Close()
 	}
+
+	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
+	attack(targets, *ordering, *rate, *duration, rep)
+	log.Println("Done!")
+
 	// Report results!
 	log.Printf("Writing report to '%s'...", *output)
 	if rep.Report(out) != nil {
