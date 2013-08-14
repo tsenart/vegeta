@@ -1,7 +1,7 @@
 # Vegeta
 
 Vegeta is a versatile HTTP load testing tool built out of need to drill
-HTTP services with a relatively constant request rate.
+HTTP services with a constant request rate.
 
 ![Vegeta](https://dl.dropboxusercontent.com/u/83217940/vegeta.png)
 
@@ -57,7 +57,7 @@ HEAD http://goku:9090/path/to/success
 ## TODO
 * Add timeout options to the requests
 * Graphical reporters
-* Test
+* More tests
 
 ## Licence
 See the `LICENSE` file.
