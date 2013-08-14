@@ -3,6 +3,8 @@
 Vegeta is a versatile HTTP load testing tool built out of need to drill
 HTTP services with a relatively constant request rate.
 
+![Vegeta](https://dl.dropboxusercontent.com/u/83217940/vegeta.png)
+
 ## Install
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
