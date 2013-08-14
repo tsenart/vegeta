@@ -4,7 +4,6 @@ import (
 	"flag"
 	"io"
 	"log"
-	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -89,23 +88,14 @@ func main() {
 }
 
 func attack(targets Targets, ordering string, rate uint, duration time.Duration, rep Reporter) {
-	// Magic formula that assumes each client can
-	// sustain 200 RPS under normal circumstances
-	clients := make([]*Client, int(math.Ceil(float64(rate)/200.0)))
-	ratePerClient := rate / uint(len(clients))
-	for i := 0; i < len(clients); i++ {
-		clients[i] = NewClient(ratePerClient)
-	}
-
 	hits := make(chan *http.Request, rate*uint((duration).Seconds()))
 	defer close(hits)
-	for i, idxs := 0, targets.Iter(ordering); i < cap(hits); i++ {
-		hits <- targets[idxs[i%len(idxs)]]
-	}
 	responses := make(chan *Response, cap(hits))
 	defer close(responses)
-	for _, client := range clients {
-		go client.Drill(hits, responses) // Attack!
+	client := NewClient(rate)
+	go client.Drill(hits, responses) // Attack!
+	for i, idxs := 0, targets.Iter(ordering); i < cap(hits); i++ {
+		hits <- targets[idxs[i%len(idxs)]]
 	}
 	// Wait for all requests to finish
 	for i := 0; i < cap(responses); i++ {
