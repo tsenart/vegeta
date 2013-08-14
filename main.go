@@ -30,14 +30,6 @@ func main() {
 	if *rate == 0 {
 		log.Fatal("rate can't be zero")
 	}
-	// Magic formula that assumes each client can
-	// sustain 200 RPS under normal circumstances
-	clients := make([]*Client, int(math.Ceil(float64(*rate)/200.0)))
-	ratePerClient := *rate / uint(len(clients))
-	for i := 0; i < len(clients); i++ {
-		clients[i] = NewClient(ratePerClient)
-	}
-
 	// Parse targets file
 	targets, err := NewTargetsFromFile(*targetsf)
 	if err != nil {
@@ -45,10 +37,8 @@ func main() {
 	}
 
 	// Parse ordering argument
-	random := false
 	if *ordering == "random" {
 		rand.Seed(time.Now().UnixNano())
-		random = true
 	} else if *ordering != "sequential" {
 		log.Fatalf("Unknown ordering %s", *ordering)
 	}
@@ -58,34 +48,46 @@ func main() {
 		log.Fatal("Duration provided is invalid")
 	}
 
-	hits := make(chan *http.Request, *rate*uint((*duration).Seconds()))
-	for i, idxs := 0, targets.Iter(random); i < cap(hits); i++ {
-		hits <- targets[idxs[i%len(idxs)]]
-	}
-	// Attack!
-	responses := make(chan *Response, cap(hits))
-	for _, client := range clients {
-		go client.Drill(hits, responses)
-	}
-	log.Printf("Vegeta is attacking ")
-	log.Printf("%d targets in %s order for %s with %d clients.\n", len(targets), *ordering, duration, len(clients))
-
+	// Parse reporter
 	var rep Reporter
 	switch *reporter {
 	case "text":
-		rep = NewTextReporter(len(responses))
+		rep = NewTextReporter()
 	default:
 		log.Println("reporter provided is not supported. using text")
-		rep = NewTextReporter(len(responses))
+		rep = NewTextReporter()
+	}
+
+	log.Printf("Vegeta is attacking %d targets in %s order for %s\n", len(targets), *ordering, *duration)
+	attack(targets, *ordering, *rate, *duration, rep)
+
+	// Report results!
+	if rep.Report(os.Stdout) != nil {
+		log.Fatal("Failed to report!")
+	}
+}
+
+func attack(targets Targets, ordering string, rate uint, duration time.Duration, rep Reporter) {
+	// Magic formula that assumes each client can
+	// sustain 200 RPS under normal circumstances
+	clients := make([]*Client, int(math.Ceil(float64(rate)/200.0)))
+	ratePerClient := rate / uint(len(clients))
+	for i := 0; i < len(clients); i++ {
+		clients[i] = NewClient(ratePerClient)
+	}
+
+	hits := make(chan *http.Request, rate*uint((duration).Seconds()))
+	defer close(hits)
+	for i, idxs := 0, targets.Iter(ordering); i < cap(hits); i++ {
+		hits <- targets[idxs[i%len(idxs)]]
+	}
+	responses := make(chan *Response, cap(hits))
+	defer close(responses)
+	for _, client := range clients {
+		go client.Drill(hits, responses) // Attack!
 	}
 	// Wait for all requests to finish
 	for i := 0; i < cap(responses); i++ {
 		rep.Add(<-responses)
-	}
-	close(hits)
-	close(responses)
-
-	if rep.Report(os.Stdout) != nil {
-		log.Fatal("Failed to report!")
 	}
 }

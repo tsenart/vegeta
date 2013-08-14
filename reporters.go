@@ -17,8 +17,8 @@ type TextReporter struct {
 }
 
 // NewTextReporter initializes a TextReporter with n responses
-func NewTextReporter(n int) *TextReporter {
-	return &TextReporter{responses: make([]*Response, n)}
+func NewTextReporter() *TextReporter {
+	return &TextReporter{responses: make([]*Response, 0)}
 }
 
 // Add adds a response to be used in the report

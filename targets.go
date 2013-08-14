@@ -49,8 +49,8 @@ func NewTargets(source io.Reader) (Targets, error) {
 	return targets, nil
 }
 
-func (t Targets) Iter(random bool) []int {
-	if random {
+func (t Targets) Iter(ordering string) []int {
+	if ordering == "random" {
 		return rand.Perm(len(t))
 	}
 	iter := make([]int, len(t))
