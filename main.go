@@ -8,8 +8,13 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 )
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
 
 func main() {
 	var (
