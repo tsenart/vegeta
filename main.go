@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -18,6 +19,7 @@ func main() {
 		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
 		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
 		reporter = flag.String("reporter", "text", "Reporter to use [text]")
+		output   = flag.String("output", "stdout", "Reporter output file")
 	)
 	flag.Parse()
 
@@ -58,12 +60,25 @@ func main() {
 		rep = NewTextReporter()
 	}
 
-	log.Printf("Vegeta is attacking %d targets in %s order for %s\n", len(targets), *ordering, *duration)
+	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
 	attack(targets, *ordering, *rate, *duration, rep)
+	log.Println("Done!")
 
+	var out io.WriteCloser
+	switch *output {
+	case "stdout":
+		out = os.Stdout
+	default:
+		out, err = os.Create(*output)
+		if err != nil {
+			log.Printf("Couldn't open `%s` for writing report: %s", *output, err)
+		}
+		defer out.Close()
+	}
 	// Report results!
-	if rep.Report(os.Stdout) != nil {
-		log.Fatal("Failed to report!")
+	log.Printf("Writing report to '%s'...", *output)
+	if rep.Report(out) != nil {
+		log.Println("Failed to report!")
 	}
 }
 

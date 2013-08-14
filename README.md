@@ -18,6 +18,7 @@ $ vegeta -h
 Usage of vegeta:
   -duration=10s: Duration of the test
   -ordering="random": Attack ordering [sequential, random]
+  -output="stdout": Reporter output file
   -rate=50: Requests per second
   -reporter="text": Reporter to use [text]
   -targets="targets.txt": Targets file
@@ -35,6 +36,10 @@ it will randomly pick one of the targets per request without ever choosing
 that target again.
 The other option is `sequential` and it does what you would expect it to
 do.
+
+#### -output
+Specifies the output file to which the report will be written to.
+The default is stdout.
 
 ####  -rate
 Specifies the requests per second rate to issue requests with against
