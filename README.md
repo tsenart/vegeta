@@ -15,7 +15,7 @@ $ go install github.com/tsenart/vegeta
 $ vegeta -h
 Usage of vegeta:
   -duration=10s: Duration of the test
-  -ordering="random": sequential or random
+  -ordering="random": Attack ordering [sequential, random]
   -rate=50: Requests per second
   -reporter="text": Reporter to use [text]
   -targets="targets.txt": Targets file
@@ -54,7 +54,7 @@ HEAD http://goku:9090/path/to/success
 
 ## TODO
 * Add timeout options to the requests
-* Graphical reports
+* Graphical reporters
 * Test
 
 ## Licence
