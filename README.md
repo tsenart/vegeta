@@ -58,11 +58,26 @@ HEAD http://goku:9090/path/to/success
 ...
 ```
 
+#### Limitations
+There will be an upper bound of the supported `rate` which varies on the
+machine being used.
+You could be CPU bound (unlikely), memory bound (more likely) or
+have system resource limits being reached which ought to be tuned for
+the process execution. The important limits for us are file descriptors
+and processes. On a UNIX system you can get and set the current
+soft-limit values for a user.
+```shell
+$ ulimit -n # file descriptors
+2560
+$ ulimit -u # processes / threads
+709
+```
+Just pass a new number as the argument to change it.
 
 ## TODO
 * Add timeout options to the requests
 * Graphical reporters
-* Cluster mode
+* Cluster mode (to overcome single machine limits)
 * More tests
 * HTTPS
 
