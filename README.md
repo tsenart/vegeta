@@ -62,11 +62,9 @@ HEAD http://goku:9090/path/to/success
 ## TODO
 * Add timeout options to the requests
 * Graphical reporters
+* Cluster mode
 * More tests
+* HTTPS
 
 ## Licence
 See the `LICENSE` file.
-
-
-
-
