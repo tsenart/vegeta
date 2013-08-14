@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"syscall"
 	"time"
 )
 
@@ -30,6 +31,10 @@ func main() {
 	if flag.NFlag() == 0 {
 		flag.Usage()
 		return
+	}
+
+	if err := increaseResourceLimits(); err != nil {
+		log.Fatalf("Couldn't increase resource limits: %s", err)
 	}
 
 	// Validate rate argument
@@ -101,4 +106,12 @@ func attack(targets Targets, ordering string, rate uint, duration time.Duration,
 	for i := 0; i < cap(responses); i++ {
 		rep.Add(<-responses)
 	}
+}
+
+func increaseResourceLimits() error {
+	limit := &syscall.Rlimit{Cur: syscall.RLIM_INFINITY}
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, limit); err != nil {
+		return err
+	}
+	return nil
 }
