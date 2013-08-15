@@ -42,8 +42,9 @@ Specifies the output file to which the report will be written to.
 The default is stdout.
 
 ####  -rate
-Specifies the requests per second rate to issue requests with against
-the targets
+Specifies the requests per second rate to issue against
+the targets. The actual request rate can vary slightly due to things like
+garbage collection, but overall it should stay very close to the specified.
 
 #### -reporter
 Specifies the reporting type to display the results with.
