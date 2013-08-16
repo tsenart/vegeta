@@ -22,16 +22,11 @@ func NewTargetsFromFile(filename string) (Targets, error) {
 }
 
 func NewTargets(source io.Reader) (Targets, error) {
-	reader := bufio.NewReader(source)
 	targets := make([]*http.Request, 0)
+	scanner := bufio.NewScanner(source)
 
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err == io.EOF {
-			break
-		} else if err != nil {
-			return targets, err
-		}
+	for scanner.Scan() {
+		line := scanner.Text()
 		if line = strings.TrimSpace(line); line == "" { // Empty line
 			continue
 		}
@@ -45,6 +40,9 @@ func NewTargets(source io.Reader) (Targets, error) {
 			return targets, fmt.Errorf("Failed to build request: %s", err)
 		}
 		targets = append(targets, req)
+	}
+	if err := scanner.Err(); err != nil {
+		return targets, err
 	}
 	return targets, nil
 }
