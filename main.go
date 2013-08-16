@@ -40,9 +40,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if *ordering == "random" {
+	switch *ordering {
+	case "random":
 		rand.Seed(time.Now().UnixNano())
-	} else if *ordering != "sequential" {
+	case "sequential":
+		break
+	default:
 		log.Fatalf("Unknown ordering %s", *ordering)
 	}
 
