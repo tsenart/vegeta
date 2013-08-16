@@ -17,7 +17,6 @@ func init() {
 
 func main() {
 	var (
-		// Flags
 		rate     = flag.Uint("rate", 50, "Requests per second")
 		targetsf = flag.String("targets", "targets.txt", "Targets file")
 		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
@@ -32,29 +31,25 @@ func main() {
 		return
 	}
 
-	// Validate rate argument
 	if *rate == 0 {
 		log.Fatal("rate can't be zero")
 	}
-	// Parse targets file
+
 	targets, err := NewTargetsFromFile(*targetsf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Parse ordering argument
 	if *ordering == "random" {
 		rand.Seed(time.Now().UnixNano())
 	} else if *ordering != "sequential" {
 		log.Fatalf("Unknown ordering %s", *ordering)
 	}
 
-	// Parse duration
 	if *duration == 0 {
 		log.Fatal("Duration provided is invalid")
 	}
 
-	// Parse reporter
 	var rep Reporter
 	switch *reporter {
 	case "text":
@@ -80,7 +75,6 @@ func main() {
 	attack(targets, *ordering, *rate, *duration, rep)
 	log.Println("Done!")
 
-	// Report results!
 	log.Printf("Writing report to '%s'...", *output)
 	if rep.Report(out) != nil {
 		log.Println("Failed to report!")
