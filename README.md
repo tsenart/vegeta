@@ -77,6 +77,7 @@ Just pass a new number as the argument to change it.
 
 ## TODO
 * Add timeout options to the requests
+* Use TabWriter in TextReporter
 * Graphical reporters
 * Cluster mode (to overcome single machine limits)
 * More tests
