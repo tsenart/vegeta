@@ -49,13 +49,11 @@ func NewTargets(source io.Reader) (Targets, error) {
 	return targets, nil
 }
 
-func (t Targets) Iter(ordering string) []int {
-	if ordering == "random" {
-		return rand.Perm(len(t))
+func (t Targets) Shuffle(seed int64) {
+	rand.Seed(seed)
+	for i, rnd := range rand.Perm(len(t)) {
+		tmp := t[i]
+		t[i] = t[rnd]
+		t[rnd] = tmp
 	}
-	iter := make([]int, len(t))
-	for i := 0; i < len(t); i++ {
-		iter[i] = i
-	}
-	return iter
 }

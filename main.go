@@ -4,7 +4,6 @@ import (
 	"flag"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
@@ -42,7 +41,7 @@ func main() {
 
 	switch *ordering {
 	case "random":
-		rand.Seed(time.Now().UnixNano())
+		targets.Shuffle(time.Now().UnixNano())
 	case "sequential":
 		break
 	default:
@@ -92,8 +91,8 @@ func attack(targets Targets, ordering string, rate uint, duration time.Duration,
 	defer close(responses)
 	client := NewClient(rate)
 	go client.Drill(hits, responses) // Attack!
-	for i, idxs := 0, targets.Iter(ordering); i < cap(hits); i++ {
-		hits <- targets[idxs[i%len(idxs)]]
+	for i := 0; i < cap(hits); i++ {
+		hits <- targets[i%len(targets)]
 	}
 	// Wait for all requests to finish
 	for i := 0; i < cap(responses); i++ {
