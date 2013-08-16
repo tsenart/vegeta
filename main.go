@@ -16,7 +16,7 @@ func init() {
 
 func main() {
 	var (
-		rate     = flag.Uint("rate", 50, "Requests per second")
+		rate     = flag.Uint64("rate", 50, "Requests per second")
 		targetsf = flag.String("targets", "targets.txt", "Targets file")
 		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
 		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
@@ -84,8 +84,8 @@ func main() {
 	}
 }
 
-func attack(targets Targets, ordering string, rate uint, duration time.Duration, rep Reporter) {
-	hits := make(chan *http.Request, rate*uint((duration).Seconds()))
+func attack(targets Targets, ordering string, rate uint64, duration time.Duration, rep Reporter) {
+	hits := make(chan *http.Request, rate*uint64((duration).Seconds()))
 	defer close(hits)
 	responses := make(chan *Response, cap(hits))
 	defer close(responses)

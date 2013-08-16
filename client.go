@@ -11,7 +11,7 @@ import (
 // TODO: Add timeouts
 type Client struct {
 	http.Client
-	rate uint
+	rate uint64
 }
 
 // Response represents the metrics we want out of an http.Response
@@ -25,12 +25,12 @@ type Response struct {
 }
 
 // NewClient returns an initialized Client
-func NewClient(rate uint) *Client {
+func NewClient(rate uint64) *Client {
 	return &Client{http.Client{}, rate}
 }
 
 // Drill loops over the passed reqs channel and executes each request.
-// It is throttled to the qps specified in the initializer
+// It is throttled to the rate specified in the initializer
 func (c *Client) Drill(reqs chan *http.Request, res chan *Response) {
 	throttle := time.Tick(time.Duration(1e9 / c.rate))
 	for req := range reqs {
