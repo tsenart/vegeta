@@ -32,12 +32,10 @@ func NewClient(rate uint) *Client {
 // Drill loops over the passed reqs channel and executes each request.
 // It is throttled to the qps specified in the initializer
 func (c *Client) Drill(reqs chan *http.Request, res chan *Response) {
-	for _ = range time.Tick(time.Duration(1e9 / c.rate)) {
-		if req, ok := <-reqs; !ok {
-			break
-		} else {
-			go c.Do(req, res)
-		}
+	throttle := time.Tick(time.Duration(1e9 / c.rate))
+	for req := range reqs {
+		<-throttle
+		go c.Do(req, res)
 	}
 }
 
