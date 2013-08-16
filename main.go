@@ -62,16 +62,17 @@ func main() {
 		rep = NewTextReporter()
 	}
 
-	var out io.WriteCloser
+	var out io.Writer
 	switch *output {
 	case "stdout":
 		out = os.Stdout
 	default:
-		out, err = os.Create(*output)
+		file, err := os.Create(*output)
 		if err != nil {
 			log.Fatalf("Couldn't open `%s` for writing report: %s", *output, err)
 		}
-		defer out.Close()
+		defer file.Close()
+		out = file
 	}
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
