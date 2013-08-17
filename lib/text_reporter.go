@@ -7,12 +7,6 @@ import (
 	"time"
 )
 
-// Reporter represents any reporter of the results of the test
-type Reporter interface {
-	Report(io.Writer) error
-	add(res *result)
-}
-
 // TextReporter prints the test results as text
 // Metrics incude avg time per request, success ratio,
 // total number of request, avg bytes in and avg bytes out

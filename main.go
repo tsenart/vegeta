@@ -20,7 +20,7 @@ func main() {
 		targetsf = flag.String("targets", "targets.txt", "Targets file")
 		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
 		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
-		reporter = flag.String("reporter", "text", "Reporter to use [text]")
+		reporter = flag.String("reporter", "text", "Reporter to use [text, plot:timings]")
 		output   = flag.String("output", "stdout", "Reporter output file")
 	)
 	flag.Parse()
@@ -56,8 +56,10 @@ func main() {
 	switch *reporter {
 	case "text":
 		rep = vegeta.NewTextReporter()
+	case "plot:timings":
+		rep = vegeta.NewTimingsPlotReporter()
 	default:
-		log.Println("reporter provided is not supported. using text")
+		log.Println("Reporter provided is not supported. using text")
 		rep = vegeta.NewTextReporter()
 	}
 
