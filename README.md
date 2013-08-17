@@ -49,7 +49,21 @@ garbage collection, but overall it should stay very close to the specified.
 
 #### -reporter
 Specifies the reporting type to display the results with.
-The default is a text report printed to stdout.
+The default is the text report printed to stdout.
+##### -reporter=text
+```
+Time(avg)	Requests	Success		Bytes(rx/tx)
+152.341ms	200		    17.00%		251.00/0.00
+
+Count:		49	30	39	48	34
+Status:		500	404	409	503	200
+
+Error Set:
+Server Timeout
+Page Not Found
+```
+##### -reporter=plot:timings
+![plot](https://dl.dropboxusercontent.com/u/83217940/plot.svg)
 
 #### -targets
 Specifies the attack targets in a line sepated file. The format should
