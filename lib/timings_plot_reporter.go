@@ -66,7 +66,7 @@ func (r *TimingsPlotReporter) Report(out io.Writer) error {
 	pts := make(plotter.XYs, len(timestamps))
 	for i := 0; i < len(pts); i++ {
 		pts[i].X = timestamps[i].Sub(timestamps[0]).Seconds()
-		pts[i].Y = timings[i].Seconds()
+		pts[i].Y = timings[i].Seconds() * 1000
 	}
 
 	line, err := plotter.NewLine(pts)
@@ -79,7 +79,7 @@ func (r *TimingsPlotReporter) Report(out io.Writer) error {
 	p.X.Padding = vg.Length(3.0)
 	p.X.Label.Text = "Time elapsed"
 	p.Y.Padding = vg.Length(3.0)
-	p.Y.Label.Text = "Latency (seconds)"
+	p.Y.Label.Text = "Latency (ms)"
 
 	w, h := vg.Millimeters(float64(len(timestamps))), vg.Centimeters(12.0)
 	canvas := vgsvg.New(w, h)
