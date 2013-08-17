@@ -89,8 +89,8 @@ func attack(targets Targets, ordering string, rate uint64, duration time.Duratio
 	defer close(hits)
 	responses := make(chan *Response, cap(hits))
 	defer close(responses)
-	client := NewClient(rate)
-	go client.Drill(hits, responses) // Attack!
+	client := Client{}
+	go client.Drill(rate, hits, responses) // Attack!
 	for i := 0; i < cap(hits); i++ {
 		hits <- targets[i%len(targets)]
 	}

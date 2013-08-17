@@ -9,10 +9,7 @@ import (
 
 // Client is an http.Client with rate limiting
 // TODO: Add timeouts
-type Client struct {
-	http.Client
-	rate uint64
-}
+type Client struct{ http.Client }
 
 // Response represents the metrics we want out of an http.Response
 type Response struct {
@@ -24,15 +21,10 @@ type Response struct {
 	err       error
 }
 
-// NewClient returns an initialized Client
-func NewClient(rate uint64) *Client {
-	return &Client{http.Client{}, rate}
-}
-
 // Drill loops over the passed reqs channel and executes each request.
-// It is throttled to the rate specified in the initializer
-func (c *Client) Drill(reqs chan *http.Request, res chan *Response) {
-	throttle := time.Tick(time.Duration(1e9 / c.rate))
+// It is throttled to the rate specified
+func (c *Client) Drill(rate uint64, reqs chan *http.Request, res chan *Response) {
+	throttle := time.Tick(time.Duration(1e9 / rate))
 	for req := range reqs {
 		<-throttle
 		go c.Do(req, res)

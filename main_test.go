@@ -21,10 +21,10 @@ func TestAttackRate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rate := uint(5000)
+	rate := uint64(5000)
 	rep := NewTextReporter()
 	attack(targets, "random", rate, 1*time.Second, rep)
-	if hits := atomic.LoadUint64(&hitCount); uint(hits) != rate {
+	if hits := atomic.LoadUint64(&hitCount); hits != rate {
 		rep.Report(os.Stdout)
 		t.Fatalf("Wrong number of hits: want %d, got %d\n", rate, hits)
 	}
