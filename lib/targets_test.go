@@ -1,4 +1,4 @@
-package main
+package vegeta
 
 import (
 	"bytes"
@@ -6,9 +6,24 @@ import (
 	"testing"
 )
 
+func TestReadTargets(t *testing.T) {
+	lines := bytes.NewBufferString("GET http://lolcathost:9999/\n\nHEAD http://lolcathost:9999/\n")
+	targets, err := readTargets(lines)
+	if err != nil {
+		t.Fatalf("Couldn't parse valid source: %s", err)
+	}
+	for i, method := range []string{"GET", "HEAD"} {
+		if targets[i].Method != method ||
+			targets[i].URL.String() != "http://lolcathost:9999/" {
+			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
+				targets[i].Method, targets[i].URL.String())
+		}
+	}
+}
+
 func TestNewTargets(t *testing.T) {
-	text := "GET http://lolcathost:9999/\n\nHEAD http://lolcathost:9999/\n"
-	targets, err := NewTargets(bytes.NewBufferString(text))
+	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}
+	targets, err := NewTargets(lines)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}

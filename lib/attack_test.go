@@ -1,7 +1,6 @@
-package main
+package vegeta
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,13 +16,10 @@ func TestAttackRate(t *testing.T) {
 			atomic.AddUint64(&hitCount, 1)
 		}),
 	)
-	targets, err := NewTargets(bytes.NewBufferString("GET " + server.URL + "\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	request, _ := http.NewRequest("GET", server.URL, nil)
 	rate := uint64(5000)
 	rep := NewTextReporter()
-	attack(targets, "random", rate, 1*time.Second, rep)
+	Attack(Targets{request}, rate, 1*time.Second, rep)
 	if hits := atomic.LoadUint64(&hitCount); hits != rate {
 		rep.Report(os.Stdout)
 		t.Fatalf("Wrong number of hits: want %d, got %d\n", rate, hits)

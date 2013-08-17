@@ -2,6 +2,7 @@
 
 Vegeta is a versatile HTTP load testing tool built out of need to drill
 HTTP services with a constant request rate.
+It can be used both as a command line utility and a library.
 
 ![Vegeta](https://dl.dropboxusercontent.com/u/83217940/vegeta.png)
 
@@ -12,7 +13,7 @@ command:
 $ go install github.com/tsenart/vegeta
 ```
 
-## Usage
+## Usage (CLI)
 ```shell
 $ vegeta -h
 Usage of vegeta:
@@ -59,6 +60,28 @@ HEAD http://goku:9090/path/to/success
 ...
 ```
 
+## Usage (Library)
+```go
+package main
+
+import (
+  vegeta "github.com/tsenart/vegeta/lib"
+  "time"
+  "os"
+)
+
+func main() {
+  targets := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
+  rate := uint64(100) // per second
+  duration := 4 * time.Second
+  reporter := vegeta.NewTextReporter()
+
+  vegeta.Attack(targets, rate, duration, reporter)
+
+  reporter.Report(os.Stdout)
+}
+```
+
 #### Limitations
 There will be an upper bound of the supported `rate` which varies on the
 machine being used.
@@ -79,7 +102,6 @@ Just pass a new number as the argument to change it.
 * Add timeout options to the requests
 * Graphical reporters
 * Cluster mode (to overcome single machine limits)
-* More tests
 * HTTPS
 
 ## Licence

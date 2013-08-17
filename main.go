@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
+	vegeta "github.com/tsenart/vegeta/lib"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"runtime"
 	"time"
@@ -34,7 +34,7 @@ func main() {
 		log.Fatal("rate can't be zero")
 	}
 
-	targets, err := NewTargetsFromFile(*targetsf)
+	targets, err := vegeta.NewTargetsFromFile(*targetsf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,13 +52,13 @@ func main() {
 		log.Fatal("Duration provided is invalid")
 	}
 
-	var rep Reporter
+	var rep vegeta.Reporter
 	switch *reporter {
 	case "text":
-		rep = NewTextReporter()
+		rep = vegeta.NewTextReporter()
 	default:
 		log.Println("reporter provided is not supported. using text")
-		rep = NewTextReporter()
+		rep = vegeta.NewTextReporter()
 	}
 
 	var out io.Writer
@@ -75,27 +75,11 @@ func main() {
 	}
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
-	attack(targets, *ordering, *rate, *duration, rep)
+	vegeta.Attack(targets, *rate, *duration, rep)
 	log.Println("Done!")
 
 	log.Printf("Writing report to '%s'...", *output)
 	if rep.Report(out) != nil {
 		log.Println("Failed to report!")
-	}
-}
-
-func attack(targets Targets, ordering string, rate uint64, duration time.Duration, rep Reporter) {
-	hits := make(chan *http.Request, rate*uint64((duration).Seconds()))
-	defer close(hits)
-	responses := make(chan *Response, cap(hits))
-	defer close(responses)
-	client := Client{}
-	go client.Drill(rate, hits, responses) // Attack!
-	for i := 0; i < cap(hits); i++ {
-		hits <- targets[i%len(targets)]
-	}
-	// Wait for all requests to finish
-	for i := 0; i < cap(responses); i++ {
-		rep.Add(<-responses)
 	}
 }

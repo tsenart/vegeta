@@ -1,4 +1,4 @@
-package main
+package vegeta
 
 import (
 	"fmt"
@@ -9,23 +9,20 @@ import (
 
 // Reporter represents any reporter of the results of the test
 type Reporter interface {
-	Add(res *Response)
 	Report(io.Writer) error
+	add(res *result)
 }
 
+// TextReporter prints the test results as text
+// Metrics incude avg time per request, success ratio,
+// total number of request, avg bytes in and avg bytes out
 type TextReporter struct {
-	responses []*Response
+	responses []*result
 }
 
 // NewTextReporter initializes a TextReporter with n responses
 func NewTextReporter() *TextReporter {
-	return &TextReporter{responses: make([]*Response, 0)}
-}
-
-// Add adds a response to be used in the report
-// Order of arrival is not relevant for this reporter
-func (r *TextReporter) Add(res *Response) {
-	r.responses = append(r.responses, res)
+	return &TextReporter{responses: make([]*result, 0)}
 }
 
 // Report computes and writes the report to out.
@@ -76,4 +73,10 @@ func (r *TextReporter) Report(out io.Writer) error {
 	}
 
 	return w.Flush()
+}
+
+// add adds a response to be used in the report
+// Order of arrival is not relevant for this reporter
+func (r *TextReporter) add(res *result) {
+	r.responses = append(r.responses, res)
 }
