@@ -63,6 +63,7 @@ Server Timeout
 Page Not Found
 ```
 ##### -reporter=plot:timings
+Plots the request timings in SVG format.
 ![plot](https://dl.dropboxusercontent.com/u/83217940/plot.svg)
 
 #### -targets
