@@ -21,7 +21,7 @@ Usage of vegeta:
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Reporter output file
   -rate=50: Requests per second
-  -reporter="text": Reporter to use [text]
+  -reporter="text": Reporter to use [text, plot:timings]
   -targets="targets.txt": Targets file
 ```
 
