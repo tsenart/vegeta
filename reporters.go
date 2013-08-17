@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"text/tabwriter"
 	"time"
 )
 
@@ -56,21 +57,23 @@ func (r *TextReporter) Report(out io.Writer) error {
 	avgBytesIn := float64(totalBytesIn) / float64(totalRequests)
 	avgSuccess := float64(totalSuccess) / float64(totalRequests)
 
-	buf := ""
-	buf += fmt.Sprintln("Results: ")
-	buf += fmt.Sprintf("Time      (avg): %s\n", avgTime)
-	buf += fmt.Sprintf("Bytes out (avg): %f\n", avgBytesOut)
-	buf += fmt.Sprintf("Bytes in  (avg): %f\n", avgBytesIn)
-	buf += fmt.Sprintf("Success ratio:   %f\n", avgSuccess)
-	buf += fmt.Sprintf("Requests:        %d\n", totalRequests)
-	buf += fmt.Sprintln("\nStatus codes histogram:")
-	for code, count := range histogram {
-		buf += fmt.Sprintf("%3d\t%d\n", code, count)
+	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
+	fmt.Fprintf(w, "Time(avg)\tRequests\tSuccess\tBytes(rx/tx)\n")
+	fmt.Fprintf(w, "%s\t%d\t%.2f%%\t%.2f/%.2f\n", avgTime, totalRequests, avgSuccess*100, avgBytesOut, avgBytesIn)
+
+	fmt.Fprintf(w, "\nCount:\t")
+	for _, count := range histogram {
+		fmt.Fprintf(w, "%d\t", count)
 	}
-	buf += fmt.Sprintln("\nError set:")
+	fmt.Fprintf(w, "\nStatus:\t")
+	for code, _ := range histogram {
+		fmt.Fprintf(w, "%d\t", code)
+	}
+
+	fmt.Fprintln(w, "\n\nError Set:")
 	for err, _ := range errors {
-		buf += fmt.Sprintln(err)
+		fmt.Fprintln(w, err)
 	}
-	_, err := out.Write([]byte(buf))
-	return err
+
+	return w.Flush()
 }
