@@ -10,6 +10,7 @@ It can be used both as a command line utility and a library.
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 ```shell
+$ go get github.com/tsenart/vegeta
 $ go install github.com/tsenart/vegeta
 ```
 
