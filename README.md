@@ -7,6 +7,22 @@ It can be used both as a command line utility and a library.
 ![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
 
 ## Install
+### Pre-compiled executables
+You can download already compiled executables for Linux and Mac OS X
+(64bits).
+```
+Linux
+URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64.tar.gz
+SHA256 of the executable:
+c13be78b0f56238e17c448ca5f3c551f90ced9465e19a401122869e736a0d183
+
+Mac OS X
+URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64.tar.gz
+SHA256 of the executable:
+6264bde2504f14617585e1af81a3ebfd720df7f366c1412189be77fa4f32c70e
+```
+
+### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 ```shell
