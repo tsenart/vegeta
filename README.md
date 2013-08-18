@@ -8,18 +8,27 @@ It can be used both as a command line utility and a library.
 
 ## Install
 ### Pre-compiled executables
-You can download already compiled executables for Linux and Mac OS X
-(64bits).
+You can download already compiled executables for Linux and Mac OS X.
 ```
-Linux
+Linux 64 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64.tar.gz
 SHA256 of the executable:
 c13be78b0f56238e17c448ca5f3c551f90ced9465e19a401122869e736a0d183
 
-Mac OS X
+Linux 32 bit
+URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386.tar.gz
+SHA256 of the executable:
+48899772e061ecad954bc156867b1d3c183e9aa211a4b63436e8b75c34772609
+
+Mac OS X 64 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64.tar.gz
 SHA256 of the executable:
 6264bde2504f14617585e1af81a3ebfd720df7f366c1412189be77fa4f32c70e
+
+Mac OS X 32 bit
+URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386.tar.gz
+SHA256 of the executable:
+23f4202712c330e3786e1bd3e114115de573a504e1ecddc03e5ae1e09c8a76ff
 ```
 
 ### Source
