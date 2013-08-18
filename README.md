@@ -97,6 +97,7 @@ Specifies the attack targets in a line sepated file. The format should
 be as follows:
 ```
 GET http://goku:9090/path/to/dragon?item=balls
+GET http://user:password@goku:9090/path/to
 HEAD http://goku:9090/path/to/success
 ...
 ```
