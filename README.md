@@ -113,7 +113,7 @@ import (
 )
 
 func main() {
-  targets := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
+  targets, _ := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
   rate := uint64(100) // per second
   duration := 4 * time.Second
   reporter := vegeta.NewTextReporter()
