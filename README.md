@@ -13,22 +13,22 @@ You can download already compiled executables for Linux and Mac OS X.
 Linux 64 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64.tar.gz
 SHA256 of the executable:
-c13be78b0f56238e17c448ca5f3c551f90ced9465e19a401122869e736a0d183
+a9c5f41e44465c28dcbc58813b3868ffefd6c8a050a12e6a7d19ec1cba021518
 
 Linux 32 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386.tar.gz
 SHA256 of the executable:
-48899772e061ecad954bc156867b1d3c183e9aa211a4b63436e8b75c34772609
+af185355cfe405e8cb554459a27b8e502ba1bb77011cab1c676315b55a3a49b7
 
 Mac OS X 64 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64.tar.gz
 SHA256 of the executable:
-6264bde2504f14617585e1af81a3ebfd720df7f366c1412189be77fa4f32c70e
+3144ba0fe80ec7ea7b735718599d9fbda95eda8ecc6f6be2ac57b3cedb2f21df
 
 Mac OS X 32 bit
 URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386.tar.gz
 SHA256 of the executable:
-23f4202712c330e3786e1bd3e114115de573a504e1ecddc03e5ae1e09c8a76ff
+40a5bc50c3f9516fa01c903a0d5a1662478ac9c3da0bf00ed4a7920ffd2633ab
 ```
 
 ### Source
