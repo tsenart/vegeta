@@ -59,7 +59,7 @@ func hit(req *http.Request, res chan *result) {
 	}
 	if err == nil {
 		result.bytesIn, result.code = uint64(r.ContentLength), uint64(r.StatusCode)
-		if body, err := ioutil.ReadAll(r.Body); err != nil && result.code < 200 || result.code >= 300 {
+		if body, err := ioutil.ReadAll(r.Body); err != nil && (result.code < 200 || result.code >= 300) {
 			result.err = errors.New(string(body))
 		}
 	}
