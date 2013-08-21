@@ -7,7 +7,7 @@ import (
 )
 
 func TestReadTargets(t *testing.T) {
-  lines := bytes.NewBufferString("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
+	lines := bytes.NewBufferString("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
 	targets, err := readTargets(lines)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)

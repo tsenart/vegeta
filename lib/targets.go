@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-  "regexp"
 	"math/rand"
 	"net/http"
 	"os"
@@ -31,8 +30,8 @@ func readTargets(source io.Reader) (Targets, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if !skipLine(line) { // Not a comment or blank line
-      lines = append(lines, line)
+		if line = strings.TrimSpace(line); line != "" && line[0:2] != "//" { // A comment or blank line
+			lines = append(lines, line)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -40,10 +39,6 @@ func readTargets(source io.Reader) (Targets, error) {
 	}
 
 	return NewTargets(lines)
-}
-
-func skipLine(line string) (bool) {
-  return regexp.MustCompile(`^\s*((\/\/)|$)`).MatchString(line)
 }
 
 // NewTargets instantiates Targets from a slice of strings
