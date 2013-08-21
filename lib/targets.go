@@ -29,10 +29,10 @@ func readTargets(source io.Reader) (Targets, error) {
 	lines := make([]string, 0)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line = strings.TrimSpace(line); line == "" { // Empty line
-			continue
+
+		if line = strings.TrimSpace(line); line != "" && line[0:2] != "//" { // A comment or blank line
+			lines = append(lines, line)
 		}
-		lines = append(lines, line)
 	}
 	if err := scanner.Err(); err != nil {
 		return Targets{}, err
