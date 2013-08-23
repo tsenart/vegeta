@@ -13,7 +13,7 @@ import (
 func Attack(targets Targets, rate uint64, duration time.Duration, rep Reporter) {
 	hits := make(chan *http.Request, rate*uint64((duration).Seconds()))
 	defer close(hits)
-	responses := make(chan *result, cap(hits))
+	responses := make(chan *Result, cap(hits))
 	defer close(responses)
 	go drill(rate, hits, responses) // Attack!
 	for i := 0; i < cap(hits); i++ {
@@ -26,10 +26,10 @@ func Attack(targets Targets, rate uint64, duration time.Duration, rep Reporter) 
 }
 
 // result represents the metrics we want out of an http.Response
-type result struct {
+type Result struct {
 	code      uint64
-	timestamp time.Time
-	timing    time.Duration
+	Timestamp time.Time
+	Timing    time.Duration
 	bytesOut  uint64
 	bytesIn   uint64
 	err       error
@@ -37,23 +37,23 @@ type result struct {
 
 // drill loops over the passed reqs channel and executes each request.
 // It is throttled to the rate specified.
-func drill(rate uint64, reqs chan *http.Request, res chan *result) {
+func drill(rate uint64, reqs chan *http.Request, res chan *Result) {
 	throttle := time.Tick(time.Duration(1e9 / rate))
 	for req := range reqs {
 		<-throttle
-		go hit(req, res)
+		go Hit(req, res)
 	}
 }
 
 // hit executes the passed http.Request and puts a generated *result into res.
 // Both transport errors and unsucessfull requests (non {2xx,3xx}) are
 // considered errors which are set in the Response.
-func hit(req *http.Request, res chan *result) {
+func Hit(req *http.Request, res chan *Result) {
 	began := time.Now()
 	r, err := http.DefaultClient.Do(req)
-	result := &result{
-		timestamp: began,
-		timing:    time.Since(began),
+	result := &Result{
+		Timestamp: began,
+		Timing:    time.Since(began),
 		bytesOut:  uint64(req.ContentLength),
 		err:       err,
 	}

@@ -11,12 +11,12 @@ import (
 // Metrics incude avg time per request, success ratio,
 // total number of request, avg bytes in and avg bytes out
 type TextReporter struct {
-	responses []*result
+	responses []*Result
 }
 
 // NewTextReporter initializes a TextReporter with n responses
 func NewTextReporter() *TextReporter {
-	return &TextReporter{responses: make([]*result, 0)}
+	return &TextReporter{responses: make([]*Result, 0)}
 }
 
 // Report computes and writes the report to out.
@@ -32,7 +32,7 @@ func (r *TextReporter) Report(out io.Writer) error {
 
 	for _, res := range r.responses {
 		histogram[res.code]++
-		totalTime += res.timing
+		totalTime += res.Timing
 		totalBytesOut += res.bytesOut
 		totalBytesIn += res.bytesIn
 		if res.code >= 200 && res.code < 300 {
@@ -71,6 +71,6 @@ func (r *TextReporter) Report(out io.Writer) error {
 
 // add adds a response to be used in the report
 // Order of arrival is not relevant for this reporter
-func (r *TextReporter) add(res *result) {
+func (r *TextReporter) add(res *Result) {
 	r.responses = append(r.responses, res)
 }
