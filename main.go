@@ -81,7 +81,7 @@ func main() {
 	log.Println("Done!")
 
 	log.Printf("Writing report to '%s'...", *output)
-	if rep.Report(out) != nil {
-		log.Println("Failed to report!")
+	if err = rep.Report(out); err != nil {
+		log.Printf("Failed to report: %s", err)
 	}
 }
