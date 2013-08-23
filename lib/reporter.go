@@ -7,5 +7,5 @@ import (
 // Reporter represents any reporter of the results of the test
 type Reporter interface {
 	Report(io.Writer) error
-	add(res *result)
+	add(res *Result)
 }
