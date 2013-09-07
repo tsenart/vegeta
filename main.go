@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	vegeta "github.com/tsenart/vegeta/lib"
 	"io"
 	"log"
@@ -30,58 +31,76 @@ func main() {
 		return
 	}
 
-	if *rate == 0 {
-		log.Fatal("rate can't be zero")
-	}
-
-	targets, err := vegeta.NewTargetsFromFile(*targetsf)
-	if err != nil {
+	if err := run(*rate, *duration, *targetsf, *ordering, *reporter, *output); err != nil {
 		log.Fatal(err)
 	}
+}
 
-	switch *ordering {
-	case "random":
-		targets.Shuffle(time.Now().UnixNano())
-	case "sequential":
-		break
-	default:
-		log.Fatalf("Unknown ordering %s", *ordering)
+var (
+	errRatePrefix        = "Rate: "
+	errDurationPrefix    = "Duration: "
+	errOutputFilePrefix  = "Output file: "
+	errTargetsFilePrefix = "Targets file: "
+	errOrderingPrefix    = "Ordering: "
+	errReportingPrefix   = "Reporting: "
+)
+
+// attack is an utility function that validates the attack arguments, sets up the
+// required resources, launches the attack and reports the results
+func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, output string) error {
+	if rate == 0 {
+		return fmt.Errorf(errRatePrefix + "can't be zero")
 	}
 
-	if *duration == 0 {
-		log.Fatal("Duration provided is invalid")
-	}
-
-	var rep vegeta.Reporter
-	switch *reporter {
-	case "text":
-		rep = vegeta.NewTextReporter()
-	case "plot:timings":
-		rep = vegeta.NewTimingsPlotReporter()
-	default:
-		log.Println("Reporter provided is not supported. using text")
-		rep = vegeta.NewTextReporter()
+	if duration == 0 {
+		return fmt.Errorf(errDurationPrefix + "can't be zero")
 	}
 
 	var out io.Writer
-	switch *output {
+	switch output {
 	case "stdout":
 		out = os.Stdout
 	default:
-		file, err := os.Create(*output)
+		file, err := os.Create(output)
 		if err != nil {
-			log.Fatalf("Couldn't open `%s` for writing report: %s", *output, err)
+			return fmt.Errorf(errOutputFilePrefix+"(%s): %s", output, err)
 		}
 		defer file.Close()
 		out = file
 	}
 
-	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), *ordering, *duration)
-	vegeta.Attack(targets, *rate, *duration, rep)
+	var rep vegeta.Reporter
+	switch reporter {
+	case "text":
+		rep = vegeta.NewTextReporter()
+	case "plot:timings":
+		rep = vegeta.NewTimingsPlotReporter()
+	default:
+		log.Println("Reporter provided is not supported. Using text")
+		rep = vegeta.NewTextReporter()
+	}
+
+	targets, err := vegeta.NewTargetsFromFile(targetsf)
+	if err != nil {
+		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
+	}
+
+	switch ordering {
+	case "random":
+		targets.Shuffle(time.Now().UnixNano())
+	case "sequential":
+		break
+	default:
+		return fmt.Errorf(errOrderingPrefix+"`%s` is invalid", ordering)
+	}
+
+	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
+	vegeta.Attack(targets, rate, duration, rep)
 	log.Println("Done!")
 
-	log.Printf("Writing report to '%s'...", *output)
+	log.Printf("Writing report to '%s'...", output)
 	if err = rep.Report(out); err != nil {
-		log.Printf("Failed to report: %s", err)
+		return fmt.Errorf(errReportingPrefix+"%s", err)
 	}
+	return nil
 }
