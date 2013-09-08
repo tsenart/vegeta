@@ -53,11 +53,13 @@ func TestOutputValidation(t *testing.T) {
 }
 
 func TestReporter(t *testing.T) {
-	rate, duration, targetsf, ordering, reporter, output := defaultArguments()
+	rate, duration, targetsf, ordering, _, output := defaultArguments()
 
-	err := run(rate, duration, targetsf, ordering, reporter, output)
-	if err != nil {
-		t.Errorf("Reporter shouldn't return an error: %s", err)
+	for _, reporter := range []string{"text", "plot:timings"} {
+		err := run(rate, duration, targetsf, ordering, reporter, output)
+		if err != nil {
+			t.Errorf("Reporter `%s` shouldn't return an error: %s", reporter, err)
+		}
 	}
 }
 
