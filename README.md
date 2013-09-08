@@ -8,28 +8,10 @@ It can be used both as a command line utility and a library.
 
 ## Install
 ### Pre-compiled executables
-You can download already compiled executables for Linux and Mac OS X.
-```
-Linux 64 bit
-URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64.tar
-SHA256 of the executable:
-91483be3f3235ce72740751d38985c8b0c702b1eccdef67b02cf5b56620e8a19
-
-Linux 32 bit
-URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386.tar
-SHA256 of the executable:
-0937a2a65a9a376fb2cec08c6f580c412675ae1e6eccf64d804472945b613871
-
-Mac OS X 64 bit
-URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64.tar
-SHA256 of the executable:
-e594b69a24f93c96a2b26d6d39f12d9dc111e9636324452bd08856d1d919794d
-
-Mac OS X 32 bit
-URL: https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386.tar
-SHA256 of the executable:
-f209a1798f2e9b2e5b32d4be09b10333c74e45f1ed7527e63d331063db95aa39
-```
+* [Mac OSX 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64-fecd4f8.tar.gz)
+* [Mac OSX 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386-fecd4f8.tar.gz)
+* [Linux 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64-fecd4f8.tar.gz)
+* [Linux 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386-fecd4f8.tar.gz)
 
 ### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the

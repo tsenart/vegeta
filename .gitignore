@@ -24,3 +24,5 @@ _testmain.go
 vegeta
 vegeta.test
 targets.txt
+
+vegeta-*.tar.gz
