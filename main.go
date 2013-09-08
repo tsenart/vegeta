@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-}
-
 func main() {
 	var (
 		rate     = flag.Uint64("rate", 50, "Requests per second")
@@ -23,6 +19,7 @@ func main() {
 		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
 		reporter = flag.String("reporter", "text", "Reporter to use [text, plot:timings]")
 		output   = flag.String("output", "stdout", "Reporter output file")
+		cpus     = flag.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 	)
 	flag.Parse()
 
@@ -30,6 +27,8 @@ func main() {
 		flag.Usage()
 		return
 	}
+
+	runtime.GOMAXPROCS(*cpus)
 
 	if err := run(*rate, *duration, *targetsf, *ordering, *reporter, *output); err != nil {
 		log.Fatal(err)
