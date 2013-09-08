@@ -30,7 +30,8 @@ func readTargets(source io.Reader) (Targets, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if line = strings.TrimSpace(line); line != "" && line[0:2] != "//" { // A comment or blank line
+		if line = strings.TrimSpace(line); line != "" && line[0:2] != "//" {
+			// Skipping comments or blank lines
 			lines = append(lines, line)
 		}
 	}
