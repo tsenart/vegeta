@@ -12,36 +12,36 @@ import (
 )
 
 type TimingsPlotReporter struct {
-	responses *list.List
+	results *list.List
 }
 
 // NewTimingsPlotReporter initializes a TimingsPlotReporter
 func NewTimingsPlotReporter() *TimingsPlotReporter {
-	return &TimingsPlotReporter{responses: list.New()}
+	return &TimingsPlotReporter{results: list.New()}
 }
 
 // add inserts response to be used in the report, sorted by timestamp.
-func (r *TimingsPlotReporter) add(res *result) {
+func (r *TimingsPlotReporter) add(res *Result) {
 	// Empty list
-	if r.responses.Len() == 0 {
-		r.responses.PushFront(res)
+	if r.results.Len() == 0 {
+		r.results.PushFront(res)
 		return
 	}
 	// Happened after all others
-	if last := r.responses.Back().Value.(*result); last.timestamp.Before(res.timestamp) {
-		r.responses.PushBack(res)
+	if last := r.results.Back().Value.(*Result); last.Timestamp.Before(res.Timestamp) {
+		r.results.PushBack(res)
 		return
 	}
 	// Happened before all others
-	if first := r.responses.Front().Value.(*result); first.timestamp.After(res.timestamp) {
-		r.responses.PushFront(res)
+	if first := r.results.Front().Value.(*Result); first.Timestamp.After(res.Timestamp) {
+		r.results.PushFront(res)
 		return
 	}
 	// O(n) worst case insertion time
-	for e := r.responses.Front(); e != nil; e = e.Next() {
-		needle := e.Value.(*result)
-		if res.timestamp.Before(needle.timestamp) {
-			r.responses.InsertBefore(res, e)
+	for e := r.results.Front(); e != nil; e = e.Next() {
+		needle := e.Value.(*Result)
+		if res.Timestamp.Before(needle.Timestamp) {
+			r.results.InsertBefore(res, e)
 			return
 		}
 	}
@@ -53,10 +53,10 @@ func (r *TimingsPlotReporter) Report(out io.Writer) error {
 	timestamps := make([]time.Time, 0)
 	timings := make([]time.Duration, 0)
 
-	for e := r.responses.Front(); e != nil; e = e.Next() {
-		r := e.Value.(*result)
-		timestamps = append(timestamps, r.timestamp)
-		timings = append(timings, r.timing)
+	for e := r.results.Front(); e != nil; e = e.Next() {
+		r := e.Value.(*Result)
+		timestamps = append(timestamps, r.Timestamp)
+		timings = append(timings, r.Timing)
 	}
 
 	p, err := plot.New()

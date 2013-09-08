@@ -11,18 +11,18 @@ import (
 // Metrics incude avg time per request, success ratio,
 // total number of request, avg bytes in and avg bytes out
 type TextReporter struct {
-	responses []*result
+	results []*Result
 }
 
 // NewTextReporter initializes a TextReporter with n responses
 func NewTextReporter() *TextReporter {
-	return &TextReporter{responses: make([]*result, 0)}
+	return &TextReporter{results: make([]*Result, 0)}
 }
 
 // Report computes and writes the report to out.
 // It returns an error in case of failure.
 func (r *TextReporter) Report(out io.Writer) error {
-	totalRequests := len(r.responses)
+	totalRequests := len(r.results)
 	totalTime := time.Duration(0)
 	totalBytesOut := uint64(0)
 	totalBytesIn := uint64(0)
@@ -30,16 +30,16 @@ func (r *TextReporter) Report(out io.Writer) error {
 	histogram := map[uint64]uint64{}
 	errors := map[string]struct{}{}
 
-	for _, res := range r.responses {
-		histogram[res.code]++
-		totalTime += res.timing
-		totalBytesOut += res.bytesOut
-		totalBytesIn += res.bytesIn
-		if res.code >= 200 && res.code < 300 {
+	for _, res := range r.results {
+		histogram[res.Code]++
+		totalTime += res.Timing
+		totalBytesOut += res.BytesOut
+		totalBytesIn += res.BytesIn
+		if res.Code >= 200 && res.Code < 300 {
 			totalSuccess++
 		}
-		if res.err != nil {
-			errors[res.err.Error()] = struct{}{}
+		if res.Error != nil {
+			errors[res.Error.Error()] = struct{}{}
 		}
 	}
 
@@ -71,6 +71,6 @@ func (r *TextReporter) Report(out io.Writer) error {
 
 // add adds a response to be used in the report
 // Order of arrival is not relevant for this reporter
-func (r *TextReporter) add(res *result) {
-	r.responses = append(r.responses, res)
+func (r *TextReporter) add(res *Result) {
+	r.results = append(r.results, res)
 }
