@@ -25,6 +25,7 @@ $ go install github.com/tsenart/vegeta
 ```shell
 $ vegeta -h
 Usage of vegeta:
+  -cpus=n: Number of CPUs to use
   -duration=10s: Duration of the test
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Reporter output file
@@ -32,6 +33,10 @@ Usage of vegeta:
   -reporter="text": Reporter to use [text, plot:timings]
   -targets="targets.txt": Targets file
 ```
+
+#### -cpus
+Specifies the number of CPUs to be used internally.
+It defaults to the amount of CPUs available in the system.
 
 #### -duration
 Specifies the amount of time to issue request to the targets.
