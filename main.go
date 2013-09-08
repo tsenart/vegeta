@@ -36,7 +36,7 @@ func main() {
 	}
 }
 
-var (
+const (
 	errRatePrefix        = "Rate: "
 	errDurationPrefix    = "Duration: "
 	errOutputFilePrefix  = "Output file: "
