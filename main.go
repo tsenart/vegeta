@@ -45,7 +45,7 @@ const (
 	errReportingPrefix   = "Reporting: "
 )
 
-// attack is an utility function that validates the attack arguments, sets up the
+// run is an utility function that validates the attack arguments, sets up the
 // required resources, launches the attack and reports the results
 func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, output string) error {
 	if rate == 0 {
