@@ -71,12 +71,12 @@ func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, outp
 	var rep vegeta.Reporter
 	switch reporter {
 	case "text":
-		rep = vegeta.NewTextReporter()
+		rep = vegeta.ReportText
 	case "plot:timings":
-		rep = vegeta.NewTimingsPlotReporter()
+		rep = vegeta.ReportTimingsPlot
 	default:
 		log.Println("Reporter provided is not supported. Using text")
-		rep = vegeta.NewTextReporter()
+		rep = vegeta.ReportText
 	}
 
 	targets, err := vegeta.NewTargetsFromFile(targetsf)
@@ -94,12 +94,10 @@ func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, outp
 	}
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
-	for _, result := range vegeta.Attack(targets, rate, duration) {
-		rep.Add(&result)
-	}
+	results := vegeta.Attack(targets, rate, duration)
 	log.Println("Done!")
 	log.Printf("Writing report to '%s'...", output)
-	if err = rep.Report(out); err != nil {
+	if err = rep(results, out); err != nil {
 		return fmt.Errorf(errReportingPrefix+"%s", err)
 	}
 	return nil

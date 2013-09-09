@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -14,7 +15,7 @@ func Attack(targets Targets, rate uint64, duration time.Duration) []Result {
 	total := rate * uint64(duration.Seconds())
 	hits := make(chan *http.Request, total)
 	res := make(chan Result, total)
-	results := make([]Result, total)
+	results := make(Results, total)
 	// Scatter
 	go drill(rate, hits, res)
 	for i := 0; i < cap(hits); i++ {
@@ -26,6 +27,8 @@ func Attack(targets Targets, rate uint64, duration time.Duration) []Result {
 		results[i] = <-res
 	}
 	close(res)
+
+	sort.Sort(results)
 
 	return results
 }
@@ -39,6 +42,13 @@ type Result struct {
 	BytesIn   uint64
 	Error     error
 }
+
+// Results is a slice of Result defined only to be sortable with sort.Interface
+type Results []Result
+
+func (r Results) Len() int           { return len(r) }
+func (r Results) Less(i, j int) bool { return r[i].Timestamp.Before(r[j].Timestamp) }
+func (r Results) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 
 // drill loops over the passed reqs channel and executes each request.
 // It is throttled to the rate specified.
