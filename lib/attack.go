@@ -35,7 +35,7 @@ func Attack(targets Targets, rate uint64, duration time.Duration) []Result {
 
 // Result represents the metrics we want out of an http.Response
 type Result struct {
-	Code      uint64
+	Code      uint16
 	Timestamp time.Time
 	Timing    time.Duration
 	BytesOut  uint64
@@ -73,7 +73,7 @@ func hit(req *http.Request, res chan Result) {
 		Error:     err,
 	}
 	if err == nil {
-		result.Code = uint64(r.StatusCode)
+		result.Code = uint16(r.StatusCode)
 		if body, err := ioutil.ReadAll(r.Body); err != nil {
 			if result.Code < 200 || result.Code >= 300 {
 				result.Error = errors.New(string(body))

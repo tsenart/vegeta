@@ -26,7 +26,7 @@ func ReportText(results []Result, out io.Writer) error {
 	totalBytesOut := uint64(0)
 	totalBytesIn := uint64(0)
 	totalSuccess := uint64(0)
-	histogram := map[uint64]uint64{}
+	histogram := map[uint16]uint64{}
 	errors := map[string]struct{}{}
 
 	for _, res := range results {
