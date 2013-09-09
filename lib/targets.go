@@ -64,8 +64,6 @@ func NewTargets(lines []string) (Targets, error) {
 func (t Targets) Shuffle(seed int64) {
 	rand.Seed(seed)
 	for i, rnd := range rand.Perm(len(t)) {
-		tmp := t[i]
-		t[i] = t[rnd]
-		t[rnd] = tmp
+		t[i], t[rnd] = t[rnd], t[i]
 	}
 }
