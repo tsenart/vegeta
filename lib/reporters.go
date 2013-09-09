@@ -56,12 +56,12 @@ func ReportText(results []Result, out io.Writer) error {
 		fmt.Fprintf(w, "%d\t", count)
 	}
 	fmt.Fprintf(w, "\nStatus:\t")
-	for code, _ := range histogram {
+	for code := range histogram {
 		fmt.Fprintf(w, "%d\t", code)
 	}
 
 	fmt.Fprintln(w, "\n\nError Set:")
-	for err, _ := range errors {
+	for err := range errors {
 		fmt.Fprintln(w, err)
 	}
 
