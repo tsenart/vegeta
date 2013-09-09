@@ -20,8 +20,8 @@ func NewTimingsPlotReporter() *TimingsPlotReporter {
 	return &TimingsPlotReporter{results: list.New()}
 }
 
-// add inserts response to be used in the report, sorted by timestamp.
-func (r *TimingsPlotReporter) add(res *Result) {
+// Add inserts response to be used in the report, sorted by timestamp.
+func (r *TimingsPlotReporter) Add(res *Result) {
 	// Empty list
 	if r.results.Len() == 0 {
 		r.results.PushFront(res)

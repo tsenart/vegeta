@@ -97,17 +97,23 @@ import (
   vegeta "github.com/tsenart/vegeta/lib"
   "time"
   "os"
+  "fmt"
 )
 
 func main() {
   targets, _ := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
   rate := uint64(100) // per second
   duration := 4 * time.Second
-  reporter := vegeta.NewTextReporter()
 
-  vegeta.Attack(targets, rate, duration, reporter)
+  results := vegeta.Attack(targets, rate, duration)
 
-  reporter.Report(os.Stdout)
+  totalTime := time.Duration(0)
+  for _, result := range results {
+    totalTime += result.Timing
+  }
+  meanTime := time.Duration(float64(totalTime) / float64(len(results)))
+
+  fmt.Printf("Average timing: %s", meanTime)
 }
 ```
 

@@ -69,8 +69,8 @@ func (r *TextReporter) Report(out io.Writer) error {
 	return w.Flush()
 }
 
-// add adds a response to be used in the report
+// Add adds a response to be used in the report
 // Order of arrival is not relevant for this reporter
-func (r *TextReporter) add(res *Result) {
+func (r *TextReporter) Add(res *Result) {
 	r.results = append(r.results, res)
 }

@@ -94,9 +94,10 @@ func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, outp
 	}
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
-	vegeta.Attack(targets, rate, duration, rep)
+	for _, result := range vegeta.Attack(targets, rate, duration) {
+		rep.Add(&result)
+	}
 	log.Println("Done!")
-
 	log.Printf("Writing report to '%s'...", output)
 	if err = rep.Report(out); err != nil {
 		return fmt.Errorf(errReportingPrefix+"%s", err)
