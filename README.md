@@ -96,7 +96,6 @@ package main
 import (
   vegeta "github.com/tsenart/vegeta/lib"
   "time"
-  "os"
   "fmt"
 )
 
