@@ -48,7 +48,7 @@ func NewMetrics(results []Result) *Metrics {
 	m.MeanSuccess = float64(m.TotalSuccess) / float64(m.TotalRequests)
 
 	m.Errors = make([]string, 0, len(errorSet))
-	for err, _ := range errorSet {
+	for err := range errorSet {
 		m.Errors = append(m.Errors, err)
 	}
 
