@@ -31,7 +31,7 @@ func ReportText(results []Result, out io.Writer) error {
 	}
 	fmt.Fprintf(w, "\nStatus:\t")
 	for code := range m.StatusCodes {
-		fmt.Fprintf(w, "%d\t", code)
+		fmt.Fprintf(w, "%s\t", code)
 	}
 
 	fmt.Fprintln(w, "\n\nError Set:")
