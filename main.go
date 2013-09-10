@@ -17,7 +17,7 @@ func main() {
 		targetsf = flag.String("targets", "targets.txt", "Targets file")
 		ordering = flag.String("ordering", "random", "Attack ordering [sequential, random]")
 		duration = flag.Duration("duration", 10*time.Second, "Duration of the test")
-		reporter = flag.String("reporter", "text", "Reporter to use [text, plot:timings]")
+		reporter = flag.String("reporter", "text", "Reporter to use [text, json, plot:timings]")
 		output   = flag.String("output", "stdout", "Reporter output file")
 		cpus     = flag.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 	)
@@ -72,6 +72,8 @@ func run(rate uint64, duration time.Duration, targetsf, ordering, reporter, outp
 	switch reporter {
 	case "text":
 		rep = vegeta.ReportText
+	case "json":
+		rep = vegeta.ReportJSON
 	case "plot:timings":
 		rep = vegeta.ReportTimingsPlot
 	default:
