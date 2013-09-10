@@ -15,7 +15,7 @@ type Result struct {
 	Timing    time.Duration
 	BytesOut  uint64
 	BytesIn   uint64
-	Error     error
+	Error     string
 }
 
 // Results is a slice of Result structs with encoding,

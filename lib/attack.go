@@ -1,7 +1,6 @@
 package vegeta
 
 import (
-	"errors"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -50,13 +49,14 @@ func hit(req *http.Request, res chan Result) {
 		Timestamp: began,
 		Timing:    time.Since(began),
 		BytesOut:  uint64(req.ContentLength),
-		Error:     err,
 	}
-	if err == nil {
+	if err != nil {
+		result.Error = err.Error()
+	} else {
 		result.Code = uint16(r.StatusCode)
 		if body, err := ioutil.ReadAll(r.Body); err != nil {
 			if result.Code < 200 || result.Code >= 300 {
-				result.Error = errors.New(string(body))
+				result.Error = string(body)
 			}
 		} else {
 			result.BytesIn = uint64(len(body))
