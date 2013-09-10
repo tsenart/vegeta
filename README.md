@@ -30,7 +30,7 @@ Usage of vegeta:
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Reporter output file
   -rate=50: Requests per second
-  -reporter="text": Reporter to use [text, plot:timings]
+  -reporter="text": Reporter to use [text, json, plot:timings]
   -targets="targets.txt": Targets file
 ```
 
@@ -74,6 +74,24 @@ Status:		500	404	409	503	200
 Error Set:
 Server Timeout
 Page Not Found
+```
+##### -reporter=json
+```json
+{
+  "total_requests": 50,
+  "total_timing": 34779791,
+  "mean_timing": 695595,
+  "total_bytes_in": 272850,
+  "mean_bytes_in": 5457,
+  "total_bytes_out": 0,
+  "mean_bytes_out": 0,
+  "total_success": 50,
+  "mean_success": 1,
+  "status_codes": {
+    "200": 50
+  },
+  "errors": []
+}
 ```
 ##### -reporter=plot:timings
 Plots the request timings in SVG format.
