@@ -43,7 +43,7 @@ func TestNewMetrics(t *testing.T) {
 		}
 	}
 
-	if len(m.StatusCodes) != 2 || m.StatusCodes[200] != 2 || m.StatusCodes[500] != 1 {
+	if len(m.StatusCodes) != 2 || m.StatusCodes["200"] != 2 || m.StatusCodes["500"] != 1 {
 		t.Errorf("StatusCodes: want: %v, got: %v", map[int]int{200: 2, 500: 1}, m.StatusCodes)
 	}
 
