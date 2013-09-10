@@ -1,12 +1,27 @@
 package main
 
 import (
+	"flag"
 	vegeta "github.com/tsenart/vegeta/lib"
 	"io"
 	"log"
 	"os"
 )
 
+func reportCmd(args []string) command {
+	fs := flag.NewFlagSet("report", flag.ExitOnError)
+	reporter := fs.String("reporter", "text", "Reporter [text, json, plot:timings]")
+	input := fs.String("input", "stdin", "Vegeta Results file")
+	output := fs.String("output", "stdout", "Output file")
+	fs.Parse(args)
+
+	return func() error {
+		return report(*reporter, *input, *output)
+	}
+}
+
+// report validates the report arguments, sets up the required resources
+// and writes the report
 func report(reporter, input, output string) error {
 	var rep vegeta.Reporter
 	switch reporter {

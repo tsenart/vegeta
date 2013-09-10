@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	vegeta "github.com/tsenart/vegeta/lib"
 	"io"
@@ -9,17 +10,22 @@ import (
 	"time"
 )
 
-const (
-	errRatePrefix        = "Rate: "
-	errDurationPrefix    = "Duration: "
-	errOutputFilePrefix  = "Output file: "
-	errTargetsFilePrefix = "Targets file: "
-	errOrderingPrefix    = "Ordering: "
-	errReportingPrefix   = "Reporting: "
-)
+func attackCmd(args []string) command {
+	fs := flag.NewFlagSet("attack", flag.ExitOnError)
+	rate := fs.Uint64("rate", 50, "Requests per second")
+	targetsf := fs.String("targets", "targets.txt", "Targets file")
+	ordering := fs.String("ordering", "random", "Attack ordering [sequential, random]")
+	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
+	output := fs.String("output", "stdout", "Vegeta Results file")
+	fs.Parse(args)
 
-// attack is the command function that validates the attack arguments, sets up the
-// required resources, launches the attack and reports the results
+	return func() error {
+		return attack(*rate, *duration, *targetsf, *ordering, *output)
+	}
+}
+
+// attack validates the attack arguments, sets up the
+// required resources, launches the attack and writes the results
 func attack(rate uint64, duration time.Duration, targetsf, ordering, output string) error {
 	if rate == 0 {
 		return fmt.Errorf(errRatePrefix + "can't be zero")
@@ -65,3 +71,12 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	}
 	return nil
 }
+
+const (
+	errRatePrefix        = "Rate: "
+	errDurationPrefix    = "Duration: "
+	errOutputFilePrefix  = "Output file: "
+	errTargetsFilePrefix = "Targets file: "
+	errOrderingPrefix    = "Ordering: "
+	errReportingPrefix   = "Reporting: "
+)
