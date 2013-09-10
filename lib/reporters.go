@@ -6,6 +6,7 @@ import (
 	"code.google.com/p/plotinum/plotutil"
 	"code.google.com/p/plotinum/vg"
 	"code.google.com/p/plotinum/vg/vgsvg"
+	"encoding/json"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -39,6 +40,11 @@ func ReportText(results []Result, out io.Writer) error {
 	}
 
 	return w.Flush()
+}
+
+// ReportJSON writes a computed Metrics struct to out as JSON
+func ReportJSON(results []Result, out io.Writer) error {
+	return json.NewEncoder(out).Encode(NewMetrics(results))
 }
 
 // ReportTimingsPlot builds up a plot of the response times of the requests
