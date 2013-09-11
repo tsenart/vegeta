@@ -1,16 +1,15 @@
 package vegeta
 
 import (
-	"errors"
 	"testing"
 	"time"
 )
 
 func TestNewMetrics(t *testing.T) {
 	m := NewMetrics([]Result{
-		Result{500, time.Now(), 100 * time.Millisecond, 10, 30, errors.New("Internal server error")},
-		Result{200, time.Now(), 20 * time.Millisecond, 20, 20, nil},
-		Result{200, time.Now(), 30 * time.Millisecond, 30, 10, nil},
+		Result{500, time.Now(), 100 * time.Millisecond, 10, 30, "Internal server error"},
+		Result{200, time.Now(), 20 * time.Millisecond, 20, 20, ""},
+		Result{200, time.Now(), 30 * time.Millisecond, 30, 10, ""},
 	})
 
 	for field, values := range map[string][]float64{

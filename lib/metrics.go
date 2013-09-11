@@ -37,8 +37,8 @@ func NewMetrics(results []Result) *Metrics {
 		if result.Code >= 200 && result.Code < 300 {
 			m.TotalSuccess++
 		}
-		if result.Error != nil {
-			errorSet[result.Error.Error()] = struct{}{}
+		if result.Error != "" {
+			errorSet[result.Error] = struct{}{}
 		}
 	}
 

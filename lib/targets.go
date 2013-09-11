@@ -6,25 +6,14 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"os"
 	"strings"
 )
 
 // Targets represents the http.Requests which will be issued during the test
 type Targets []*http.Request
 
-// NewTargetsFromFile reads and parses targets from a text file
-func NewTargetsFromFile(filename string) (Targets, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return Targets{}, err
-	}
-	defer file.Close()
-	return readTargets(file)
-}
-
-// readTargets reads targets out of a line separated source skipping empty lines
-func readTargets(source io.Reader) (Targets, error) {
+// NewTargetsFrom reads targets out of a line separated source skipping empty lines
+func NewTargetsFrom(source io.Reader) (Targets, error) {
 	scanner := bufio.NewScanner(source)
 	lines := make([]string, 0)
 	for scanner.Scan() {
