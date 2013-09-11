@@ -35,7 +35,7 @@ func ReportText(results []Result, out io.Writer) error {
 	}
 
 	fmt.Fprintln(w, "\n\nError Set:")
-	for err := range m.Errors {
+	for _, err := range m.Errors {
 		fmt.Fprintln(w, err)
 	}
 
