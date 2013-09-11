@@ -3,9 +3,7 @@ package main
 import (
 	"flag"
 	vegeta "github.com/tsenart/vegeta/lib"
-	"io"
 	"log"
-	"os"
 )
 
 func reportCmd(args []string) command {
@@ -36,36 +34,23 @@ func report(reporter, input, output string) error {
 		rep = vegeta.ReportText
 	}
 
-	var in io.Reader
-	switch input {
-	case "stdin":
-		in = os.Stdin
-	default:
-		file, err := os.Open(input)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		in = file
+	in, err := file(input, false)
+	if err != nil {
+		return err
 	}
+	defer in.Close()
 
-	var out io.Writer
-	switch output {
-	case "stdout":
-		out = os.Stdout
-	default:
-		file, err := os.Create(output)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		out = file
+	out, err := file(output, true)
+	if err != nil {
+		return err
 	}
+	defer out.Close()
 
 	results := vegeta.Results{}
 	if err := results.ReadFrom(in); err != nil {
 		return err
 	}
+
 	if err := rep(results, out); err != nil {
 		return err
 	}

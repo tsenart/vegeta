@@ -4,16 +4,14 @@ import (
 	"flag"
 	"fmt"
 	vegeta "github.com/tsenart/vegeta/lib"
-	"io"
 	"log"
-	"os"
 	"time"
 )
 
 func attackCmd(args []string) command {
 	fs := flag.NewFlagSet("attack", flag.ExitOnError)
 	rate := fs.Uint64("rate", 50, "Requests per second")
-	targetsf := fs.String("targets", "targets.txt", "Targets file")
+	targetsf := fs.String("targets", "stdin", "Targets file")
 	ordering := fs.String("ordering", "random", "Attack ordering [sequential, random]")
 	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
 	output := fs.String("output", "stdout", "Output file")
@@ -35,7 +33,12 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 		return fmt.Errorf(errDurationPrefix + "can't be zero")
 	}
 
-	targets, err := vegeta.NewTargetsFromFile(targetsf)
+	in, err := file(targetsf, false)
+	if err != nil {
+		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
+	}
+	defer in.Close()
+	targets, err := vegeta.NewTargetsFrom(in)
 	if err != nil {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
 	}
@@ -49,18 +52,11 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 		return fmt.Errorf(errOrderingPrefix+"`%s` is invalid", ordering)
 	}
 
-	var out io.Writer
-	switch output {
-	case "stdout":
-		out = os.Stdout
-	default:
-		file, err := os.Create(output)
-		if err != nil {
-			return fmt.Errorf(errOutputFilePrefix+"(%s): %s", output, err)
-		}
-		defer file.Close()
-		out = file
+	out, err := file(output, true)
+	if err != nil {
+		return fmt.Errorf(errOutputFilePrefix+"(%s): %s", output, err)
 	}
+	defer out.Close()
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
 	results := vegeta.Attack(targets, rate, duration)

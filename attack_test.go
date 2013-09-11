@@ -33,25 +33,6 @@ func TestDurationValidation(t *testing.T) {
 	}
 }
 
-func TestOutputValidation(t *testing.T) {
-	rate, duration, targetsf, ordering, _ := defaultArguments()
-
-	// Good cases
-	for _, output := range []string{"stdout", "/dev/null"} {
-		err := attack(rate, duration, targetsf, ordering, output)
-		if err != nil {
-			t.Errorf("Output file `%s` should be valid: %s", output, err)
-		}
-	}
-
-	// Bad case
-	badOutput := ""
-	err := attack(rate, duration, targetsf, ordering, badOutput)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errOutputFilePrefix)) {
-		t.Errorf("Output file `%s` shouldn't be valid: %s", badOutput, err)
-	}
-}
-
 func TestTargetsValidation(t *testing.T) {
 	rate, duration, goodFile, ordering, output := defaultArguments()
 
