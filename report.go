@@ -11,7 +11,7 @@ import (
 func reportCmd(args []string) command {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	reporter := fs.String("reporter", "text", "Reporter [text, json, plot:timings]")
-	input := fs.String("input", "stdin", "Vegeta data file")
+	input := fs.String("input", "stdin", "Input file")
 	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
 

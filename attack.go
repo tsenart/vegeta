@@ -16,7 +16,7 @@ func attackCmd(args []string) command {
 	targetsf := fs.String("targets", "targets.txt", "Targets file")
 	ordering := fs.String("ordering", "random", "Attack ordering [sequential, random]")
 	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
-	output := fs.String("output", "stdout", "Vegeta data file")
+	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
 
 	return func() error {
