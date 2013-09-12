@@ -4,12 +4,13 @@ import (
 	"flag"
 	vegeta "github.com/tsenart/vegeta/lib"
 	"log"
+	"strings"
 )
 
 func reportCmd(args []string) command {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	reporter := fs.String("reporter", "text", "Reporter [text, json, plot:timings]")
-	input := fs.String("input", "stdin", "Input file")
+	input := fs.String("input", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
 
@@ -34,11 +35,19 @@ func report(reporter, input, output string) error {
 		rep = vegeta.ReportText
 	}
 
-	in, err := file(input, false)
-	if err != nil {
-		return err
+	all := vegeta.Results{}
+	for _, input := range strings.Split(input, ",") {
+		in, err := file(input, false)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		results := vegeta.Results{}
+		if err := results.ReadFrom(in); err != nil {
+			return err
+		}
+		all = append(all, results...)
 	}
-	defer in.Close()
 
 	out, err := file(output, true)
 	if err != nil {
@@ -46,12 +55,7 @@ func report(reporter, input, output string) error {
 	}
 	defer out.Close()
 
-	results := vegeta.Results{}
-	if err := results.ReadFrom(in); err != nil {
-		return err
-	}
-
-	if err := rep(results, out); err != nil {
+	if err := rep(all.Sort(), out); err != nil {
 		return err
 	}
 
