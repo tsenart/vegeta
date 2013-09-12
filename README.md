@@ -93,14 +93,16 @@ HEAD http://goku:9090/path/to/success
 ```
 $ vegeta report -h
 Usage of report:
-  -input="stdin": Input file
+  -input="stdin": Input files (comma separated)
   -output="stdout": Output file
   -reporter="text": Reporter [text, json, plot:timings]
 ```
 
 #### -input
-Specifies the input file from which the attack command binary results
-are saved. Defaults to stdin.
+Specifies the input files to generate the report of, defaulting to stdin.
+These are the output of vegeta attack. You can specify more than one (comma
+separated) and they will be merged and sorted before being used by the
+reports.
 
 #### -output
 Specifies the output file to which the report will be written to.
