@@ -187,10 +187,6 @@ $ ulimit -u # processes / threads
 ```
 Just pass a new number as the argument to change it.
 
-## TODO
-* Add timeout options to the requests
-* Cluster mode (to overcome single machine limits)
-
 ## Licence
 ```
 The MIT License (MIT)
