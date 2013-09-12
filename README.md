@@ -8,10 +8,10 @@ It can be used both as a command line utility and a library.
 
 ## Install
 ### Pre-compiled executables
-* [Mac OSX 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64-de53887.tar.gz)
-* [Mac OSX 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386-de53887.tar.gz)
-* [Linux 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64-de53887.tar.gz)
-* [Linux 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386-de53887.tar.gz)
+* [Mac OSX 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64-71fb8e4.tar.gz)
+* [Mac OSX 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386-71fb8e4.tar.gz)
+* [Linux 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64-71fb8e4.tar.gz)
+* [Linux 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386-71fb8e4.tar.gz)
 
 ### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
