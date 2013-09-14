@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"crypto/tls"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -39,12 +40,20 @@ func drill(rate uint64, reqs chan *http.Request, res chan Result) {
 	}
 }
 
+var client = &http.Client{
+	Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	},
+}
+
 // hit executes the passed http.Request and puts the result into results.
 // Both transport errors and unsucessfull requests (non {2xx,3xx}) are
 // considered errors.
 func hit(req *http.Request, res chan Result) {
 	began := time.Now()
-	r, err := http.DefaultClient.Do(req)
+	r, err := client.Do(req)
 	result := Result{
 		Timestamp: began,
 		Timing:    time.Since(began),
