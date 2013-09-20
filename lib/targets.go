@@ -56,3 +56,10 @@ func (t Targets) Shuffle(seed int64) {
 		t[i], t[rnd] = t[rnd], t[i]
 	}
 }
+
+// SetHeader sets the passed request header in all Targets
+func (t Targets) SetHeader(header http.Header) {
+	for _, target := range t {
+		target.Header = header
+	}
+}
