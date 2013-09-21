@@ -51,6 +51,7 @@ It defaults to the amount of CPUs available in the system.
 $ vegeta attack -h
 Usage of attack:
   -duration=10s: Duration of the test
+  -header=: Targets request header
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
@@ -62,6 +63,10 @@ Specifies the amount of time to issue request to the targets.
 The internal concurrency structure's setup has this value as a variable.
 The actual run time of the test can be longer than specified due to the
 responses delay.
+
+#### -header
+Specifies a request header to be used in all targets defined.
+You can specify as many as needed by repeating the flag.
 
 #### -ordering
 Specifies the ordering of target attack. The default is `random` and
