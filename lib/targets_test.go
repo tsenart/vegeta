@@ -52,3 +52,14 @@ func TestShuffle(t *testing.T) {
 	}
 	t.Fatal("Targets were not shuffled correctly")
 }
+
+func TestSetHeader(t *testing.T) {
+	targets, _ := NewTargets([]string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"})
+	want := "lolcathost.com"
+	targets.SetHeader(http.Header{"Host": []string{want}})
+	for _, target := range targets {
+		if got := target.Header.Get("Host"); got != want {
+			t.Errorf("Want: %s, Got: %s", want, got)
+		}
+	}
+}
