@@ -43,7 +43,7 @@ func report(reporter, input, output string) error {
 		}
 		defer in.Close()
 		results := vegeta.Results{}
-		if err := results.ReadFrom(in); err != nil {
+		if err := results.Decode(in); err != nil {
 			return err
 		}
 		all = append(all, results...)

@@ -15,12 +15,12 @@ func TestEncoding(t *testing.T) {
 	}
 	buffer := &bytes.Buffer{}
 
-	if err := results.WriteTo(buffer); err != nil {
+	if err := results.Encode(buffer); err != nil {
 		t.Fatalf("Failed WriteTo: %s", err)
 	}
 
 	decoded := Results{}
-	if err := decoded.ReadFrom(buffer); err != nil {
+	if err := decoded.Decode(buffer); err != nil {
 		t.Fatalf("Failed ReadFrom: %s", err)
 	}
 
