@@ -48,6 +48,7 @@ func report(reporter, input, output string) error {
 		}
 		all = append(all, results...)
 	}
+	all.Sort()
 
 	out, err := file(output, true)
 	if err != nil {
@@ -55,7 +56,9 @@ func report(reporter, input, output string) error {
 	}
 	defer out.Close()
 
-	if err := rep(all.Sort(), out); err != nil {
+	if data, err := rep(all); err != nil {
+		return err
+	} else if _, err := out.Write(data); err != nil {
 		return err
 	}
 

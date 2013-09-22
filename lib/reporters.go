@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"bytes"
 	"code.google.com/p/plotinum/plot"
 	"code.google.com/p/plotinum/plotter"
 	"code.google.com/p/plotinum/plotutil"
@@ -8,18 +9,18 @@ import (
 	"code.google.com/p/plotinum/vg/vgsvg"
 	"encoding/json"
 	"fmt"
-	"io"
 	"text/tabwriter"
 )
 
 // Reporter represents any function which takes a slice of Results and
-// generates a report, writing it to an io.Writer and returning an error
-// in case of failure
-type Reporter func([]Result, io.Writer) error
+// generates a report returned as a slice of bytes and an error in case
+// of failure
+type Reporter func([]Result) ([]byte, error)
 
-// ReportText writes a computed Metrics struct to out as aligned, formatted text
-func ReportText(results []Result, out io.Writer) error {
+// ReportText returns a computed Metrics struct as aligned, formatted text
+func ReportText(results []Result) ([]byte, error) {
 	m := NewMetrics(results)
+	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Time(avg)\tRequests\tSuccess\tBytes(rx/tx)\n")
@@ -39,20 +40,23 @@ func ReportText(results []Result, out io.Writer) error {
 		fmt.Fprintln(w, err)
 	}
 
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return []byte{}, err
+	}
+	return out.Bytes(), nil
 }
 
-// ReportJSON writes a computed Metrics struct to out as JSON
-func ReportJSON(results []Result, out io.Writer) error {
-	return json.NewEncoder(out).Encode(NewMetrics(results))
+// ReportJSON writes a computed Metrics struct to as JSON
+func ReportJSON(results []Result) ([]byte, error) {
+	return json.Marshal(NewMetrics(results))
 }
 
 // ReportTimingsPlot builds up a plot of the response times of the requests
-// in SVG format and writes it to out
-func ReportTimingsPlot(results []Result, out io.Writer) error {
+// in SVG format and returns it
+func ReportTimingsPlot(results []Result) ([]byte, error) {
 	p, err := plot.New()
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 	pts := make(plotter.XYs, len(results))
 	for i := 0; i < len(pts); i++ {
@@ -62,7 +66,7 @@ func ReportTimingsPlot(results []Result, out io.Writer) error {
 
 	line, err := plotter.NewLine(pts)
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 	line.Color = plotutil.Color(1)
 
@@ -76,6 +80,9 @@ func ReportTimingsPlot(results []Result, out io.Writer) error {
 	canvas := vgsvg.New(w, h)
 	p.Draw(plot.MakeDrawArea(canvas))
 
-	_, err = canvas.WriteTo(out)
-	return err
+	out := &bytes.Buffer{}
+	if _, err = canvas.WriteTo(out); err != nil {
+		return []byte{}, err
+	}
+	return out.Bytes(), nil
 }
