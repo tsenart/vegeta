@@ -1,25 +1,21 @@
 package vegeta
 
 import (
-	"code.google.com/p/plotinum/plot"
-	"code.google.com/p/plotinum/plotter"
-	"code.google.com/p/plotinum/plotutil"
-	"code.google.com/p/plotinum/vg"
-	"code.google.com/p/plotinum/vg/vgsvg"
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"text/tabwriter"
 )
 
 // Reporter represents any function which takes a slice of Results and
-// generates a report, writing it to an io.Writer and returning an error
-// in case of failure
-type Reporter func([]Result, io.Writer) error
+// generates a report returned as a slice of bytes and an error in case
+// of failure
+type Reporter func([]Result) ([]byte, error)
 
-// ReportText writes a computed Metrics struct to out as aligned, formatted text
-func ReportText(results []Result, out io.Writer) error {
+// ReportText returns a computed Metrics struct as aligned, formatted text
+func ReportText(results []Result) ([]byte, error) {
 	m := NewMetrics(results)
+	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Time(avg)\tRequests\tSuccess\tBytes(rx/tx)\n")
@@ -39,43 +35,57 @@ func ReportText(results []Result, out io.Writer) error {
 		fmt.Fprintln(w, err)
 	}
 
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return []byte{}, err
+	}
+	return out.Bytes(), nil
 }
 
-// ReportJSON writes a computed Metrics struct to out as JSON
-func ReportJSON(results []Result, out io.Writer) error {
-	return json.NewEncoder(out).Encode(NewMetrics(results))
+// ReportJSON writes a computed Metrics struct to as JSON
+func ReportJSON(results []Result) ([]byte, error) {
+	return json.Marshal(NewMetrics(results))
 }
 
-// ReportTimingsPlot builds up a plot of the response times of the requests
-// in SVG format and writes it to out
-func ReportTimingsPlot(results []Result, out io.Writer) error {
-	p, err := plot.New()
-	if err != nil {
-		return err
+// ReportPlot builds up a self contained HTML page with an interactive plot
+// of the latencies of the requests. Built with http://dygraphs.com/
+func ReportPlot(results []Result) ([]byte, error) {
+	out := &bytes.Buffer{}
+	for _, result := range results {
+		fmt.Fprintf(out, "[%f,%f],",
+			result.Timestamp.Sub(results[0].Timestamp).Seconds(),
+			result.Timing.Seconds()*1000,
+		)
 	}
-	pts := make(plotter.XYs, len(results))
-	for i := 0; i < len(pts); i++ {
-		pts[i].X = results[i].Timestamp.Sub(results[0].Timestamp).Seconds()
-		pts[i].Y = results[i].Timing.Seconds() * 1000
-	}
-
-	line, err := plotter.NewLine(pts)
-	if err != nil {
-		return err
-	}
-	line.Color = plotutil.Color(1)
-
-	p.Add(line)
-	p.X.Padding = vg.Length(3.0)
-	p.X.Label.Text = "Time elapsed"
-	p.Y.Padding = vg.Length(3.0)
-	p.Y.Label.Text = "Latency (ms)"
-
-	w, h := vg.Millimeters(float64(len(results))), vg.Centimeters(12.0)
-	canvas := vgsvg.New(w, h)
-	p.Draw(plot.MakeDrawArea(canvas))
-
-	_, err = canvas.WriteTo(out)
-	return err
+	out.Truncate(out.Len() - 1) // Remove trailing comma
+	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), out)), nil
 }
+
+var plotsTemplate = `<!doctype>
+<html>
+<head>
+  <title>Vegeta Plots</title>
+</head>
+<body>
+  <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
+  <script>
+	%s
+  </script>
+  <script>
+  new Dygraph(
+    document.getElementById("latencies"),
+    [%s],
+    {
+      title: 'Vegeta Plot',
+      labels: ['Seconds', 'Latency (ms)'],
+      ylabel: 'Latency (ms)',
+      xlabel: 'Seconds elapsed',
+      showRoller: true,
+      colors: ['#8AE234'],
+      fillGraph: true,
+      legend: 'always',
+      logscale: true
+    }
+  );
+  </script>
+</body>
+</html>`

@@ -68,7 +68,7 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	results := vegeta.Attack(targets, rate, duration)
 	log.Println("Done!")
 	log.Printf("Writing results to '%s'...", output)
-	if err := results.WriteTo(out); err != nil {
+	if err := results.Encode(out); err != nil {
 		return err
 	}
 	return nil
