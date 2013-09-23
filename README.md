@@ -26,7 +26,7 @@ $ go install github.com/tsenart/vegeta
 $ echo "GET http://localhost/" | vegeta attack -rate=100 -duration=5s | vegeta report
 $ vegeta attack -targets=targets.txt > results.vr
 $ vegeta report -input=results.vr -reporter=json > metrics.json
-$ cat results.vr | vegeta report -reporter=plot:timings > plot.svg
+$ cat results.vr | vegeta report -reporter=plot > plot.html
 ```
 
 ## Usage manual
