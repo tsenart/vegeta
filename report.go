@@ -9,7 +9,7 @@ import (
 
 func reportCmd(args []string) command {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot:timings]")
+	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
 	input := fs.String("input", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
@@ -28,8 +28,8 @@ func report(reporter, input, output string) error {
 		rep = vegeta.ReportText
 	case "json":
 		rep = vegeta.ReportJSON
-	case "plot:timings":
-		rep = vegeta.ReportTimingsPlot
+	case "plot":
+		rep = vegeta.ReportPlot
 	default:
 		log.Println("Reporter provided is not supported. Using text")
 		rep = vegeta.ReportText
@@ -43,11 +43,12 @@ func report(reporter, input, output string) error {
 		}
 		defer in.Close()
 		results := vegeta.Results{}
-		if err := results.ReadFrom(in); err != nil {
+		if err := results.Decode(in); err != nil {
 			return err
 		}
 		all = append(all, results...)
 	}
+	all.Sort()
 
 	out, err := file(output, true)
 	if err != nil {
@@ -55,7 +56,9 @@ func report(reporter, input, output string) error {
 	}
 	defer out.Close()
 
-	if err := rep(all.Sort(), out); err != nil {
+	if data, err := rep(all); err != nil {
+		return err
+	} else if _, err := out.Write(data); err != nil {
 		return err
 	}
 

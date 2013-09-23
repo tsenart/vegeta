@@ -100,7 +100,7 @@ $ vegeta report -h
 Usage of report:
   -input="stdin": Input files (comma separated)
   -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot:timings]
+  -reporter="text": Reporter [text, json, plot]
 ```
 
 #### -input
@@ -145,8 +145,15 @@ Page Not Found
   "errors": []
 }
 ```
-##### plot:timings
-![plot](https://dl.dropboxusercontent.com/u/83217940/plot.svg)
+##### plot
+Generates an HTML5 page with an interactive plot based on
+[Dygraphs](http://dygraphs.com).
+Click and drag to select a region to zoom into. Double click to zoom
+out.
+Input a different number on the bottom left corner input field
+to change the moving average window size (in data points).
+
+![Plot](https://dl.dropboxusercontent.com/u/83217940/plot.png)
 
 
 ## Usage (Library)

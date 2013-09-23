@@ -22,15 +22,15 @@ type Result struct {
 // decoding and sorting behavior attached
 type Results []Result
 
-// WriteTo encodes the results and writes it to an io.Writer
+// Encode encodes the results and writes it to an io.Writer
 // returning an error in case of failure
-func (r Results) WriteTo(out io.Writer) error {
+func (r Results) Encode(out io.Writer) error {
 	return gob.NewEncoder(out).Encode(r)
 }
 
-// ReadFrom reads data from an io.Reader and decodes it into a Results struct
+// Decode reads data from an io.Reader and decodes it into a Results struct
 // returning an error in case of failure
-func (r *Results) ReadFrom(in io.Reader) error {
+func (r *Results) Decode(in io.Reader) error {
 	return gob.NewDecoder(in).Decode(r)
 }
 
