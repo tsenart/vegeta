@@ -56,7 +56,7 @@ func hit(req *http.Request, res chan Result) {
 	r, err := client.Do(req)
 	result := Result{
 		Timestamp: began,
-		Timing:    time.Since(began),
+		Latency:   time.Since(began),
 		BytesOut:  uint64(req.ContentLength),
 	}
 	if err != nil {
