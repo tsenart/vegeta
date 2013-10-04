@@ -117,16 +117,21 @@ Specifies the kind of report to be generated. It defaults to text.
 
 ##### text
 ```
-Time(avg)	Requests	Success		Bytes(rx/tx)
-152.341ms	200		    17.00%		251.00/0.00
-
-Count:		49	30	39	48	34
-Status:		500	404	409	503	200
-
+Requests      [total]               1200
+Latencies     [mean, max, 95, 99]   223.340085ms, 7.788103259s, 326.913687ms, 416.537743ms
+Bytes In      [total, mean]         3714690, 3095.57
+Bytes Out     [total, mean]         0, 0.00
+Success       [ratio]               55.42%
+Status Codes  [code:count]          0:535  200:665
 Error Set:
-Server Timeout
-Page Not Found
+Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
+Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
+Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection reset by peer
+Get http://localhost:6060: write tcp 127.0.0.1:6060: broken pipe
+Get http://localhost:6060: net/http: transport closed before response was received
+Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```
+
 ##### json
 ```json
 {
@@ -172,14 +177,9 @@ func main() {
   duration := 4 * time.Second
 
   results := vegeta.Attack(targets, rate, duration)
+  metrics := vegeta.NewMetrics(results)
 
-  totalTime := time.Duration(0)
-  for _, result := range results {
-    totalTime += result.Timing
-  }
-  meanTime := time.Duration(float64(totalTime) / float64(len(results)))
-
-  fmt.Printf("Average timing: %s", meanTime)
+  fmt.Printf("Mean latency: %s", metrics.Latencies.Mean)
 }
 ```
 

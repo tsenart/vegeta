@@ -18,19 +18,17 @@ func ReportText(results []Result) ([]byte, error) {
 	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
-	fmt.Fprintf(w, "Time(avg)\tRequests\tSuccess\tBytes(rx/tx)\n")
-	fmt.Fprintf(w, "%s\t%d\t%.2f%%\t%.2f/%.2f\n", m.MeanTiming, m.TotalRequests, m.MeanSuccess*100, m.MeanBytesIn, m.MeanBytesOut)
-
-	fmt.Fprintf(w, "\nCount:\t")
-	for _, count := range m.StatusCodes {
-		fmt.Fprintf(w, "%d\t", count)
+	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
+	fmt.Fprintf(w, "Latencies\t[mean, max, 95, 99]\t%s, %s, %s, %s\n",
+		m.Latencies.Mean, m.Latencies.Max, m.Latencies.Mean95, m.Latencies.Mean99)
+	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
+	fmt.Fprintf(w, "Bytes Out\t[total, mean]\t%d, %.2f\n", m.BytesOut.Total, m.BytesOut.Mean)
+	fmt.Fprintf(w, "Success\t[ratio]\t%.2f%%\n", m.Success*100)
+	fmt.Fprintf(w, "Status Codes\t[code:count]\t")
+	for code, count := range m.StatusCodes {
+		fmt.Fprintf(w, "%s:%d  ", code, count)
 	}
-	fmt.Fprintf(w, "\nStatus:\t")
-	for code := range m.StatusCodes {
-		fmt.Fprintf(w, "%s\t", code)
-	}
-
-	fmt.Fprintln(w, "\n\nError Set:")
+	fmt.Fprintln(w, "\nError Set:")
 	for _, err := range m.Errors {
 		fmt.Fprintln(w, err)
 	}
@@ -53,7 +51,7 @@ func ReportPlot(results []Result) ([]byte, error) {
 	for _, result := range results {
 		fmt.Fprintf(out, "[%f,%f],",
 			result.Timestamp.Sub(results[0].Timestamp).Seconds(),
-			result.Timing.Seconds()*1000,
+			result.Latency.Seconds()*1000,
 		)
 	}
 	out.Truncate(out.Len() - 1) // Remove trailing comma
