@@ -13,9 +13,9 @@ func TestNewMetrics(t *testing.T) {
 	})
 
 	for field, values := range map[string][]float64{
-		"MeanBytesIn":  []float64{m.MeanBytesIn, 20.0},
-		"MeanBytesOut": []float64{m.MeanBytesOut, 20.0},
-		"MeanSuccess":  []float64{m.MeanSuccess, 0.6666666666666666},
+		"BytesIn.Mean":  []float64{m.BytesIn.Mean, 20.0},
+		"BytesOut.Mean": []float64{m.BytesOut.Mean, 20.0},
+		"Sucess":        []float64{m.Success, 0.6666666666666666},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %f, got: %f", field, values[1], values[0])
@@ -23,8 +23,11 @@ func TestNewMetrics(t *testing.T) {
 	}
 
 	for field, values := range map[string][]time.Duration{
-		"TotalTiming": []time.Duration{m.TotalTiming, 150 * time.Millisecond},
-		"MeanTiming":  []time.Duration{m.MeanTiming, 50 * time.Millisecond},
+		"Latencies.Total":  []time.Duration{m.Latencies.Total, 150 * time.Millisecond},
+		"Latencies.Mean":   []time.Duration{m.Latencies.Mean, 50 * time.Millisecond},
+		"Latencies.Mean95": []time.Duration{m.Latencies.Mean95, 30 * time.Millisecond},
+		"Latencies.Mean99": []time.Duration{m.Latencies.Mean99, 30 * time.Millisecond},
+		"Latencies.Max":    []time.Duration{m.Latencies.Max, 100 * time.Millisecond},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %s, got: %s", field, values[1], values[0])
@@ -32,10 +35,9 @@ func TestNewMetrics(t *testing.T) {
 	}
 
 	for field, values := range map[string][]uint64{
-		"TotalSuccess":  []uint64{m.TotalSuccess, 2},
-		"TotalBytesOut": []uint64{m.TotalBytesOut, 60},
-		"TotalRequests": []uint64{m.TotalRequests, 3},
-		"TotalBytesIn":  []uint64{m.TotalBytesIn, 60},
+		"BytesOut.Total": []uint64{m.BytesOut.Total, 60},
+		"BytesIn.Total":  []uint64{m.BytesIn.Total, 60},
+		"Requests":       []uint64{m.Requests, 3},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %d, got: %d", field, values[1], values[0])
