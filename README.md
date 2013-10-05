@@ -118,7 +118,7 @@ Specifies the kind of report to be generated. It defaults to text.
 ##### text
 ```
 Requests      [total]               1200
-Latencies     [mean, max, 95, 99]   223.340085ms, 7.788103259s, 326.913687ms, 416.537743ms
+Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
 Bytes In      [total, mean]         3714690, 3095.57
 Bytes Out     [total, mean]         0, 0.00
 Success       [ratio]               55.42%
@@ -136,11 +136,10 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```json
 {
   "latencies": {
-    "total": 10912384376645,
-    "max": 12604629125,
     "mean": 9093653647,
-    "mean_95": 12553709381,
-    "mean_99": 12604629125
+    "95th": 12553709381,
+    "99th": 12604629125,
+    "max": 12604629125
   },
   "bytes_in": {
     "total": 782040,

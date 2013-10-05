@@ -19,8 +19,8 @@ func ReportText(results []Result) ([]byte, error) {
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
-	fmt.Fprintf(w, "Latencies\t[mean, max, 95, 99]\t%s, %s, %s, %s\n",
-		m.Latencies.Mean, m.Latencies.Max, m.Latencies.Mean95, m.Latencies.Mean99)
+	fmt.Fprintf(w, "Latencies\t[mean, 95, 99, max]\t%s, %s, %s, %s\n",
+		m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
 	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
 	fmt.Fprintf(w, "Bytes Out\t[total, mean]\t%d, %.2f\n", m.BytesOut.Total, m.BytesOut.Mean)
 	fmt.Fprintf(w, "Success\t[ratio]\t%.2f%%\n", m.Success*100)

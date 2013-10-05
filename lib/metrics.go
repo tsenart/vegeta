@@ -11,11 +11,10 @@ import (
 // that is used for some of the Reporters
 type Metrics struct {
 	Latencies struct {
-		Total  time.Duration `json:"total"`
-		Max    time.Duration `json:"max"`
-		Mean   time.Duration `json:"mean"`
-		Mean95 time.Duration `json:"mean_95"`
-		Mean99 time.Duration `json:"mean_99"`
+		Mean time.Duration `json:"mean"`
+		P95  time.Duration `json:"95th"` // P95 is the 95th percentile upper value
+		P99  time.Duration `json:"99th"` // P99 is the 99th percentile upper value
+		Max  time.Duration `json:"max"`
 	} `json:"latencies"`
 
 	BytesIn struct {
@@ -42,12 +41,12 @@ func NewMetrics(results []Result) *Metrics {
 	}
 	errorSet := map[string]struct{}{}
 	quants := quantile.NewTargeted(0.95, 0.99)
-	totalSuccess := 0
+	totalSuccess, totalLatencies := 0, time.Duration(0)
 
 	for _, result := range results {
 		quants.Insert(float64(result.Latency))
 		m.StatusCodes[strconv.Itoa(int(result.Code))]++
-		m.Latencies.Total += result.Latency
+		totalLatencies += result.Latency
 		m.BytesOut.Total += result.BytesOut
 		m.BytesIn.Total += result.BytesIn
 		if result.Latency > m.Latencies.Max {
@@ -61,9 +60,9 @@ func NewMetrics(results []Result) *Metrics {
 		}
 	}
 
-	m.Latencies.Mean = time.Duration(float64(m.Latencies.Total) / float64(m.Requests))
-	m.Latencies.Mean95 = time.Duration(quants.Query(0.95))
-	m.Latencies.Mean99 = time.Duration(quants.Query(0.99))
+	m.Latencies.Mean = time.Duration(float64(totalLatencies) / float64(m.Requests))
+	m.Latencies.P95 = time.Duration(quants.Query(0.95))
+	m.Latencies.P99 = time.Duration(quants.Query(0.99))
 	m.BytesIn.Mean = float64(m.BytesIn.Total) / float64(m.Requests)
 	m.BytesOut.Mean = float64(m.BytesOut.Total) / float64(m.Requests)
 	m.Success = float64(totalSuccess) / float64(m.Requests)

@@ -23,11 +23,10 @@ func TestNewMetrics(t *testing.T) {
 	}
 
 	for field, values := range map[string][]time.Duration{
-		"Latencies.Total":  []time.Duration{m.Latencies.Total, 150 * time.Millisecond},
-		"Latencies.Mean":   []time.Duration{m.Latencies.Mean, 50 * time.Millisecond},
-		"Latencies.Mean95": []time.Duration{m.Latencies.Mean95, 30 * time.Millisecond},
-		"Latencies.Mean99": []time.Duration{m.Latencies.Mean99, 30 * time.Millisecond},
-		"Latencies.Max":    []time.Duration{m.Latencies.Max, 100 * time.Millisecond},
+		"Latencies.Max":  []time.Duration{m.Latencies.Max, 100 * time.Millisecond},
+		"Latencies.Mean": []time.Duration{m.Latencies.Mean, 50 * time.Millisecond},
+		"Latencies.P95":  []time.Duration{m.Latencies.P95, 30 * time.Millisecond},
+		"Latencies.P99":  []time.Duration{m.Latencies.P99, 30 * time.Millisecond},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %s, got: %s", field, values[1], values[0])
