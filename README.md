@@ -85,7 +85,7 @@ the targets. The actual request rate can vary slightly due to things like
 garbage collection, but overall it should stay very close to the specified.
 
 #### -targets
-Specifies the attack targets in a line sepated file, defaulting to stdin.
+Specifies the attack targets in a line separated file, defaulting to stdin.
 The format should be as follows.
 ```
 GET http://goku:9090/path/to/dragon?item=balls
