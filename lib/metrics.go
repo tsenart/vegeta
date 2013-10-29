@@ -27,6 +27,7 @@ type Metrics struct {
 		Mean  float64 `json:"mean"`
 	} `json:"bytes_out"`
 
+	Duration    time.Duration  `json:"duration"`
 	Requests    uint64         `json:"requests"`
 	Success     float64        `json:"success"`
 	StatusCodes map[string]int `json:"status_codes"`
@@ -60,6 +61,7 @@ func NewMetrics(results []Result) *Metrics {
 		}
 	}
 
+	m.Duration = results[len(results)-1].Timestamp.Sub(results[0].Timestamp)
 	m.Latencies.Mean = time.Duration(float64(totalLatencies) / float64(m.Requests))
 	m.Latencies.P95 = time.Duration(quants.Query(0.95))
 	m.Latencies.P99 = time.Duration(quants.Query(0.99))

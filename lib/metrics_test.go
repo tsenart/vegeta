@@ -7,9 +7,9 @@ import (
 
 func TestNewMetrics(t *testing.T) {
 	m := NewMetrics([]Result{
-		Result{500, time.Now(), 100 * time.Millisecond, 10, 30, "Internal server error"},
-		Result{200, time.Now(), 20 * time.Millisecond, 20, 20, ""},
-		Result{200, time.Now(), 30 * time.Millisecond, 30, 10, ""},
+		Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
+		Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
+		Result{200, time.Unix(2, 0), 30 * time.Millisecond, 30, 10, ""},
 	})
 
 	for field, values := range map[string][]float64{
@@ -27,6 +27,7 @@ func TestNewMetrics(t *testing.T) {
 		"Latencies.Mean": []time.Duration{m.Latencies.Mean, 50 * time.Millisecond},
 		"Latencies.P95":  []time.Duration{m.Latencies.P95, 30 * time.Millisecond},
 		"Latencies.P99":  []time.Duration{m.Latencies.P99, 30 * time.Millisecond},
+		"Duration":       []time.Duration{m.Duration, 2 * time.Second},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %s, got: %s", field, values[1], values[0])
