@@ -58,8 +58,13 @@ func (t Targets) Shuffle(seed int64) {
 }
 
 // SetHeader sets the passed request header in all Targets
+// by making a copy for each
 func (t Targets) SetHeader(header http.Header) {
 	for _, target := range t {
-		target.Header = header
+		target.Header = make(http.Header, len(header))
+		for k, vs := range header {
+			target.Header[k] = make([]string, len(vs))
+			copy(target.Header[k], vs)
+		}
 	}
 }

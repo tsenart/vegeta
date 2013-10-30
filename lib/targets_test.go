@@ -62,4 +62,9 @@ func TestSetHeader(t *testing.T) {
 			t.Errorf("Want: %s, Got: %s", want, got)
 		}
 	}
+	// Test Header copy
+	targets[0].Header.Set("Authorization", "0")
+	if targets[1].Header.Get("Authorization") == "0" {
+		t.Error("Each Target must have it's own Header")
+	}
 }
