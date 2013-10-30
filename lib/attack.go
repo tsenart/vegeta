@@ -12,7 +12,7 @@ import (
 // The results of the attack are put into a slice which is returned.
 func Attack(targets Targets, rate uint64, duration time.Duration) Results {
 	total := rate * uint64(duration.Seconds())
-	hits := make(chan *http.Request, total)
+	hits := make(chan *Target, total)
 	res := make(chan Result, total)
 	results := make(Results, total)
 	// Scatter
@@ -32,11 +32,11 @@ func Attack(targets Targets, rate uint64, duration time.Duration) Results {
 
 // drill loops over the passed reqs channel and executes each request.
 // It is throttled to the rate specified.
-func drill(rate uint64, reqs chan *http.Request, res chan Result) {
+func drill(rate uint64, targets chan *Target, res chan Result) {
 	throttle := time.Tick(time.Duration(1e9 / rate))
-	for req := range reqs {
+	for target := range targets {
 		<-throttle
-		go hit(req, res)
+		go hit(target, res)
 	}
 }
 
@@ -51,14 +51,27 @@ var client = &http.Client{
 // hit executes the passed http.Request and puts the result into results.
 // Both transport errors and unsucessfull requests (non {2xx,3xx}) are
 // considered errors.
-func hit(req *http.Request, res chan Result) {
+func hit(target *Target, res chan Result) {
 	began := time.Now()
-	r, err := client.Do(req)
-	result := Result{
-		Timestamp: began,
-		Latency:   time.Since(began),
-		BytesOut:  uint64(req.ContentLength),
+	result := Result{ Timestamp: began }
+	
+	req, err := http.NewRequest(target.Method, target.URL, nil)
+	if err != nil {
+		result.Error = err.Error()
+		
+		res <- result
+		return
 	}
+	
+	if target.Headers != nil {
+		req.Header = *target.Headers.Headers()
+	}
+	
+	r, err := client.Do(req)
+	
+	result.Latency = time.Since(began)
+	result.BytesOut = uint64(req.ContentLength)
+
 	if err != nil {
 		result.Error = err.Error()
 	} else {
