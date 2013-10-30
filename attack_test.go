@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"os"
 )
 
 func init() {
@@ -95,6 +96,6 @@ func defaultArguments() (uint64, time.Duration, string, string, string, http.Hea
 		5 * time.Millisecond,
 		".targets.txt",
 		"random",
-		"/dev/null",
+		os.DevNull,
 		http.Header{}
 }
