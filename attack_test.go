@@ -4,7 +4,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
-	"net/http"
+	vegeta "github.com/tsenart/vegeta/lib"
 	"strings"
 	"testing"
 	"time"
@@ -74,7 +74,7 @@ func TestOrderingValidation(t *testing.T) {
 func TestHeadersParsing(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(ioutil.Discard)
-	hdrs := headers{Header: make(http.Header)}
+	hdrs := vegeta.Headers{}
 	fs.Var(hdrs, "H", "Header")
 	// Good case
 	good := []string{"-H", "Host: lolcathost"}
@@ -90,11 +90,11 @@ func TestHeadersParsing(t *testing.T) {
 	}
 }
 
-func defaultArguments() (uint64, time.Duration, string, string, string, http.Header) {
+func defaultArguments() (uint64, time.Duration, string, string, string, *vegeta.Headers) {
 	return uint64(1000),
 		5 * time.Millisecond,
 		".targets.txt",
 		"random",
 		"/dev/null",
-		http.Header{}
+		new(vegeta.Headers)
 }
