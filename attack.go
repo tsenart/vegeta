@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	vegeta "github.com/tsenart/vegeta/lib"
 	"log"
-	"net/http"
-	"strings"
 	"time"
 )
 
@@ -18,18 +15,18 @@ func attackCmd(args []string) command {
 	ordering := fs.String("ordering", "random", "Attack ordering [sequential, random]")
 	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
 	output := fs.String("output", "stdout", "Output file")
-	hdrs := headers{Header: make(http.Header)}
+	hdrs := new(vegeta.Headers)
 	fs.Var(hdrs, "header", "Targets request header")
 	fs.Parse(args)
 
 	return func() error {
-		return attack(*rate, *duration, *targetsf, *ordering, *output, hdrs.Header)
+		return attack(*rate, *duration, *targetsf, *ordering, *output, hdrs)
 	}
 }
 
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
-func attack(rate uint64, duration time.Duration, targetsf, ordering, output string, header http.Header) error {
+func attack(rate uint64, duration time.Duration, targetsf, ordering, output string, hdrs *vegeta.Headers) error {
 	if rate == 0 {
 		return fmt.Errorf(errRatePrefix + "can't be zero")
 	}
@@ -47,7 +44,7 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	if err != nil {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
 	}
-	targets.SetHeader(header)
+	targets.SetHeaders(hdrs)
 
 	switch ordering {
 	case "random":
@@ -82,30 +79,3 @@ const (
 	errOrderingPrefix    = "Ordering: "
 	errReportingPrefix   = "Reporting: "
 )
-
-// headers is the http.Header used in each target request
-// it is defined here to implement the flag.Value interface
-// in order to support multiple identical flags for request header
-// specification
-type headers struct{ http.Header }
-
-func (h headers) String() string {
-	buf := &bytes.Buffer{}
-	if err := h.Write(buf); err != nil {
-		return ""
-	}
-	return buf.String()
-}
-
-func (h headers) Set(value string) error {
-	parts := strings.Split(value, ":")
-	if len(parts) != 2 {
-		return fmt.Errorf("Header '%s' has a wrong format", value)
-	}
-	key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	if key == "" || val == "" {
-		return fmt.Errorf("Header '%s' has a wrong format", value)
-	}
-	h.Add(key, val)
-	return nil
-}

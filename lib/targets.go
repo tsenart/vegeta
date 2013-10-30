@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net/http"
 	"strings"
 )
 
-// Targets represents the http.Requests which will be issued during the test
-type Targets []*http.Request
+type Target struct {
+	Method	string
+	URL	string
+	Headers *Headers
+}
+
+// Targets represents a list of strings that we'll build http.Requests later
+type Targets []*Target
 
 // NewTargetsFrom reads targets out of a line separated source skipping empty lines
 func NewTargetsFrom(source io.Reader) (Targets, error) {
@@ -33,20 +38,23 @@ func NewTargetsFrom(source io.Reader) (Targets, error) {
 
 // NewTargets instantiates Targets from a slice of strings
 func NewTargets(lines []string) (Targets, error) {
-	targets := make([]*http.Request, 0)
+	targets := make([]*Target, 0)
 	for _, line := range lines {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) != 2 {
 			return targets, fmt.Errorf("Invalid request format: `%s`", line)
 		}
-		// Build request
-		req, err := http.NewRequest(parts[0], parts[1], nil)
-		if err != nil {
-			return targets, fmt.Errorf("Failed to build request: %s", err)
-		}
-		targets = append(targets, req)
+		
+		targets = append(targets, NewTarget(parts[0], parts[1]))
 	}
 	return targets, nil
+}
+
+func NewTarget(method string, url string) *Target {
+	target := new(Target)
+	target.Method = method
+	target.URL = url
+	return target
 }
 
 // Shuffle randomly alters the order of Targets with the provided seed
@@ -58,8 +66,8 @@ func (t Targets) Shuffle(seed int64) {
 }
 
 // SetHeader sets the passed request header in all Targets
-func (t Targets) SetHeader(header http.Header) {
+func (t Targets) SetHeaders(hdrs *Headers) {
 	for _, target := range t {
-		target.Header = header
+		target.Headers = hdrs
 	}
 }
