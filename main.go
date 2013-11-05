@@ -18,6 +18,7 @@ var usage = fmt.Sprintf(
 Commands:
   attack  Hit the targets
   report  Report the results
+  rapid   Hit the targets with multiple rates 
 
 Globals:
   -cpus=%d Number of CPUs to use
@@ -34,6 +35,7 @@ func main() {
 	commands := map[string]func([]string) command{
 		"attack": attackCmd,
 		"report": reportCmd,
+		"rapid": rapidCmd,
 	}
 
 	args := flag.Args()
