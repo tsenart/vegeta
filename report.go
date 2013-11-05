@@ -45,6 +45,8 @@ func report(reporter, input, output string) error {
 		results := vegeta.Results{}
 		if err := results.Decode(in); err != nil {
 			return err
+		} else {
+			log.Printf("Number of results: %d", len(results))
 		}
 		all = append(all, results...)
 	}
