@@ -14,7 +14,7 @@ func file(filename string, create bool) (*os.File, error) {
 		var file *os.File
 		var err error
 		if create {
-			file, err = os.Create(filename)
+			file, err = os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0660)
 		} else {
 			file, err = os.Open(filename)
 		}
