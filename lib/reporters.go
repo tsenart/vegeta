@@ -93,18 +93,18 @@ var plotsTemplate = `<!doctype>
 
 
 type ResultGroup struct {
-	from uint64
-	to uint64
+	from int
+	to int
 	rate uint64
 }
 
 func ReportCSV(results []Result) ([]byte, error) {
 	out := &bytes.Buffer{}
-	m := NewMetrics(results)
+
 	// result := fnmt.Sprintf("%d req/s,%s,%s,%s,%s,%f,%f,%f",rate,
 	//		  m.Latencies.Mean.CsvString(), m.Latencies.P95.CsvString(), m.Latencies.P99.CsvString(), m.Latencies.Max.CsvString(),
 	//		  m.BytesIn.Mean, m.BytesOut.Mean, m.Success)
-	header := []string{ "rate" , "mean" , "p95", "p99" , "max", "bytesIn", "bytesOut", "success"  }
+	header := []string{ "rate" , "mean_ms" , "p95_ms", "p99_ms" , "max_ms", "bytesIn_B", "bytesOut_B", "success_percent"  }
 
 	w := csv.NewWriter(out)
 	w.Write(header)
@@ -132,24 +132,24 @@ func slicesPerAttackRate(results []Result) ([]ResultGroup) {
 
     if len(results) > 0 { 
 
-		resultGroup := new(ResultGroup)
+		resultGroup := ResultGroup{}
 		resultGroup.from = 0
 		resultGroup.to = 0
-		resultGroup.rate = results[0].rate
+		resultGroup.rate = results[0].Rate
 
 
 		for i, result := range results {
-			if result.rate != resultGroup.rate {
+			if result.Rate != resultGroup.rate {
 				resultGroup.to = i 
-				append(resultGroups, resultGroup)
-				resultGroup = new(ResultGroup)
+				resultGroups = append(resultGroups, resultGroup)
+				resultGroup = ResultGroup{}
 				resultGroup.from = i
-				resultGroup.rate = result.rate
+				resultGroup.rate = result.Rate
 
 			}
 		}
 		resultGroup.to = len(results)
-		append(resultGroups, resultGroup)
+		resultGroups = append(resultGroups, resultGroup)
 
 	}
 

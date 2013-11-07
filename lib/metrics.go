@@ -85,9 +85,9 @@ func csvString(d time.Duration) string {
 }
 
 func(m *Metrics) Csv(rate uint64) []string {
-		result := fmt.Sprintf("%d req/s,%s,%s,%s,%s,%f,%f,%f",rate,
+		result := fmt.Sprintf("%d req/s,%s,%s,%s,%s,%f,%f,%.2f",rate,
 			  csvString(m.Latencies.Mean), csvString(m.Latencies.P95), csvString(m.Latencies.P99), csvString(m.Latencies.Max),
-			  m.BytesIn.Mean, m.BytesOut.Mean, m.Success)
+			  m.BytesIn.Mean, m.BytesOut.Mean, m.Success * 100)
         return strings.Split(result, ",")
 }
 

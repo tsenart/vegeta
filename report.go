@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/senaduka/vegeta/lib"
 	"log"
 	"strings"
 )
 
 func reportCmd(args []string) command {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
+	reporter := fs.String("reporter", "text", "Reporter [text, json, plot, csv]")
 	input := fs.String("input", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
