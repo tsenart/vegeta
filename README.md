@@ -4,14 +4,9 @@ Vegeta is a versatile HTTP load testing tool built out of need to drill
 HTTP services with a constant request rate.
 It can be used both as a command line utility and a library.
 
-![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
+*This fork ads support to attacking with multiple rates and a csv reporter suitable for import into spreadsheet applications.*
 
-## Install
-### Pre-compiled executables
-* [Mac OSX 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64-1517f2d.tar.gz)
-* [Mac OSX 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386-1517f2d.tar.gz)
-* [Linux 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64-1517f2d.tar.gz)
-* [Linux 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386-1517f2d.tar.gz)
+![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
 
 ### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
@@ -23,10 +18,7 @@ $ go install github.com/tsenart/vegeta
 
 ## Usage examples
 ```shell
-$ echo "GET http://localhost/" | vegeta attack -rate=100 -duration=5s | vegeta report
-$ vegeta attack -targets=targets.txt > results.vr
-$ vegeta report -input=results.vr -reporter=json > metrics.json
-$ cat results.vr | vegeta report -reporter=plot > plot.html
+$ echo "GET http://localhost/" | vegeta rapid -rates=100,200,300 -duration=10s | vegeta report -reporter=csv
 ```
 
 ## Usage manual
@@ -37,6 +29,7 @@ Usage: vegeta [globals] <command> [options]
 Commands:
   attack  Hit the targets
   report  Report the results
+  rapid   Hit the targets with multiple rates 
 
 Globals:
   -cpus=8 Number of CPUs to use

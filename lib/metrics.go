@@ -3,8 +3,9 @@ package vegeta
 import (
 	"strconv"
 	"time"
-
 	"github.com/bmizerany/perks/quantile"
+	"fmt"
+	"strings"
 )
 
 // Metrics holds the stats computed out of a slice of Results
@@ -76,3 +77,17 @@ func NewMetrics(results []Result) *Metrics {
 
 	return m
 }
+
+
+func csvString(d time.Duration) string { 
+	var result float64 =  float64(d.Nanoseconds()   / 1000.0 / 1000.0)  // in miliseconds 
+	return strconv.FormatFloat(result,  'f', -1, 64)
+}
+
+func(m *Metrics) Csv(rate uint64) []string {
+		result := fmt.Sprintf("%d req/s,%s,%s,%s,%s,%f,%f,%.2f",rate,
+			  csvString(m.Latencies.Mean), csvString(m.Latencies.P95), csvString(m.Latencies.P99), csvString(m.Latencies.Max),
+			  m.BytesIn.Mean, m.BytesOut.Mean, m.Success * 100)
+        return strings.Split(result, ",")
+}
+

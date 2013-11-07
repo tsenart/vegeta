@@ -16,6 +16,7 @@ type Result struct {
 	BytesOut  uint64
 	BytesIn   uint64
 	Error     string
+	Rate      uint64
 }
 
 // Results is a slice of Result structs with encoding,

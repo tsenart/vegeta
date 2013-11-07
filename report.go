@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/senaduka/vegeta/lib"
 	"log"
 	"strings"
 )
 
 func reportCmd(args []string) command {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
+	reporter := fs.String("reporter", "text", "Reporter [text, json, plot, csv]")
 	input := fs.String("input", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	fs.Parse(args)
@@ -30,6 +30,8 @@ func report(reporter, input, output string) error {
 		rep = vegeta.ReportJSON
 	case "plot":
 		rep = vegeta.ReportPlot
+	case "csv":
+		rep = vegeta.ReportCSV
 	default:
 		log.Println("Reporter provided is not supported. Using text")
 		rep = vegeta.ReportText
@@ -45,6 +47,8 @@ func report(reporter, input, output string) error {
 		results := vegeta.Results{}
 		if err := results.Decode(in); err != nil {
 			return err
+		} else {
+			log.Printf("Number of results: %d", len(results))
 		}
 		all = append(all, results...)
 	}

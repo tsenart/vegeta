@@ -36,7 +36,7 @@ func drill(rate uint64, reqs chan *http.Request, res chan Result) {
 	throttle := time.Tick(time.Duration(1e9 / rate))
 	for req := range reqs {
 		<-throttle
-		go hit(req, res)
+		go hit(req, res, rate)
 	}
 }
 
@@ -51,13 +51,14 @@ var client = &http.Client{
 // hit executes the passed http.Request and puts the result into results.
 // Both transport errors and unsucessfull requests (non {2xx,3xx}) are
 // considered errors.
-func hit(req *http.Request, res chan Result) {
+func hit(req *http.Request, res chan Result, rate uint64) {
 	began := time.Now()
 	r, err := client.Do(req)
 	result := Result{
 		Timestamp: began,
 		Latency:   time.Since(began),
 		BytesOut:  uint64(req.ContentLength),
+		Rate: rate,
 	}
 	if err != nil {
 		result.Error = err.Error()

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/senaduka/vegeta/lib"
 	"log"
 	"net/http"
 	"strings"
@@ -64,7 +64,7 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	}
 	defer out.Close()
 
-	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
+	log.Printf("Vegeta is attacking %d targets in %s order for %s with %d requests/sec...\n", len(targets), ordering, duration, rate)
 	results := vegeta.Attack(targets, rate, duration)
 	log.Println("Done!")
 	log.Printf("Writing results to '%s'...", output)
@@ -73,6 +73,8 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	}
 	return nil
 }
+
+
 
 const (
 	errRatePrefix        = "Rate: "
