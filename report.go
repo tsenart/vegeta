@@ -30,6 +30,8 @@ func report(reporter, input, output string) error {
 		rep = vegeta.ReportJSON
 	case "plot":
 		rep = vegeta.ReportPlot
+	case "csv":
+		rep = vegeta.ReportCSV
 	default:
 		log.Println("Reporter provided is not supported. Using text")
 		rep = vegeta.ReportText
