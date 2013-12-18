@@ -13,6 +13,11 @@ import (
 // Targets represents the http.Requests which will be issued during the test
 type Targets []*http.Request
 
+// NewTargetsFromReader reads and parses targets from a reader
+func NewTargetsFromReader(reader io.Reader) (Targets, error) {
+	return readTargets(reader)
+}
+
 // NewTargetsFromFile reads and parses targets from a text file
 func NewTargetsFromFile(filename string) (Targets, error) {
 	file, err := os.Open(filename)

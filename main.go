@@ -25,7 +25,7 @@ func main() {
 	)
 	flag.Parse()
 
-	if flag.NFlag() == 0 {
+	if flag.NArg() == 0 {
 		flag.Usage()
 		return
 	}
@@ -36,7 +36,10 @@ func main() {
 
 	targets, err := vegeta.NewTargetsFromFile(*targetsf)
 	if err != nil {
-		log.Fatal(err)
+		targets, err = vegeta.NewTargetsFromReader(os.Stdin)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	switch *ordering {
