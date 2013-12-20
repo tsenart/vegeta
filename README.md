@@ -1,4 +1,4 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.png)](http://travis-ci.org/tsenart/vegeta)
+# Vegeta [![Build Status](https://drone.io/github.com/tsenart/vegeta/status.png)](https://drone.io/github.com/tsenart/vegeta/latest)
 
 Vegeta is a versatile HTTP load testing tool built out of need to drill
 HTTP services with a constant request rate.
