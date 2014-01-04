@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"text/tabwriter"
 )
 
@@ -50,10 +51,9 @@ func ReportJSON(results []Result) ([]byte, error) {
 func ReportPlot(results []Result) ([]byte, error) {
 	out := &bytes.Buffer{}
 	for _, result := range results {
-		fmt.Fprintf(out, "[%f,%f],",
-			result.Timestamp.Sub(results[0].Timestamp).Seconds(),
-			result.Latency.Seconds()*1000,
-		)
+		out.WriteString("[" +
+			strconv.FormatFloat(result.Timestamp.Sub(results[0].Timestamp).Seconds(), 'f', -1, 32) + "," +
+			strconv.FormatFloat(result.Latency.Seconds()*1000, 'f', -1, 32) + "],")
 	}
 	out.Truncate(out.Len() - 1) // Remove trailing comma
 	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), out)), nil
