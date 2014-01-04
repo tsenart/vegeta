@@ -59,7 +59,7 @@ func ReportPlot(results []Result) ([]byte, error) {
 	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), out)), nil
 }
 
-var plotsTemplate = `<!doctype>
+const plotsTemplate = `<!doctype>
 <html>
 <head>
   <title>Vegeta Plots</title>
