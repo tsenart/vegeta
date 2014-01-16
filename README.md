@@ -195,6 +195,13 @@ func main() {
 }
 ```
 
+A Vegeta `target` is a plain `http.Request` type. You may add some data to the request with the following.
+
+```go
+  targets, _ := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
+  targets[0].Body = ioutil.NopCloser(bytes.NewBufferString("attack!"))
+```
+
 #### Limitations
 There will be an upper bound of the supported `rate` which varies on the
 machine being used.
