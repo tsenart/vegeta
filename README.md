@@ -8,10 +8,7 @@ It can be used both as a command line utility and a library.
 
 ## Install
 ### Pre-compiled executables
-* [Mac OSX 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-amd64-1517f2d.tar.gz)
-* [Mac OSX 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-darwin-386-1517f2d.tar.gz)
-* [Linux 64 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-amd64-1517f2d.tar.gz)
-* [Linux 32 bit](https://dl.dropboxusercontent.com/u/83217940/vegeta-linux-386-1517f2d.tar.gz)
+Get them [here](http://github.com/tsenart/vegeta/releases).
 
 ### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
