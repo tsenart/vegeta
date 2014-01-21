@@ -114,13 +114,13 @@ Specifies the kind of report to be generated. It defaults to text.
 
 ##### text
 ```
-Requests      [total]               1200
-Duration      [total]               1.998307684s
-Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
-Bytes In      [total, mean]         3714690, 3095.57
-Bytes Out     [total, mean]         0, 0.00
-Success       [ratio]               55.42%
-Status Codes  [code:count]          0:535  200:665
+Requests      [total]                   1200
+Duration      [total]                   1.998307684s
+Latencies     [mean, 50, 95, 99, max]   223.340085ms, 240.12234ms, 326.913687ms, 416.537743ms, 7.788103259s
+Bytes In      [total, mean]             3714690, 3095.57
+Bytes Out     [total, mean]             0, 0.00
+Success       [ratio]                   55.42%
+Status Codes  [code:count]              0:535  200:665
 Error Set:
 Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
 Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
@@ -135,6 +135,7 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 {
   "latencies": {
     "mean": 9093653647,
+    "50th": 2401223400,
     "95th": 12553709381,
     "99th": 12604629125,
     "max": 12604629125
