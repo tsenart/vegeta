@@ -25,6 +25,7 @@ func TestNewMetrics(t *testing.T) {
 	for field, values := range map[string][]time.Duration{
 		"Latencies.Max":  []time.Duration{m.Latencies.Max, 100 * time.Millisecond},
 		"Latencies.Mean": []time.Duration{m.Latencies.Mean, 50 * time.Millisecond},
+		"Latencies.P50":  []time.Duration{m.Latencies.P50, 20 * time.Millisecond},
 		"Latencies.P95":  []time.Duration{m.Latencies.P95, 30 * time.Millisecond},
 		"Latencies.P99":  []time.Duration{m.Latencies.P99, 30 * time.Millisecond},
 		"Duration":       []time.Duration{m.Duration, 2 * time.Second},
