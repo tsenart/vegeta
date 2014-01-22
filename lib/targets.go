@@ -63,8 +63,12 @@ func (t Targets) SetHeader(header http.Header) {
 	for _, target := range t {
 		target.Header = make(http.Header, len(header))
 		for k, vs := range header {
-			target.Header[k] = make([]string, len(vs))
-			copy(target.Header[k], vs)
+			if k == "Host" {
+				target.Host = vs[0]
+			} else {
+				target.Header[k] = make([]string, len(vs))
+				copy(target.Header[k], vs)
+			}
 		}
 	}
 }
