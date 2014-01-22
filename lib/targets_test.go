@@ -55,16 +55,26 @@ func TestShuffle(t *testing.T) {
 
 func TestSetHeader(t *testing.T) {
 	targets, _ := NewTargets([]string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"})
-	want := "lolcathost.com"
-	targets.SetHeader(http.Header{"Host": []string{want}})
+	want := "secret"
+	targets.SetHeader(http.Header{"Authorization": []string{want}})
 	for _, target := range targets {
-		if got := target.Header.Get("Host"); got != want {
+		if got := target.Header.Get("Authorization"); got != want {
 			t.Errorf("Want: %s, Got: %s", want, got)
 		}
 	}
+
 	// Test Header copy
 	targets[0].Header.Set("Authorization", "0")
 	if targets[1].Header.Get("Authorization") == "0" {
 		t.Error("Each Target must have it's own Header")
+	}
+
+	// Test Host header
+	want = "lolcathost"
+	targets.SetHeader(http.Header{"Host": []string{want}})
+	for _, target := range targets {
+		if got := target.Host; got != want {
+			t.Errorf("Want: %s, Got: %s", want, got)
+		}
 	}
 }
