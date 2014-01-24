@@ -24,15 +24,13 @@ func TestAttackRate(t *testing.T) {
 	}
 }
 
-func TestClientCertConfig(t *testing.T) {
+func TestDefaultAttackerCertConfig(t *testing.T) {
 	server := httptest.NewTLSServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
 	request, _ := http.NewRequest("GET", server.URL, nil)
-	results := make(chan Result, 1)
-	hit(request, results)
-	result := <-results
-	if strings.Contains(result.Error, "x509: certificate signed by unknown authority") {
-		t.Errorf("Invalid certificates should be ignored: Got `%s`", result.Error)
+	_, err := DefaultAttacker.client.Do(request)
+	if err != nil && strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
+		t.Errorf("Invalid certificates should be ignored: Got `%s`", err)
 	}
 }
