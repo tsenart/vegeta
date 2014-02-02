@@ -17,48 +17,54 @@ func init() {
 }
 
 func TestRateValidation(t *testing.T) {
-	rate, duration, targetsf, ordering, output, header := defaultArguments()
-	rate = 0
+	t.Parallel()
 
-	err := attack(rate, duration, targetsf, ordering, output, header)
+	_, duration, targetsf, ordering, output, redirects, header := defaultArguments()
+
+	err := attack(0, duration, targetsf, ordering, output, redirects, header)
 	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errRatePrefix)) {
 		t.Errorf("Rate 0 shouldn't be valid: %s", err)
 	}
 }
 
 func TestDurationValidation(t *testing.T) {
-	rate, duration, targetsf, ordering, output, header := defaultArguments()
-	duration = 0
+	t.Parallel()
 
-	err := attack(rate, duration, targetsf, ordering, output, header)
+	rate, _, targetsf, ordering, output, redirects, header := defaultArguments()
+
+	err := attack(rate, 0, targetsf, ordering, output, redirects, header)
 	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errDurationPrefix)) {
 		t.Errorf("Duration 0 shouldn't be valid: %s", err)
 	}
 }
 
 func TestTargetsValidation(t *testing.T) {
-	rate, duration, goodFile, ordering, output, header := defaultArguments()
+	t.Parallel()
+
+	rate, duration, goodFile, ordering, output, redirects, header := defaultArguments()
 
 	// Good case
-	err := attack(rate, duration, goodFile, ordering, output, header)
+	err := attack(rate, duration, goodFile, ordering, output, redirects, header)
 	if err != nil {
 		t.Errorf("Targets file `%s` should be valid: %s", goodFile, err)
 	}
 
 	// Bad case
 	badFile := "randomInexistingFile12345.txt"
-	err = attack(rate, duration, badFile, ordering, output, header)
+	err = attack(rate, duration, badFile, ordering, output, redirects, header)
 	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errTargetsFilePrefix)) {
 		t.Errorf("Targets file `%s` shouldn't be valid: %s", badFile, err)
 	}
 }
 
 func TestOrderingValidation(t *testing.T) {
-	rate, duration, targetsf, _, output, header := defaultArguments()
+	t.Parallel()
+
+	rate, duration, targetsf, _, output, redirects, header := defaultArguments()
 
 	// Good cases
 	for _, ordering := range []string{"random", "sequential"} {
-		err := attack(rate, duration, targetsf, ordering, output, header)
+		err := attack(rate, duration, targetsf, ordering, output, redirects, header)
 		if err != nil {
 			t.Errorf("Ordering `%s` should be valid: %s", ordering, err)
 		}
@@ -66,13 +72,15 @@ func TestOrderingValidation(t *testing.T) {
 
 	// Bad case
 	badOrdering := "lolcat"
-	err := attack(rate, duration, targetsf, badOrdering, output, header)
+	err := attack(rate, duration, targetsf, badOrdering, output, redirects, header)
 	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errOrderingPrefix)) {
 		t.Errorf("Ordering `%s` shouldn't be valid: %s", badOrdering, err)
 	}
 }
 
 func TestHeadersParsing(t *testing.T) {
+	t.Parallel()
+
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	fs.SetOutput(ioutil.Discard)
 	hdrs := headers{Header: make(http.Header)}
@@ -91,11 +99,12 @@ func TestHeadersParsing(t *testing.T) {
 	}
 }
 
-func defaultArguments() (uint64, time.Duration, string, string, string, http.Header) {
+func defaultArguments() (uint64, time.Duration, string, string, string, int, http.Header) {
 	return uint64(1000),
 		5 * time.Millisecond,
 		".targets.txt",
 		"random",
 		os.DevNull,
+		10,
 		http.Header{}
 }

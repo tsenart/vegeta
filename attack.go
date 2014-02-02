@@ -18,18 +18,22 @@ func attackCmd(args []string) command {
 	ordering := fs.String("ordering", "random", "Attack ordering [sequential, random]")
 	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
 	output := fs.String("output", "stdout", "Output file")
+	redirects := fs.Int("redirects", 10, "Number of redirects to follow")
 	hdrs := headers{Header: make(http.Header)}
 	fs.Var(hdrs, "header", "Targets request header")
 	fs.Parse(args)
 
 	return func() error {
-		return attack(*rate, *duration, *targetsf, *ordering, *output, hdrs.Header)
+		return attack(*rate, *duration, *targetsf, *ordering, *output, *redirects,
+			hdrs.Header)
 	}
 }
 
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
-func attack(rate uint64, duration time.Duration, targetsf, ordering, output string, header http.Header) error {
+func attack(rate uint64, duration time.Duration, targetsf, ordering,
+	output string, redirects int, header http.Header) error {
+
 	if rate == 0 {
 		return fmt.Errorf(errRatePrefix + "can't be zero")
 	}
@@ -64,7 +68,10 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering, output stri
 	}
 	defer out.Close()
 
-	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n", len(targets), ordering, duration)
+	vegeta.DefaultAttacker.SetRedirects(redirects)
+
+	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n",
+		len(targets), ordering, duration)
 	results := vegeta.Attack(targets, rate, duration)
 	log.Println("Done!")
 	log.Printf("Writing results to '%s'...", output)

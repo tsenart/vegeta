@@ -2,26 +2,27 @@ package vegeta
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-// Attacker is an attack executor, wrapping an *http.Client
-type Attacker struct{ client *http.Client }
+// Attacker is an attack executor, wrapping an http.Client
+type Attacker struct{ client http.Client }
 
 // DefaultAttacker is the default Attacker used by Attack
-var DefaultAttacker = Attacker{&http.Client{
-	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	},
-}}
+var DefaultAttacker = NewAttacker()
 
-// NewAttacker returns an *Attacker wrapping an *http.Client
-func NewAttacker(client *http.Client) *Attacker {
-  return &Attacker{client}
+// NewAttacker returns a pointer to a new Attacker
+func NewAttacker() *Attacker {
+	return &Attacker{http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}}
 }
 
 // Attack hits the passed Targets (http.Requests) at the rate specified for
@@ -54,6 +55,17 @@ func (a Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
 	close(resc)
 
 	return results.Sort()
+}
+
+// SetRedirects sets the max amount of redirects the attacker's http client
+// will follow.
+func (a *Attacker) SetRedirects(redirects int) {
+	a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		if len(via) > redirects {
+			return fmt.Errorf("Stopped after %d redirects", redirects)
+		}
+		return nil
+	}
 }
 
 // drill loops over the passed reqs channel and executes each request.
