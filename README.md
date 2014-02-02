@@ -52,7 +52,9 @@ Usage of attack:
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
+  -redirects=10: Number of redirects to follow
   -targets="stdin": Targets file
+  -timeout=0: Requests timeout
 ```
 
 #### -duration
@@ -81,6 +83,10 @@ Specifies the requests per second rate to issue against
 the targets. The actual request rate can vary slightly due to things like
 garbage collection, but overall it should stay very close to the specified.
 
+#### -redirects
+Specifies the max number of redirects followed on each request. The
+default is 10.
+
 #### -targets
 Specifies the attack targets in a line separated file, defaulting to stdin.
 The format should be as follows.
@@ -91,6 +97,9 @@ HEAD http://goku:9090/path/to/success
 ...
 ```
 
+#### -timeout
+Specifies the timeout for each request. The default is 0 which disables
+timeouts.
 ### report
 ```
 $ vegeta report -h
