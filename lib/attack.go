@@ -16,13 +16,7 @@ var DefaultAttacker = NewAttacker()
 
 // NewAttacker returns a pointer to a new Attacker
 func NewAttacker() *Attacker {
-	return &Attacker{http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}}
+	return &Attacker{http.Client{Transport: &defaultTransport}}
 }
 
 // Attack hits the passed Targets (http.Requests) at the rate specified for
@@ -68,6 +62,13 @@ func (a *Attacker) SetRedirects(redirects int) {
 	}
 }
 
+// SetTimeout sets the client side timeout for each request the attacker makes.
+func (a *Attacker) SetTimeout(timeout time.Duration) {
+	tr := a.client.Transport.(*http.Transport)
+	tr.ResponseHeaderTimeout = timeout
+	a.client.Transport = tr
+}
+
 // drill loops over the passed reqs channel and executes each request.
 // It is throttled to the rate specified.
 func (a Attacker) drill(rt uint64, reqs chan *http.Request, resc chan Result) {
@@ -102,4 +103,10 @@ func (a Attacker) hit(req *http.Request, res chan Result) {
 		}
 	}
 	res <- result
+}
+
+var defaultTransport = http.Transport{
+	TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	},
 }

@@ -72,3 +72,25 @@ func TestSetRedirects(t *testing.T) {
 		t.Fatalf("Expected hits to be: %d, Got: %d", want, got)
 	}
 }
+
+func TestSetTimeout(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-time.After(2 * time.Second)
+		}),
+	)
+
+	DefaultAttacker.SetTimeout(500 * time.Millisecond)
+
+	request, _ := http.NewRequest("GET", server.URL, nil)
+	results := Attack(Targets{request}, 100, 1*time.Second)
+
+	want := "net/http: timeout awaiting response headers"
+	for _, result := range results {
+		if !strings.Contains(result.Error, want) {
+			t.Fatalf("Expected error to be: %s, Got: %s", want, result.Error)
+		}
+	}
+}
