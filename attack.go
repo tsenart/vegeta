@@ -19,20 +19,21 @@ func attackCmd(args []string) command {
 	duration := fs.Duration("duration", 10*time.Second, "Duration of the test")
 	output := fs.String("output", "stdout", "Output file")
 	redirects := fs.Int("redirects", 10, "Number of redirects to follow")
+	timeout := fs.Duration("timeout", 0, "Requests timeout")
 	hdrs := headers{Header: make(http.Header)}
 	fs.Var(hdrs, "header", "Targets request header")
 	fs.Parse(args)
 
 	return func() error {
 		return attack(*rate, *duration, *targetsf, *ordering, *output, *redirects,
-			hdrs.Header)
+			*timeout, hdrs.Header)
 	}
 }
 
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(rate uint64, duration time.Duration, targetsf, ordering,
-	output string, redirects int, header http.Header) error {
+	output string, redirects int, timeout time.Duration, hdr http.Header) error {
 
 	if rate == 0 {
 		return fmt.Errorf(errRatePrefix + "can't be zero")
@@ -51,7 +52,7 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering,
 	if err != nil {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
 	}
-	targets.SetHeader(header)
+	targets.SetHeader(hdr)
 
 	switch ordering {
 	case "random":
@@ -69,6 +70,10 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering,
 	defer out.Close()
 
 	vegeta.DefaultAttacker.SetRedirects(redirects)
+
+	if timeout > 0 {
+		vegeta.DefaultAttacker.SetTimeout(timeout)
+	}
 
 	log.Printf("Vegeta is attacking %d targets in %s order for %s...\n",
 		len(targets), ordering, duration)
