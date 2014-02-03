@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"text/tabwriter"
 )
 
@@ -48,18 +49,28 @@ func ReportJSON(results []Result) ([]byte, error) {
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
 func ReportPlot(results []Result) ([]byte, error) {
-	out := &bytes.Buffer{}
-	for _, result := range results {
-		fmt.Fprintf(out, "[%f,%f],",
-			result.Timestamp.Sub(results[0].Timestamp).Seconds(),
-			result.Latency.Seconds()*1000,
-		)
+	series := &bytes.Buffer{}
+	for i, point := 0, ""; i < len(results); i++ {
+		point = "[" + strconv.FormatFloat(
+			results[i].Timestamp.Sub(results[0].Timestamp).Seconds(), 'f', -1, 32) + ","
+
+		if results[i].Error == "" {
+			point += "NaN," + strconv.FormatFloat(results[i].Latency.Seconds()*1000, 'f', -1, 32) + "],"
+		} else {
+			point += strconv.FormatFloat(results[i].Latency.Seconds()*1000, 'f', -1, 32) + ",NaN],"
+		}
+
+		series.WriteString(point)
 	}
-	out.Truncate(out.Len() - 1) // Remove trailing comma
-	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), out)), nil
+	// Remove trailing commas
+	if series.Len() > 0 {
+		series.Truncate(series.Len() - 1)
+	}
+
+	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), series)), nil
 }
 
-var plotsTemplate = `<!doctype>
+const plotsTemplate = `<!doctype>
 <html>
 <head>
   <title>Vegeta Plots</title>
@@ -76,14 +87,14 @@ var plotsTemplate = `<!doctype>
     [%s],
     {
       title: 'Vegeta Plot',
-      labels: ['Seconds', 'Latency (ms)'],
+      labels: ['Seconds', 'OK', 'ERR'],
       ylabel: 'Latency (ms)',
       xlabel: 'Seconds elapsed',
       showRoller: true,
-      colors: ['#8AE234'],
-      fillGraph: true,
+      colors: ['#FA7878', '#8AE234'],
       legend: 'always',
-      logscale: true
+      logscale: true,
+      strokeWidth: 1.3
     }
   );
   </script>
