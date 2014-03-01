@@ -91,7 +91,7 @@ func (a Attacker) hit(req *http.Request, res chan Result) {
 	// inject uniqueness
 	if (strings.Contains(req.URL.String(), "%d%d")) {
 		parsedUrl, err := url.Parse(fmt.Sprintf(req.URL.String(), time.Now().UnixNano(), rand.Int63n(time.Now().Unix())))
-		if err != nil {
+		if err == nil {
 			req.URL = parsedUrl
 		}
 	}
