@@ -51,7 +51,7 @@ func NewTargets(lines []string, unique bool) (Targets, error) {
 				sep = "/" + sep
 			}
 
-			url = parts[1] + sep + "_=" + fmt.Sprintf("%d", time.Now().UnixNano())
+			url = parts[1] + sep + "_=" + fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Int63n(time.Now().Unix()))
 		}
 
 		// Build request
