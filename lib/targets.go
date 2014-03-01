@@ -13,7 +13,7 @@ import (
 type Targets []*http.Request
 
 // NewTargetsFrom reads targets out of a line separated source skipping empty lines
-func NewTargetsFrom(source io.Reader) (Targets, error) {
+func NewTargetsFrom(source io.Reader, unique bool) (Targets, error) {
 	scanner := bufio.NewScanner(source)
 	lines := make([]string, 0)
 	for scanner.Scan() {
@@ -28,19 +28,33 @@ func NewTargetsFrom(source io.Reader) (Targets, error) {
 		return Targets{}, err
 	}
 
-	return NewTargets(lines)
+	return NewTargets(lines, unique)
 }
 
 // NewTargets instantiates Targets from a slice of strings
-func NewTargets(lines []string) (Targets, error) {
+func NewTargets(lines []string, unique bool) (Targets, error) {
 	targets := make([]*http.Request, 0)
 	for _, line := range lines {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) != 2 {
 			return targets, fmt.Errorf("Invalid request format: `%s`", line)
 		}
+
+		// Apply uniqueness
+		url := parts[1]
+		if (unique == true) {
+			sep := "?"
+			if (strings.Contains(url, "?")) {
+				sep = "&"
+			} else if (strings.HasSuffix(url, "/") == false) {
+				sep = "/" + sep
+			}
+
+			url = parts[1] + sep + "_=%d%d"
+		}
+
 		// Build request
-		req, err := http.NewRequest(parts[0], parts[1], nil)
+		req, err := http.NewRequest(parts[0], url, nil)
 		if err != nil {
 			return targets, fmt.Errorf("Failed to build request: %s", err)
 		}

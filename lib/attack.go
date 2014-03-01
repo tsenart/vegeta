@@ -4,7 +4,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -84,6 +87,15 @@ func (a Attacker) drill(rt uint64, reqs chan *http.Request, resc chan Result) {
 // considered errors.
 func (a Attacker) hit(req *http.Request, res chan Result) {
 	began := time.Now()
+
+	// inject uniqueness
+	if (strings.Contains(req.URL.String(), "%d%d")) {
+		parsedUrl, err := url.Parse(fmt.Sprintf(req.URL.String(), time.Now().UnixNano(), rand.Int63n(time.Now().Unix())))
+		if err == nil {
+			req.URL = parsedUrl
+		}
+	}
+
 	r, err := a.client.Do(req)
 	result := Result{
 		Timestamp: began,

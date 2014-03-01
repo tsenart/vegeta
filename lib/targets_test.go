@@ -8,7 +8,7 @@ import (
 
 func TestNewTargetsFrom(t *testing.T) {
 	lines := bytes.NewBufferString("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
-	targets, err := NewTargetsFrom(lines)
+	targets, err := NewTargetsFrom(lines, false)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
@@ -23,13 +23,28 @@ func TestNewTargetsFrom(t *testing.T) {
 
 func TestNewTargets(t *testing.T) {
 	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}
-	targets, err := NewTargets(lines)
+	targets, err := NewTargets(lines, false)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
 	for i, method := range []string{"GET", "HEAD"} {
 		if targets[i].Method != method ||
 			targets[i].URL.String() != "http://lolcathost:9999/" {
+			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
+				targets[i].Method, targets[i].URL.String())
+		}
+	}
+}
+
+func TestNewTargetsUnique(t *testing.T) {
+	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999"}
+	targets, err := NewTargets(lines, true)
+	if err != nil {
+		t.Fatalf("Couldn't parse valid source: %s", err)
+	}
+	for i, method := range []string{"GET", "HEAD"} {
+		if targets[i].Method != method ||
+			targets[i].URL.String() != "http://lolcathost:9999/?_=%d%d" {
 			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
 				targets[i].Method, targets[i].URL.String())
 		}
@@ -54,7 +69,7 @@ func TestShuffle(t *testing.T) {
 }
 
 func TestSetHeader(t *testing.T) {
-	targets, _ := NewTargets([]string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"})
+	targets, _ := NewTargets([]string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}, false)
 	want := "secret"
 	targets.SetHeader(http.Header{"Authorization": []string{want}})
 	for _, target := range targets {
