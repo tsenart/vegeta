@@ -47,6 +47,8 @@ func NewTargets(lines []string, unique bool) (Targets, error) {
 			sep := "?"
 			if (strings.Contains(url, "?")) {
 				sep = "&"
+			} else if (strings.HasSuffix(url, "/") == false) {
+				sep = "/" + sep
 			}
 
 			url = parts[1] + sep + "_=" + fmt.Sprintf("%d", time.Now().UnixNano())

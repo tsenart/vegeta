@@ -38,7 +38,7 @@ func TestNewTargets(t *testing.T) {
 }
 
 func TestNewTargetsUnique(t *testing.T) {
-	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}
+	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999"}
 	targets, err := NewTargets(lines, true)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
