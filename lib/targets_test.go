@@ -3,7 +3,6 @@ package vegeta
 import (
 	"bytes"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -45,7 +44,7 @@ func TestNewTargetsUnique(t *testing.T) {
 	}
 	for i, method := range []string{"GET", "HEAD"} {
 		if targets[i].Method != method ||
-			false == strings.HasPrefix(targets[i].URL.String(), "http://lolcathost:9999/?_=") {
+			targets[i].URL.String() != "http://lolcathost:9999/?_=%d%d" {
 			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
 				targets[i].Method, targets[i].URL.String())
 		}

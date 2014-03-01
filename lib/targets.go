@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // Targets represents the http.Requests which will be issued during the test
@@ -51,7 +50,7 @@ func NewTargets(lines []string, unique bool) (Targets, error) {
 				sep = "/" + sep
 			}
 
-			url = parts[1] + sep + "_=" + fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Int63n(time.Now().Unix()))
+			url = parts[1] + sep + "_=%d%d"
 		}
 
 		// Build request
