@@ -9,9 +9,9 @@ import (
 
 func TestEncoding(t *testing.T) {
 	results := Results{
-		Result{200, time.Now(), 100 * time.Millisecond, 10, 30, ""},
-		Result{200, time.Now(), 20 * time.Millisecond, 20, 20, ""},
-		Result{200, time.Now(), 30 * time.Millisecond, 30, 10, ""},
+		Result{200, time.Now(), 100 * time.Millisecond, "http://localhost", 10, 30, ""},
+		Result{200, time.Now(), 20 * time.Millisecond, "http://localhost", 20, 20, ""},
+		Result{200, time.Now(), 30 * time.Millisecond, "http://localhost", 30, 10, ""},
 	}
 	buffer := &bytes.Buffer{}
 
