@@ -13,6 +13,7 @@ type Result struct {
 	Code      uint16
 	Timestamp time.Time
 	Latency   time.Duration
+	URL	      string
 	BytesOut  uint64
 	BytesIn   uint64
 	Error     string
