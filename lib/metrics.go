@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"strings"
 	"strconv"
 	"time"
 
@@ -33,17 +34,20 @@ type Metrics struct {
 	Success     float64        `json:"success"`
 	StatusCodes map[string]int `json:"status_codes"`
 	Errors      []string       `json:"errors"`
+	Headers     map[string]int `json:"headers"`
 }
 
 // NewMetrics computes and returns a Metrics struct out of a slice of Results
-func NewMetrics(results []Result) *Metrics {
+func NewMetrics(results []Result, statheader string) *Metrics {
 	m := &Metrics{
 		Requests:    uint64(len(results)),
 		StatusCodes: map[string]int{},
+		Headers:     map[string]int{},
 	}
 	errorSet := map[string]struct{}{}
 	quants := quantile.NewTargeted(0.50, 0.95, 0.99)
 	totalSuccess, totalLatencies := 0, time.Duration(0)
+	headers := strings.Split(statheader, ",")
 
 	for _, result := range results {
 		quants.Insert(float64(result.Latency))
@@ -54,11 +58,20 @@ func NewMetrics(results []Result) *Metrics {
 		if result.Latency > m.Latencies.Max {
 			m.Latencies.Max = result.Latency
 		}
+
 		if result.Code >= 200 && result.Code < 300 {
 			totalSuccess++
 		}
+
 		if result.Error != "" {
 			errorSet[result.Error] = struct{}{}
+		}
+
+		for _, header := range headers {
+			h := result.Header.Get(header);
+			if (h != "") {
+				m.Headers[h]++
+			}
 		}
 	}
 

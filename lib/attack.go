@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"runtime"
 )
 
 // Attacker is an attack executor, wrapping an http.Client
@@ -111,6 +112,7 @@ func (a Attacker) hit(req *http.Request, res chan Result) {
 	} else {
 		result.URL  = r.Request.URL.String()
 		result.Code = uint16(r.StatusCode)
+		result.Header = r.Header
 		if body, err := ioutil.ReadAll(r.Body); err != nil {
 			if result.Code < 200 || result.Code >= 300 {
 				result.Error = string(body)
@@ -124,6 +126,7 @@ func (a Attacker) hit(req *http.Request, res chan Result) {
 		req.URL = urlBackup
 	}
 
+	runtime.GC();
 	res <- result
 }
 

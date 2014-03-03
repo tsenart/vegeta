@@ -1,16 +1,17 @@
 package vegeta
 
 import (
+	"net/http"
 	"testing"
 	"time"
 )
 
 func TestNewMetrics(t *testing.T) {
 	m := NewMetrics([]Result{
-		Result{500, time.Unix(0, 0), 100 * time.Millisecond, "http://localhost", 10, 30, "Internal server error"},
-		Result{200, time.Unix(1, 0), 20 * time.Millisecond, "http://localhost", 20, 20, ""},
-		Result{200, time.Unix(2, 0), 30 * time.Millisecond, "http://localhost", 30, 10, ""},
-	})
+		Result{500, time.Unix(0, 0), 100 * time.Millisecond, "http://localhost", http.Header{"Testheader": {"foo"}}, 10, 30, "Internal server error"},
+		Result{200, time.Unix(1, 0), 20 * time.Millisecond, "http://localhost", http.Header{"Testheader": {"bar"}}, 20, 20, ""},
+		Result{200, time.Unix(2, 0), 30 * time.Millisecond, "http://localhost", http.Header{"Testheader": {"foo"}}, 30, 10, ""},
+	}, "Testheader")
 
 	for field, values := range map[string][]float64{
 		"BytesIn.Mean":  []float64{m.BytesIn.Mean, 20.0},
@@ -43,6 +44,10 @@ func TestNewMetrics(t *testing.T) {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %d, got: %d", field, values[1], values[0])
 		}
+	}
+
+	if len(m.Headers) != 2 || m.Headers["foo"] != 2 || m.Headers["bar"] != 1 {
+		t.Errorf("Headers: want: %v, got: %v", map[string]int{"foo": 2, "bar": 1}, m.Headers)
 	}
 
 	if len(m.StatusCodes) != 2 || m.StatusCodes["200"] != 2 || m.StatusCodes["500"] != 1 {
