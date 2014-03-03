@@ -123,6 +123,9 @@ reports.
 #### -output
 Specifies the output file to which the report will be written to.
 
+#### -header
+Create statistics of the values of 1 or more headers
+
 #### -reporter
 Specifies the kind of report to be generated. It defaults to text.
 
