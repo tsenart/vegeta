@@ -4,8 +4,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
+	"runtime"
 )
 
 // Attacker is an attack executor, wrapping an http.Client
@@ -84,16 +88,31 @@ func (a Attacker) drill(rt uint64, reqs chan *http.Request, resc chan Result) {
 // considered errors.
 func (a Attacker) hit(req *http.Request, res chan Result) {
 	began := time.Now()
+	urlBackup := req.URL
+	restoreBackup := false
+
+	// inject uniqueness
+	if (strings.Contains(req.URL.String(), "%d;%d")) {
+		parsedUrl, err := url.Parse(fmt.Sprintf(req.URL.String(), time.Now().UnixNano(), rand.Int63n(time.Now().Unix())))
+		if err == nil {
+			req.URL = parsedUrl
+			restoreBackup = true
+		}
+	}
+
 	r, err := a.client.Do(req)
 	result := Result{
 		Timestamp: began,
 		Latency:   time.Since(began),
 		BytesOut:  uint64(req.ContentLength),
 	}
+
 	if err != nil {
 		result.Error = err.Error()
 	} else {
+		result.URL  = r.Request.URL.String()
 		result.Code = uint16(r.StatusCode)
+		result.Header = r.Header
 		if body, err := ioutil.ReadAll(r.Body); err != nil {
 			if result.Code < 200 || result.Code >= 300 {
 				result.Error = string(body)
@@ -102,6 +121,12 @@ func (a Attacker) hit(req *http.Request, res chan Result) {
 			result.BytesIn = uint64(len(body))
 		}
 	}
+
+	if (restoreBackup) {
+		req.URL = urlBackup
+	}
+
+	runtime.GC();
 	res <- result
 }
 

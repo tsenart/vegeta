@@ -12,16 +12,17 @@ func reportCmd(args []string) command {
 	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
 	input := fs.String("input", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
+	statheader := fs.String("header", "", "Create stats for response header(s)")
 	fs.Parse(args)
 
 	return func() error {
-		return report(*reporter, *input, *output)
+		return report(*reporter, *input, *output, *statheader)
 	}
 }
 
 // report validates the report arguments, sets up the required resources
 // and writes the report
-func report(reporter, input, output string) error {
+func report(reporter, input, output string, statheader string) error {
 	var rep vegeta.Reporter
 	switch reporter {
 	case "text":
@@ -56,7 +57,7 @@ func report(reporter, input, output string) error {
 	}
 	defer out.Close()
 
-	if data, err := rep(all); err != nil {
+	if data, err := rep(all, statheader); err != nil {
 		return err
 	} else if _, err := out.Write(data); err != nil {
 		return err

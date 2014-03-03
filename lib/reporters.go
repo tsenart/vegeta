@@ -11,11 +11,11 @@ import (
 // Reporter represents any function which takes a slice of Results and
 // generates a report returned as a slice of bytes and an error in case
 // of failure
-type Reporter func([]Result) ([]byte, error)
+type Reporter func([]Result, string) ([]byte, error)
 
 // ReportText returns a computed Metrics struct as aligned, formatted text
-func ReportText(results []Result) ([]byte, error) {
-	m := NewMetrics(results)
+func ReportText(results []Result, statheader string) ([]byte, error) {
+	m := NewMetrics(results, statheader)
 	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
@@ -30,6 +30,14 @@ func ReportText(results []Result) ([]byte, error) {
 	for code, count := range m.StatusCodes {
 		fmt.Fprintf(w, "%s:%d  ", code, count)
 	}
+
+	if statheader != "" {
+		fmt.Fprintf(w, "\nHeaders (%s)\t[header:count]\t", statheader)
+		for header, count := range m.Headers {
+			fmt.Fprintf(w, "%s:%d\n\t\t", header, count)
+		}
+	}
+
 	fmt.Fprintln(w, "\nError Set:")
 	for _, err := range m.Errors {
 		fmt.Fprintln(w, err)
@@ -42,13 +50,13 @@ func ReportText(results []Result) ([]byte, error) {
 }
 
 // ReportJSON writes a computed Metrics struct to as JSON
-func ReportJSON(results []Result) ([]byte, error) {
-	return json.Marshal(NewMetrics(results))
+func ReportJSON(results []Result, statheader string) ([]byte, error) {
+	return json.Marshal(NewMetrics(results, statheader))
 }
 
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
-func ReportPlot(results []Result) ([]byte, error) {
+func ReportPlot(results []Result, statheader string) ([]byte, error) {
 	series := &bytes.Buffer{}
 	for i, point := 0, ""; i < len(results); i++ {
 		point = "[" + strconv.FormatFloat(

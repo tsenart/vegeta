@@ -20,20 +20,22 @@ func attackCmd(args []string) command {
 	output := fs.String("output", "stdout", "Output file")
 	redirects := fs.Int("redirects", 10, "Number of redirects to follow")
 	timeout := fs.Duration("timeout", 0, "Requests timeout")
+	unique := fs.Bool("unique", false, "Request uniqueness")
 	hdrs := headers{Header: make(http.Header)}
 	fs.Var(hdrs, "header", "Targets request header")
 	fs.Parse(args)
 
 	return func() error {
 		return attack(*rate, *duration, *targetsf, *ordering, *output, *redirects,
-			*timeout, hdrs.Header)
+			*timeout, *unique, hdrs.Header)
 	}
 }
 
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(rate uint64, duration time.Duration, targetsf, ordering,
-	output string, redirects int, timeout time.Duration, hdr http.Header) error {
+	output string, redirects int, timeout time.Duration, unique bool,
+	hdr http.Header) error {
 
 	if rate == 0 {
 		return fmt.Errorf(errRatePrefix + "can't be zero")
@@ -48,7 +50,7 @@ func attack(rate uint64, duration time.Duration, targetsf, ordering,
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
 	}
 	defer in.Close()
-	targets, err := vegeta.NewTargetsFrom(in)
+	targets, err := vegeta.NewTargetsFrom(in, unique)
 	if err != nil {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", targetsf, err)
 	}

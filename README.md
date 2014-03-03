@@ -100,6 +100,11 @@ HEAD http://goku:9090/path/to/success
 #### -timeout
 Specifies the timeout for each request. The default is 0 which disables
 timeouts.
+
+#### -unique
+Add a unique request-parameter to each target, to prevent URL-based caching.
+The default is false.
+
 ### report
 ```
 $ vegeta report -h
@@ -117,6 +122,9 @@ reports.
 
 #### -output
 Specifies the output file to which the report will be written to.
+
+#### -header
+Create statistics of the values of 1 or more headers
 
 #### -reporter
 Specifies the kind of report to be generated. It defaults to text.
