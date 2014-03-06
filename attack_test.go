@@ -59,6 +59,25 @@ func TestTargetsValidation(t *testing.T) {
 	}
 }
 
+func TestBodyValidation(t *testing.T) {
+	t.Parallel()
+
+	opts := defaultOpts()
+
+	// Good case
+	err := attack(opts)
+	if err != nil {
+		t.Errorf("Body file `%s` should be valid: %s", opts.bodyf, err)
+	}
+
+	// Bad case
+	opts.bodyf = "randomInexistingFile12345.txt"
+	err = attack(opts)
+	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errBodyFilePrefix)) {
+		t.Errorf("Body file `%s` shouldn't be valid: %s", opts.bodyf, err)
+	}
+}
+
 func TestOrderingValidation(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +126,7 @@ func defaultOpts() *attackOpts {
 		rate:      uint64(1000),
 		duration:  5 * time.Millisecond,
 		targetsf:  ".targets.txt",
+		bodyf:     ".targets.txt",
 		ordering:  "random",
 		outputf:   os.DevNull,
 		redirects: 10,

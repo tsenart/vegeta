@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -19,6 +20,7 @@ func attackCmd(args []string) command {
 
 		fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
 		fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+		fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 		fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
 		fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 		fs.DurationVar(&opts.timeout, "timeout", 0, "Requests timeout")
@@ -38,6 +40,7 @@ func attackCmd(args []string) command {
 type attackOpts struct {
 	targetsf  string
 	outputf   string
+	bodyf     string
 	ordering  string
 	duration  time.Duration
 	timeout   time.Duration
@@ -63,11 +66,23 @@ func attack(opts *attackOpts) error {
 	}
 	defer in.Close()
 
-	targets, err := vegeta.NewTargetsFrom(in)
+	var body []byte
+	if opts.bodyf != "" {
+		bodyr, err := file(opts.bodyf, false)
+		if err != nil {
+			return fmt.Errorf(errBodyFilePrefix+"(%s): %s", opts.bodyf, err)
+		}
+		defer bodyr.Close()
+
+		if body, err = ioutil.ReadAll(bodyr); err != nil {
+			return fmt.Errorf(errBodyFilePrefix+"(%s): %s", opts.bodyf, err)
+		}
+	}
+
+	targets, err := vegeta.NewTargetsFrom(in, body, opts.headers.Header)
 	if err != nil {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", opts.targetsf, err)
 	}
-	targets.SetHeader(opts.headers.Header)
 
 	switch opts.ordering {
 	case "random":
@@ -84,10 +99,11 @@ func attack(opts *attackOpts) error {
 	}
 	defer out.Close()
 
-	vegeta.DefaultAttacker.SetRedirects(opts.redirects)
+	attacker := vegeta.NewAttacker()
+	attacker.SetRedirects(opts.redirects)
 
 	if opts.timeout > 0 {
-		vegeta.DefaultAttacker.SetTimeout(opts.timeout)
+		attacker.SetTimeout(opts.timeout)
 	}
 
 	log.Printf(
@@ -96,7 +112,7 @@ func attack(opts *attackOpts) error {
 		opts.ordering,
 		opts.duration,
 	)
-	results := vegeta.Attack(targets, opts.rate, opts.duration)
+	results := attacker.Attack(targets, opts.rate, opts.duration)
 
 	log.Printf("Done! Writing results to '%s'...", opts.outputf)
 	return results.Encode(out)
@@ -107,6 +123,7 @@ const (
 	errDurationPrefix    = "Duration: "
 	errOutputFilePrefix  = "Output file: "
 	errTargetsFilePrefix = "Targets file: "
+	errBodyFilePrefix    = "Body file: "
 	errOrderingPrefix    = "Ordering: "
 	errReportingPrefix   = "Reporting: "
 )

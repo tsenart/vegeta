@@ -28,25 +28,24 @@ func Attack(tgts Targets, rate uint64, du time.Duration) Results {
 	return DefaultAttacker.Attack(tgts, rate, du)
 }
 
-// Attack hits the passed Targets (http.Requests) at the rate specified for
+// Attack attacks the passed Targets (http.Requests) at the rate specified for
 // duration time and then waits for all the requests to come back.
 // The results of the attack are put into a slice which is returned.
 func (a Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
-	total := rate * uint64(du.Seconds())
-	hits := make(chan *http.Request, total)
-	resc := make(chan Result, total)
-	results := make(Results, total)
+	hits := int(rate * uint64(du.Seconds()))
+	resc := make(chan Result)
+	throttle := time.NewTicker(time.Duration(1e9 / rate))
+	defer throttle.Stop()
 
-	go a.drill(rate, hits, resc)
-	for i := 0; i < cap(hits); i++ {
-		hits <- tgts[i%len(tgts)]
+	for i := 0; i < hits; i++ {
+		<-throttle.C
+		go func(tgt Target) { resc <- a.hit(tgt) }(tgts[i%len(tgts)])
 	}
-	close(hits)
 
-	for i := 0; i < cap(resc); i++ {
-		results[i] = <-resc
+	results := make(Results, 0, hits)
+	for len(results) < cap(results) {
+		results = append(results, <-resc)
 	}
-	close(resc)
 
 	return results.Sort()
 }
@@ -69,40 +68,32 @@ func (a *Attacker) SetTimeout(timeout time.Duration) {
 	a.client.Transport = tr
 }
 
-// drill loops over the passed reqs channel and executes each request.
-// It is throttled to the rate specified.
-func (a Attacker) drill(rt uint64, reqs chan *http.Request, resc chan Result) {
-	throttle := time.Tick(time.Duration(1e9 / rt))
-	for req := range reqs {
-		<-throttle
-		go a.hit(req, resc)
-	}
-}
-
-// hit executes the passed http.Request and puts the result into results.
-// Both transport errors and unsucessfull requests (non {2xx,3xx}) are
-// considered errors.
-func (a Attacker) hit(req *http.Request, res chan Result) {
-	began := time.Now()
-	r, err := a.client.Do(req)
-	result := Result{
-		Timestamp: began,
-		Latency:   time.Since(began),
-		BytesOut:  uint64(req.ContentLength),
-	}
+func (a *Attacker) hit(tgt Target) (res Result) {
+	req, err := tgt.Request()
 	if err != nil {
-		result.Error = err.Error()
-	} else {
-		result.Code = uint16(r.StatusCode)
-		if body, err := ioutil.ReadAll(r.Body); err != nil {
-			if result.Code < 200 || result.Code >= 300 {
-				result.Error = string(body)
-			}
-		} else {
-			result.BytesIn = uint64(len(body))
-		}
+		res.Error = err.Error()
+		return res
 	}
-	res <- result
+
+	res.Timestamp = time.Now()
+	r, err := a.client.Do(req)
+	res.Latency = time.Since(res.Timestamp)
+	if err != nil {
+		res.Error = err.Error()
+		return res
+	}
+
+	res.BytesOut = uint64(req.ContentLength)
+	res.Code = uint16(r.StatusCode)
+	if body, err := ioutil.ReadAll(r.Body); err != nil {
+		if res.Code < 200 || res.Code >= 300 {
+			res.Error = string(body)
+		}
+	} else {
+		res.BytesIn = uint64(len(body))
+	}
+
+	return res
 }
 
 var defaultTransport = http.Transport{
