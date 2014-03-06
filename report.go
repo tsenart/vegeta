@@ -2,65 +2,79 @@ package main
 
 import (
 	"flag"
-	vegeta "github.com/tsenart/vegeta/lib"
 	"log"
 	"strings"
+
+	vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func reportCmd(args []string) command {
-	fs := flag.NewFlagSet("report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
-	input := fs.String("input", "stdin", "Input files (comma separated)")
-	output := fs.String("output", "stdout", "Output file")
-	fs.Parse(args)
-
 	return func() error {
-		return report(*reporter, *input, *output)
+		fs := flag.NewFlagSet("vegeta report", flag.ContinueOnError)
+		opts := &reportOpts{}
+
+		fs.StringVar(&opts.reporter, "reporter", "text", "Reporter [text, json, plot]")
+		fs.StringVar(&opts.inputf, "input", "stdin", "Input files (comma separated)")
+		fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+
+		return report(opts)
 	}
+}
+
+// reportOpts aggregates the report function command options
+type reportOpts struct {
+	reporter string
+	inputf   string
+	outputf  string
 }
 
 // report validates the report arguments, sets up the required resources
 // and writes the report
-func report(reporter, input, output string) error {
-	var rep vegeta.Reporter
-	switch reporter {
-	case "text":
-		rep = vegeta.ReportText
-	case "json":
-		rep = vegeta.ReportJSON
-	case "plot":
-		rep = vegeta.ReportPlot
-	default:
+func report(opts *reportOpts) error {
+	rep, ok := reporters[opts.reporter]
+	if !ok {
 		log.Println("Reporter provided is not supported. Using text")
 		rep = vegeta.ReportText
 	}
 
-	all := vegeta.Results{}
-	for _, input := range strings.Split(input, ",") {
+	var all vegeta.Results
+	for _, input := range strings.Split(opts.inputf, ",") {
 		in, err := file(input, false)
 		if err != nil {
 			return err
 		}
-		defer in.Close()
-		results := vegeta.Results{}
-		if err := results.Decode(in); err != nil {
+
+		var results vegeta.Results
+		if err = results.Decode(in); err != nil {
 			return err
 		}
+		in.Close()
+
 		all = append(all, results...)
 	}
 	all.Sort()
 
-	out, err := file(output, true)
+	out, err := file(opts.outputf, true)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	if data, err := rep(all); err != nil {
-		return err
-	} else if _, err := out.Write(data); err != nil {
+	data, err := rep(all)
+	if err != nil {
 		return err
 	}
+	_, err = out.Write(data)
 
-	return nil
+	return err
+}
+
+var reporters = map[string]vegeta.Reporter{
+	"text": vegeta.ReportText,
+	"json": vegeta.ReportJSON,
+	"plot": vegeta.ReportPlot,
 }
