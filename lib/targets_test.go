@@ -2,11 +2,14 @@ package vegeta
 
 import (
 	"bytes"
+	"io/ioutil"
 	"net/http"
 	"testing"
 )
 
 func TestNewTargetsFrom(t *testing.T) {
+	t.Parallel()
+
 	lines := bytes.NewBufferString("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
 	targets, err := NewTargetsFrom(lines)
 	if err != nil {
@@ -22,6 +25,8 @@ func TestNewTargetsFrom(t *testing.T) {
 }
 
 func TestNewTargets(t *testing.T) {
+	t.Parallel()
+
 	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}
 	targets, err := NewTargets(lines)
 	if err != nil {
@@ -37,6 +42,8 @@ func TestNewTargets(t *testing.T) {
 }
 
 func TestShuffle(t *testing.T) {
+	t.Parallel()
+
 	targets := make(Targets, 50)
 	for i := 0; i < 50; i++ {
 		targets[i], _ = http.NewRequest("GET", "http://lolcathost:9999/", nil)
@@ -54,6 +61,8 @@ func TestShuffle(t *testing.T) {
 }
 
 func TestSetHeader(t *testing.T) {
+	t.Parallel()
+
 	targets, _ := NewTargets([]string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"})
 	want := "secret"
 	targets.SetHeader(http.Header{"Authorization": []string{want}})

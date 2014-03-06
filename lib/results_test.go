@@ -8,6 +8,8 @@ import (
 )
 
 func TestEncoding(t *testing.T) {
+	t.Parallel()
+
 	results := Results{
 		Result{200, time.Now(), 100 * time.Millisecond, 10, 30, ""},
 		Result{200, time.Now(), 20 * time.Millisecond, 20, 20, ""},
@@ -36,6 +38,8 @@ func TestEncoding(t *testing.T) {
 }
 
 func TestSort(t *testing.T) {
+	t.Parallel()
+
 	results := Results{
 		Result{Timestamp: time.Date(2013, 9, 10, 20, 4, 0, 3, time.UTC)},
 		Result{Timestamp: time.Date(2013, 9, 10, 20, 4, 0, 2, time.UTC)},

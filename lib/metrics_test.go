@@ -6,6 +6,8 @@ import (
 )
 
 func TestNewMetrics(t *testing.T) {
+	t.Parallel()
+
 	m := NewMetrics([]Result{
 		Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
 		Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
