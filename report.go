@@ -9,7 +9,7 @@ import (
 )
 
 func reportCmd() command {
-	fs := flag.NewFlagSet("vegeta report", flag.ContinueOnError)
+	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
 	opts := &reportOpts{}
 
 	fs.StringVar(&opts.reporter, "reporter", "text", "Reporter [text, json, plot]")
@@ -17,10 +17,7 @@ func reportCmd() command {
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 
 	return command{fs, func(args []string) error {
-		if err := fs.Parse(args); err != nil {
-			return err
-		}
-
+		fs.Parse(args)
 		return report(opts)
 	}}
 }

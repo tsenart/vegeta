@@ -14,7 +14,7 @@ import (
 )
 
 func attackCmd() command {
-	fs := flag.NewFlagSet("vegeta attack", flag.ContinueOnError)
+	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
 	opts := &attackOpts{headers: headers{http.Header{}}}
 
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -28,10 +28,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 
 	return command{fs, func(args []string) error {
-		if err := fs.Parse(args); err != nil {
-			return err
-		}
-
+		fs.Parse(args)
 		return attack(opts)
 	}}
 }
