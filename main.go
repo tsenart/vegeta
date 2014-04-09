@@ -12,7 +12,7 @@ func main() {
 	commands := map[string]command{"attack": attackCmd(), "report": reportCmd()}
 
 	flag.Usage = func() {
-		fmt.Println("usage: vegeta [globals] <command> [options]")
+		fmt.Println("Usage: vegeta [globals] <command> [options]")
 		for name, cmd := range commands {
 			fmt.Printf("\n%s command:\n", name)
 			cmd.fs.PrintDefaults()

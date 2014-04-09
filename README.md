@@ -20,7 +20,7 @@ $ go install github.com/tsenart/vegeta
 ## Usage manual
 ```shell
 $ vegeta -h
-usage: vegeta [globals] <command> [options]
+Usage: vegeta [globals] <command> [options]
 
 attack command:
   -body="": Requests body file
