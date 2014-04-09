@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
@@ -9,11 +10,37 @@ import (
 	"strings"
 )
 
-// Targets represents the http.Requests which will be issued during the test
-type Targets []*http.Request
+// Target is a HTTP request blueprint
+type Target struct {
+	Method string
+	URL    string
+	Body   []byte
+	Header http.Header
+}
+
+// Request creates an *http.Request out of Target and returns it along with an
+// error in case of failure.
+func (t *Target) Request() (*http.Request, error) {
+	req, err := http.NewRequest(t.Method, t.URL, bytes.NewBuffer(t.Body))
+	if err != nil {
+		return nil, err
+	}
+	for k, vs := range t.Header {
+		req.Header[k] = make([]string, len(vs))
+		copy(req.Header[k], vs)
+	}
+	if host := req.Header.Get("Host"); host != "" {
+		req.Host = host
+	}
+	return req, nil
+}
+
+// Targets is a slice of Targets which can be shuffled
+type Targets []Target
 
 // NewTargetsFrom reads targets out of a line separated source skipping empty lines
-func NewTargetsFrom(source io.Reader) (Targets, error) {
+// It sets the passed body and http.Header on all targets.
+func NewTargetsFrom(source io.Reader, body []byte, header http.Header) (Targets, error) {
 	scanner := bufio.NewScanner(source)
 	lines := make([]string, 0)
 	for scanner.Scan() {
@@ -25,26 +52,22 @@ func NewTargetsFrom(source io.Reader) (Targets, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return Targets{}, err
+		return nil, err
 	}
 
-	return NewTargets(lines)
+	return NewTargets(lines, body, header)
 }
 
-// NewTargets instantiates Targets from a slice of strings
-func NewTargets(lines []string) (Targets, error) {
-	targets := make([]*http.Request, 0)
+// NewTargets instantiates Targets from a slice of strings.
+// It sets the passed body and http.Header on all targets.
+func NewTargets(lines []string, body []byte, header http.Header) (Targets, error) {
+	var targets Targets
 	for _, line := range lines {
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) != 2 {
-			return targets, fmt.Errorf("Invalid request format: `%s`", line)
+		ps := strings.Split(line, " ")
+		if len(ps) != 2 {
+			return nil, fmt.Errorf("Invalid request format: `%s`", line)
 		}
-		// Build request
-		req, err := http.NewRequest(parts[0], parts[1], nil)
-		if err != nil {
-			return targets, fmt.Errorf("Failed to build request: %s", err)
-		}
-		targets = append(targets, req)
+		targets = append(targets, Target{Method: ps[0], URL: ps[1], Body: body, Header: header})
 	}
 	return targets, nil
 }
@@ -54,21 +77,5 @@ func (t Targets) Shuffle(seed int64) {
 	rand.Seed(seed)
 	for i, rnd := range rand.Perm(len(t)) {
 		t[i], t[rnd] = t[rnd], t[i]
-	}
-}
-
-// SetHeader sets the passed request header in all Targets
-// by making a copy for each
-func (t Targets) SetHeader(header http.Header) {
-	for _, target := range t {
-		target.Header = make(http.Header, len(header))
-		for k, vs := range header {
-			if k == "Host" {
-				target.Host = vs[0]
-			} else {
-				target.Header[k] = make([]string, len(vs))
-				copy(target.Header[k], vs)
-			}
-		}
 	}
 }
