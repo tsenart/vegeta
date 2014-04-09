@@ -2,7 +2,6 @@ package vegeta
 
 import (
 	"bytes"
-	"io/ioutil"
 	"net/http"
 	"testing"
 )
