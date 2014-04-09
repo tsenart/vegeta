@@ -8,21 +8,21 @@ import (
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
-func reportCmd(args []string) command {
-	return func() error {
-		fs := flag.NewFlagSet("vegeta report", flag.ContinueOnError)
-		opts := &reportOpts{}
+func reportCmd() command {
+	fs := flag.NewFlagSet("vegeta report", flag.ContinueOnError)
+	opts := &reportOpts{}
 
-		fs.StringVar(&opts.reporter, "reporter", "text", "Reporter [text, json, plot]")
-		fs.StringVar(&opts.inputf, "input", "stdin", "Input files (comma separated)")
-		fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+	fs.StringVar(&opts.reporter, "reporter", "text", "Reporter [text, json, plot]")
+	fs.StringVar(&opts.inputf, "input", "stdin", "Input files (comma separated)")
+	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 
+	return command{fs, func(args []string) error {
 		if err := fs.Parse(args); err != nil {
 			return err
 		}
 
 		return report(opts)
-	}
+	}}
 }
 
 // reportOpts aggregates the report function command options

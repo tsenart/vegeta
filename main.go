@@ -8,33 +8,23 @@ import (
 	"runtime"
 )
 
-// command is a closure function which each command constructor
-// builds and returns
-type command func() error
+func main() {
+	commands := map[string]command{"attack": attackCmd(), "report": reportCmd()}
 
-var usage = fmt.Sprintf(
-	`Usage: vegeta [globals] <command> [options]
+	flag.Usage = func() {
+		fmt.Println("usage: vegeta [globals] <command> [options]")
+		for name, cmd := range commands {
+			fmt.Printf("\n%s command:\n", name)
+			cmd.fs.PrintDefaults()
+		}
+		fmt.Printf("\nglobal flags:\n  -cpus=%d Number of CPUs to use\n", runtime.NumCPU())
+		fmt.Println(examples)
+	}
 
-Commands:
-  attack  Hit the targets
-  report  Report the results
-
-Globals:
-  -cpus=%d Number of CPUs to use
-`, runtime.NumCPU())
-
-func init() {
-	flag.Usage = func() { fmt.Print(usage) }
 	cpus := flag.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 	flag.Parse()
-	runtime.GOMAXPROCS(*cpus)
-}
 
-func main() {
-	commands := map[string]func([]string) command{
-		"attack": attackCmd,
-		"report": reportCmd,
-	}
+	runtime.GOMAXPROCS(*cpus)
 
 	args := flag.Args()
 	if len(args) == 0 {
@@ -44,7 +34,20 @@ func main() {
 
 	if cmd, ok := commands[args[0]]; !ok {
 		log.Fatalf("Unknown command: %s", args[0])
-	} else if err := cmd(args[1:])(); err != nil {
+	} else if err := cmd.fn(args[1:]); err != nil {
 		log.Fatal(err)
 	}
+}
+
+const examples = `
+examples:
+  echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
+  vegeta attack -targets=targets.txt > results.bin
+  vegeta report -input=results.bin -reporter=json > metrics.json
+  cat results.bin | vegeta report -reporter=plot > plot.html
+`
+
+type command struct {
+	fs *flag.FlagSet
+	fn func(args []string) error
 }

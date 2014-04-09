@@ -13,27 +13,27 @@ import (
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
-func attackCmd(args []string) command {
-	return func() error {
-		fs := flag.NewFlagSet("vegeta attack", flag.ContinueOnError)
-		opts := &attackOpts{headers: headers{http.Header{}}}
+func attackCmd() command {
+	fs := flag.NewFlagSet("vegeta attack", flag.ContinueOnError)
+	opts := &attackOpts{headers: headers{http.Header{}}}
 
-		fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
-		fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
-		fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
-		fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
-		fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
-		fs.DurationVar(&opts.timeout, "timeout", 0, "Requests timeout")
-		fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
-		fs.IntVar(&opts.redirects, "redirects", 10, "Number of redirects to follow")
-		fs.Var(&opts.headers, "header", "Targets request header")
+	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
+	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
+	fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
+	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
+	fs.DurationVar(&opts.timeout, "timeout", 0, "Requests timeout")
+	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
+	fs.IntVar(&opts.redirects, "redirects", 10, "Number of redirects to follow")
+	fs.Var(&opts.headers, "header", "Targets request header")
 
+	return command{fs, func(args []string) error {
 		if err := fs.Parse(args); err != nil {
 			return err
 		}
 
 		return attack(opts)
-	}
+	}}
 }
 
 // attackOpts aggregates the attack function command options
