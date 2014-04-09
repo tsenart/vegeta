@@ -17,25 +17,35 @@ command:
 $ go install github.com/tsenart/vegeta
 ```
 
-## Usage examples
-```shell
-$ echo "GET http://localhost/" | vegeta attack -rate=100 -duration=5s | vegeta report
-$ vegeta attack -targets=targets.txt > results.vr
-$ vegeta report -input=results.vr -reporter=json > metrics.json
-$ cat results.vr | vegeta report -reporter=plot > plot.html
-```
-
 ## Usage manual
 ```shell
 $ vegeta -h
-Usage: vegeta [globals] <command> [options]
+usage: vegeta [globals] <command> [options]
 
-Commands:
-  attack  Hit the targets
-  report  Report the results
+attack command:
+  -body="": Requests body file
+  -duration=10s: Duration of the test
+  -header=: Request header
+  -ordering="random": Attack ordering [sequential, random]
+  -output="stdout": Output file
+  -rate=50: Requests per second
+  -redirects=10: Number of redirects to follow
+  -targets="stdin": Targets file
+  -timeout=0: Requests timeout
 
-Globals:
+report command:
+  -input="stdin": Input files (comma separated)
+  -output="stdout": Output file
+  -reporter="text": Reporter [text, json, plot]
+
+global flags:
   -cpus=8 Number of CPUs to use
+
+examples:
+  echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
+  vegeta attack -targets=targets.txt > results.bin
+  vegeta report -input=results.bin -reporter=json > metrics.json
+  cat results.bin | vegeta report -reporter=plot > plot.html
 ```
 
 #### -cpus
@@ -45,9 +55,10 @@ It defaults to the amount of CPUs available in the system.
 ### attack
 ```shell
 $ vegeta attack -h
-Usage of attack:
+Usage of vegeta attack:
+  -body="": Requests body file
   -duration=10s: Duration of the test
-  -header=: Targets request header
+  -header=: Request header
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
@@ -55,6 +66,9 @@ Usage of attack:
   -targets="stdin": Targets file
   -timeout=0: Requests timeout
 ```
+
+#### -body
+Specifies the file whose content will be set as the body of every request.
 
 #### -duration
 Specifies the amount of time to issue request to the targets.
@@ -102,7 +116,7 @@ timeouts.
 ### report
 ```
 $ vegeta report -h
-Usage of report:
+Usage of vegeta report:
   -input="stdin": Input files (comma separated)
   -output="stdout": Output file
   -reporter="text": Reporter [text, json, plot]
