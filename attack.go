@@ -25,7 +25,7 @@ func attackCmd() command {
 	fs.DurationVar(&opts.timeout, "timeout", 0, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
 	fs.IntVar(&opts.redirects, "redirects", 10, "Number of redirects to follow")
-	fs.Var(&opts.headers, "header", "Targets request header")
+	fs.Var(&opts.headers, "header", "Request header")
 
 	return command{fs, func(args []string) error {
 		if err := fs.Parse(args); err != nil {
