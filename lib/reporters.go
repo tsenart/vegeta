@@ -87,7 +87,7 @@ const plotsTemplate = `<!doctype>
     [%s],
     {
       title: 'Vegeta Plot',
-      labels: ['Seconds', 'OK', 'ERR'],
+      labels: ['Seconds', 'ERR', 'OK'],
       ylabel: 'Latency (ms)',
       xlabel: 'Seconds elapsed',
       showRoller: true,
