@@ -92,6 +92,7 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 	} else {
 		res.BytesIn = uint64(len(body))
 	}
+	res.Latency = time.Since(res.Timestamp)
 
 	return res
 }
