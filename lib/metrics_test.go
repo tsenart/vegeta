@@ -56,3 +56,7 @@ func TestNewMetrics(t *testing.T) {
 		t.Errorf("Errors: want: %v, got: %v", []string{err}, m.Errors)
 	}
 }
+
+func TestNewMetricsEmptyResults(t *testing.T) {
+  _ = NewMetrics([]Result{})
+}
