@@ -65,7 +65,7 @@ func NewTargets(lines []string, body []byte, header http.Header) (Targets, error
 	for _, line := range lines {
 		ps := strings.Split(line, " ")
 		if len(ps) != 2 {
-			return nil, fmt.Errorf("Invalid request format: `%s`", line)
+			return nil, fmt.Errorf("invalid request format: `%s`", line)
 		}
 		targets = append(targets, Target{Method: ps[0], URL: ps[1], Body: body, Header: header})
 	}

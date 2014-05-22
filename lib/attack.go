@@ -55,7 +55,7 @@ func (a Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
 func (a *Attacker) SetRedirects(redirects int) {
 	a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 		if len(via) > redirects {
-			return fmt.Errorf("Stopped after %d redirects", redirects)
+			return fmt.Errorf("stopped after %d redirects", redirects)
 		}
 		return nil
 	}

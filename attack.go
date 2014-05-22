@@ -142,11 +142,11 @@ func (h headers) String() string {
 func (h headers) Set(value string) error {
 	parts := strings.SplitN(value, ":", 2)
 	if len(parts) != 2 {
-		return fmt.Errorf("Header '%s' has a wrong format", value)
+		return fmt.Errorf("header '%s' has a wrong format", value)
 	}
 	key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 	if key == "" || val == "" {
-		return fmt.Errorf("Header '%s' has a wrong format", value)
+		return fmt.Errorf("header '%s' has a wrong format", value)
 	}
 	h.Add(key, val)
 	return nil
