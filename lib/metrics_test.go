@@ -58,5 +58,5 @@ func TestNewMetrics(t *testing.T) {
 }
 
 func TestNewMetricsEmptyResults(t *testing.T) {
-  _ = NewMetrics([]Result{})
+	_ = NewMetrics([]Result{}) // Must not panic
 }
