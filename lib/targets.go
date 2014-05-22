@@ -42,7 +42,7 @@ type Targets []Target
 // It sets the passed body and http.Header on all targets.
 func NewTargetsFrom(source io.Reader, body []byte, header http.Header) (Targets, error) {
 	scanner := bufio.NewScanner(source)
-	lines := make([]string, 0)
+	var lines []string
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -65,7 +65,7 @@ func NewTargets(lines []string, body []byte, header http.Header) (Targets, error
 	for _, line := range lines {
 		ps := strings.Split(line, " ")
 		if len(ps) != 2 {
-			return nil, fmt.Errorf("Invalid request format: `%s`", line)
+			return nil, fmt.Errorf("invalid request format: `%s`", line)
 		}
 		targets = append(targets, Target{Method: ps[0], URL: ps[1], Body: body, Header: header})
 	}
