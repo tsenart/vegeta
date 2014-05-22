@@ -85,7 +85,7 @@ func TestSetRedirects(t *testing.T) {
 	var rate uint64 = 100
 	results := Attack(Targets{tgt}, rate, 1*time.Second)
 
-	want := fmt.Sprintf("Stopped after %d redirects", 2)
+	want := fmt.Sprintf("stopped after %d redirects", 2)
 	for _, result := range results {
 		if !strings.Contains(result.Error, want) {
 			t.Fatalf("Expected error to be: %s, Got: %s", want, result.Error)
