@@ -140,7 +140,7 @@ func (h headers) String() string {
 }
 
 func (h headers) Set(value string) error {
-	parts := strings.Split(value, ":")
+	parts := strings.SplitN(value, ":", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("Header '%s' has a wrong format", value)
 	}
