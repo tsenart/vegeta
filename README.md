@@ -83,10 +83,9 @@ You can specify as many as needed by repeating the flag.
 
 #### -ordering
 Specifies the ordering of target attack. The default is `random` and
-it will randomly pick one of the targets per request without ever choosing
-that target again.
-The other option is `sequential` and it does what you would expect it to
-do.
+it will randomly pick one of the targets per request.
+The other option is `sequential` and it round-robins through the list of
+targets for each request.
 
 #### -output
 Specifies the output file to which the binary results will be written
