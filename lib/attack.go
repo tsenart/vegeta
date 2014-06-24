@@ -98,6 +98,7 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 }
 
 var defaultTransport = http.Transport{
+	Proxy: http.ProxyFromEnvironment,
 	TLSClientConfig: &tls.Config{
 		InsecureSkipVerify: true,
 	},
