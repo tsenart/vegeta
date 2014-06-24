@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 )
@@ -64,7 +65,9 @@ func (a *Attacker) SetRedirects(redirects int) {
 // SetTimeout sets the client side timeout for each request the attacker makes.
 func (a *Attacker) SetTimeout(timeout time.Duration) {
 	tr := a.client.Transport.(*http.Transport)
+	tr.Dial = (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).Dial
 	tr.ResponseHeaderTimeout = timeout
+	tr.TLSHandshakeTimeout = timeout
 	a.client.Transport = tr
 }
 
@@ -99,6 +102,11 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 
 var defaultTransport = http.Transport{
 	Proxy: http.ProxyFromEnvironment,
+	Dial: (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).Dial,
+	TLSHandshakeTimeout: 10 * time.Second,
 	TLSClientConfig: &tls.Config{
 		InsecureSkipVerify: true,
 	},
