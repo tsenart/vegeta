@@ -24,7 +24,7 @@ func TestAttackRate(t *testing.T) {
 	)
 
 	tgt := Target{Method: "GET", URL: server.URL}
-	rate := uint64(5000)
+	rate := uint64(1000)
 	Attack(Targets{tgt}, rate, 1*time.Second)
 	if hits := atomic.LoadUint64(&hitCount); hits != rate {
 		t.Fatalf("Wrong number of hits: want %d, got %d\n", rate, hits)
@@ -47,9 +47,7 @@ func TestAttackBody(t *testing.T) {
 		}),
 	)
 
-	tgt := Target{Method: "GET", URL: server.URL, Body: want}
-	rate := uint64(5000)
-	Attack(Targets{tgt}, rate, 1*time.Second)
+	Attack(Targets{{Method: "GET", URL: server.URL, Body: want}}, 100, 1*time.Second)
 }
 
 func TestDefaultAttackerCertConfig(t *testing.T) {
@@ -82,7 +80,7 @@ func TestRedirects(t *testing.T) {
 
 	atk := NewAttacker(2, DefaultTimeout, DefaultLocalAddr)
 	tgt := Target{Method: "GET", URL: servers[0].URL}
-	var rate uint64 = 100
+	var rate uint64 = 10
 	results := atk.Attack(Targets{tgt}, rate, 1*time.Second)
 
 	want := fmt.Sprintf("stopped after %d redirects", 2)
@@ -102,13 +100,13 @@ func TestTimeout(t *testing.T) {
 
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			<-time.After(2 * time.Second)
+			<-time.After(20 * time.Millisecond)
 		}),
 	)
 
-	atk := NewAttacker(DefaultRedirects, 500*time.Millisecond, DefaultLocalAddr)
+	atk := NewAttacker(DefaultRedirects, 10*time.Millisecond, DefaultLocalAddr)
 	tgt := Target{Method: "GET", URL: server.URL}
-	results := atk.Attack(Targets{tgt}, 100, 1*time.Second)
+	results := atk.Attack(Targets{tgt}, 1, 1*time.Second)
 
 	want := "net/http: timeout awaiting response headers"
 	for _, result := range results {
@@ -141,7 +139,8 @@ func TestLocalAddr(t *testing.T) {
 
 	atk := NewAttacker(DefaultRedirects, DefaultTimeout, *addr)
 	tgt := Target{Method: "GET", URL: server.URL}
-	for _, result := range atk.Attack(Targets{tgt}, 100, 1*time.Second) {
+
+	for _, result := range atk.Attack(Targets{tgt}, 1, 1*time.Second) {
 		if result.Error != "" {
 			t.Fatal(result.Error)
 		}
