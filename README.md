@@ -27,6 +27,7 @@ attack command:
   -body="": Requests body file
   -duration=10s: Duration of the test
   -header=: Request header
+  -laddr=0.0.0.0: Local IP address
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
@@ -80,6 +81,9 @@ responses delay.
 #### -header
 Specifies a request header to be used in all targets defined.
 You can specify as many as needed by repeating the flag.
+
+#### -laddr
+Specifies the local IP address to be used.
 
 #### -ordering
 Specifies the ordering of target attack. The default is `random` and

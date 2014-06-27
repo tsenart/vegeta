@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 )
@@ -11,12 +12,43 @@ import (
 // Attacker is an attack executor, wrapping an http.Client
 type Attacker struct{ client http.Client }
 
+var (
+	DefaultRedirects = 10
+	DefaultTimeout   = 30 * time.Second
+	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
+)
+
 // DefaultAttacker is the default Attacker used by Attack
-var DefaultAttacker = NewAttacker()
+var DefaultAttacker = NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocalAddr)
 
 // NewAttacker returns a pointer to a new Attacker
-func NewAttacker() *Attacker {
-	return &Attacker{http.Client{Transport: &defaultTransport}}
+//
+// redirects is the max amount of redirects the attacker will follow.
+// timeout is the client side timeout for each request.
+// addr is the local IP address used for each request.
+// If nil, a local IP address is automatically chosen.
+func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr) *Attacker {
+	return &Attacker{http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			Dial: (&net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: 30 * time.Second,
+				LocalAddr: &net.TCPAddr{IP: laddr.IP, Zone: laddr.Zone},
+			}).Dial,
+			ResponseHeaderTimeout: timeout,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			if len(via) > redirects {
+				return fmt.Errorf("stopped after %d redirects", redirects)
+			}
+			return nil
+		},
+	}}
 }
 
 // Attack hits the passed Targets (http.Requests) at the rate specified for
@@ -50,24 +82,6 @@ func (a Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
 	return results.Sort()
 }
 
-// SetRedirects sets the max amount of redirects the attacker's http client
-// will follow.
-func (a *Attacker) SetRedirects(redirects int) {
-	a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-		if len(via) > redirects {
-			return fmt.Errorf("stopped after %d redirects", redirects)
-		}
-		return nil
-	}
-}
-
-// SetTimeout sets the client side timeout for each request the attacker makes.
-func (a *Attacker) SetTimeout(timeout time.Duration) {
-	tr := a.client.Transport.(*http.Transport)
-	tr.ResponseHeaderTimeout = timeout
-	a.client.Transport = tr
-}
-
 func (a *Attacker) hit(tgt Target) (res Result) {
 	req, err := tgt.Request()
 	if err != nil {
@@ -95,10 +109,4 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 	res.Latency = time.Since(res.Timestamp)
 
 	return res
-}
-
-var defaultTransport = http.Transport{
-	TLSClientConfig: &tls.Config{
-		InsecureSkipVerify: true,
-	},
 }

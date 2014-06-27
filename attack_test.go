@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tsenart/vegeta/lib"
 )
 
 func init() {
@@ -132,5 +134,6 @@ func defaultOpts() *attackOpts {
 		redirects: 10,
 		timeout:   0,
 		headers:   headers{},
+		laddr:     localAddr{&vegeta.DefaultLocalAddr},
 	}
 }
