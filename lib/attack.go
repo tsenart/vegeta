@@ -69,7 +69,7 @@ func Attack(tgts Targets, rate uint64, du time.Duration) Results {
 // Attack attacks the passed Targets (http.Requests) at the rate specified for
 // duration time and then waits for all the requests to come back.
 // The results of the attack are put into a slice which is returned.
-func (a Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
+func (a *Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
 	hits := int(rate * uint64(du.Seconds()))
 	resc := make(chan Result)
 	throttle := time.NewTicker(time.Duration(1e9 / rate))
