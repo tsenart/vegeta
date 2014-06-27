@@ -9,12 +9,18 @@ import (
 	"time"
 )
 
-// Attacker is an attack executor, wrapping an http.Client
+// Attacker is an attack executor which wraps an http.Client
 type Attacker struct{ client http.Client }
 
 var (
+	// DefaultRedirects represents the number of times the DefaultAttacker
+	// follows redirects
 	DefaultRedirects = 10
-	DefaultTimeout   = 30 * time.Second
+	// DefaultTimeout represents the amount of time the DefaultAttacker waits
+	// for a request before it times out
+	DefaultTimeout = 30 * time.Second
+	// DefaultLocalAddr is the local IP address the DefaultAttacker uses in its
+	// requests
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 )
 
