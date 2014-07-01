@@ -35,7 +35,7 @@ var DefaultAttacker = NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocal
 // timeout is the client side timeout for each request.
 // Use DefaultTimeout for a sensible default.
 //
-// addr is the local IP address used for each request.
+// laddr is the local IP address used for each request.
 // Use DefaultLocalAddr for a sensible default.
 func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr) *Attacker {
 	return &Attacker{http.Client{
