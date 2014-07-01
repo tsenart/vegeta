@@ -30,9 +30,13 @@ var DefaultAttacker = NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocal
 // NewAttacker returns a pointer to a new Attacker
 //
 // redirects is the max amount of redirects the attacker will follow.
+// Use DefaultRedirects for a sensible default.
+//
 // timeout is the client side timeout for each request.
+// Use DefaultTimeout for a sensible default.
+//
 // addr is the local IP address used for each request.
-// If nil, a local IP address is automatically chosen.
+// Use DefaultLocalAddr for a sensible default.
 func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr) *Attacker {
 	return &Attacker{http.Client{
 		Transport: &http.Transport{
