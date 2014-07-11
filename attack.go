@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
+	fs.StringVar(&opts.headerf, "headers", "", "Request header file")
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
@@ -44,6 +46,7 @@ type attackOpts struct {
 	outputf   string
 	bodyf     string
 	ordering  string
+	headerf   string
 	duration  time.Duration
 	timeout   time.Duration
 	rate      uint64
@@ -79,6 +82,23 @@ func attack(opts *attackOpts) error {
 
 		if body, err = ioutil.ReadAll(bodyr); err != nil {
 			return fmt.Errorf(errBodyFilePrefix+"(%s): %s", opts.bodyf, err)
+		}
+	}
+
+	if opts.headerf != "" {
+		headerf, err := file(opts.headerf, false)
+		if err != nil {
+			return fmt.Errorf(errHeadersFilePrefix+"(%s): %s", opts.headerf, err)
+		}
+		defer headerf.Close()
+		scanner := bufio.NewScanner(headerf)
+		for scanner.Scan() {
+			if err := opts.headers.Set(scanner.Text()); err != nil {
+				return fmt.Errorf(errHeadersFilePrefix+"(%s): %s", opts.headerf, err)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf(errHeadersFilePrefix+"(%s): %s", opts.headerf, err)
 		}
 	}
 
@@ -121,6 +141,7 @@ const (
 	errDurationPrefix    = "Duration: "
 	errOutputFilePrefix  = "Output file: "
 	errTargetsFilePrefix = "Targets file: "
+	errHeadersFilePrefix = "Headers file: "
 	errBodyFilePrefix    = "Body file: "
 	errOrderingPrefix    = "Ordering: "
 	errReportingPrefix   = "Reporting: "
