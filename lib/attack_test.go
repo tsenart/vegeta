@@ -78,7 +78,7 @@ func TestRedirects(t *testing.T) {
 		)
 	}
 
-	atk := NewAttacker(2, DefaultTimeout, DefaultLocalAddr)
+	atk := NewAttacker(2, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
 	tgt := Target{Method: "GET", URL: servers[0].URL}
 	var rate uint64 = 10
 	results := atk.Attack(Targets{tgt}, rate, 1*time.Second)
@@ -104,7 +104,7 @@ func TestTimeout(t *testing.T) {
 		}),
 	)
 
-	atk := NewAttacker(DefaultRedirects, 10*time.Millisecond, DefaultLocalAddr)
+	atk := NewAttacker(DefaultRedirects, 10*time.Millisecond, DefaultLocalAddr, DefaultTLSConfig)
 	tgt := Target{Method: "GET", URL: server.URL}
 	results := atk.Attack(Targets{tgt}, 1, 1*time.Second)
 
@@ -137,7 +137,7 @@ func TestLocalAddr(t *testing.T) {
 		}),
 	)
 
-	atk := NewAttacker(DefaultRedirects, DefaultTimeout, *addr)
+	atk := NewAttacker(DefaultRedirects, DefaultTimeout, *addr, DefaultTLSConfig)
 	tgt := Target{Method: "GET", URL: server.URL}
 
 	for _, result := range atk.Attack(Targets{tgt}, 1, 1*time.Second) {
