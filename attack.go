@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -24,6 +26,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
+	fs.StringVar(&opts.certf, "cert", "", "x509 Certificate file")
 	fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
@@ -38,11 +41,20 @@ func attackCmd() command {
 	}}
 }
 
+var (
+	errZeroDuration   = errors.New("duration must be bigger than zero")
+	errZeroRate       = errors.New("rate must be bigger than zero")
+	errParsingTargets = errors.New("error parsing targets")
+	errBadOrdering    = errors.New("bad ordering")
+	errBadCert        = errors.New("bad certificate")
+)
+
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
 	targetsf  string
 	outputf   string
 	bodyf     string
+	certf     string
 	ordering  string
 	duration  time.Duration
 	timeout   time.Duration
@@ -54,37 +66,41 @@ type attackOpts struct {
 
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
-func attack(opts *attackOpts) error {
+func attack(opts *attackOpts) (err error) {
 	if opts.rate == 0 {
-		return fmt.Errorf(errRatePrefix + "can't be zero")
+		return errZeroRate
 	}
 
 	if opts.duration == 0 {
-		return fmt.Errorf(errDurationPrefix + "can't be zero")
+		return errZeroDuration
 	}
 
-	in, err := file(opts.targetsf, false)
-	if err != nil {
-		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", opts.targetsf, err)
-	}
-	defer in.Close()
+	// Open and read input files
+	files := map[string][]byte{}
+	for _, filename := range []string{opts.targetsf, opts.bodyf, opts.certf} {
+		if filename == "" {
+			files[filename] = []byte{}
+			continue
+		}
 
-	var body []byte
-	if opts.bodyf != "" {
-		bodyr, err := file(opts.bodyf, false)
+		f, err := file(filename, false)
 		if err != nil {
-			return fmt.Errorf(errBodyFilePrefix+"(%s): %s", opts.bodyf, err)
+			return fmt.Errorf("error opening %s: %s", filename, err)
 		}
-		defer bodyr.Close()
+		defer f.Close()
 
-		if body, err = ioutil.ReadAll(bodyr); err != nil {
-			return fmt.Errorf(errBodyFilePrefix+"(%s): %s", opts.bodyf, err)
+		if files[filename], err = ioutil.ReadAll(f); err != nil {
+			return fmt.Errorf("error reading %s: %s", filename, err)
 		}
 	}
 
-	targets, err := vegeta.NewTargetsFrom(in, body, opts.headers.Header)
+	targets, err := vegeta.NewTargets(
+		files[opts.targetsf],
+		files[opts.bodyf],
+		opts.headers.Header,
+	)
 	if err != nil {
-		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", opts.targetsf, err)
+		return errParsingTargets
 	}
 
 	switch opts.ordering {
@@ -93,16 +109,23 @@ func attack(opts *attackOpts) error {
 	case "sequential":
 		break
 	default:
-		return fmt.Errorf(errOrderingPrefix+"`%s` is invalid", opts.ordering)
+		return errBadOrdering
 	}
 
 	out, err := file(opts.outputf, true)
 	if err != nil {
-		return fmt.Errorf(errOutputFilePrefix+"(%s): %s", opts.outputf, err)
+		return fmt.Errorf("error opening %s: %s", opts.outputf, err)
 	}
 	defer out.Close()
 
-	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr)
+	tlsc := vegeta.DefaultTLSConfig
+	if opts.certf != "" {
+		if tlsc.RootCAs, err = certPool(files[opts.certf]); err != nil {
+			return err
+		}
+	}
+
+	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, tlsc)
 
 	log.Printf(
 		"Vegeta is attacking %d targets in %s order for %s...\n",
@@ -115,16 +138,6 @@ func attack(opts *attackOpts) error {
 	log.Printf("Done! Writing results to '%s'...", opts.outputf)
 	return results.Encode(out)
 }
-
-const (
-	errRatePrefix        = "Rate: "
-	errDurationPrefix    = "Duration: "
-	errOutputFilePrefix  = "Output file: "
-	errTargetsFilePrefix = "Targets file: "
-	errBodyFilePrefix    = "Body file: "
-	errOrderingPrefix    = "Ordering: "
-	errReportingPrefix   = "Reporting: "
-)
 
 // headers is the http.Header used in each target request
 // it is defined here to implement the flag.Value interface
@@ -159,4 +172,14 @@ type localAddr struct{ *net.IPAddr }
 func (ip *localAddr) Set(value string) (err error) {
 	ip.IPAddr, err = net.ResolveIPAddr("ip", value)
 	return
+}
+
+// certPool returns a new *x509.CertPool with the passed cert included.
+// An error is returned if the cert is invalid.
+func certPool(cert []byte) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(cert) {
+		return nil, errBadCert
+	}
+	return pool, nil
 }

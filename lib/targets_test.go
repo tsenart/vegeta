@@ -54,28 +54,11 @@ func TestTargetRequest(t *testing.T) {
 	}
 }
 
-func TestNewTargetsFrom(t *testing.T) {
-	t.Parallel()
-
-	lines := bytes.NewReader([]byte("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n"))
-	targets, err := NewTargetsFrom(lines, nil, nil)
-	if err != nil {
-		t.Fatalf("Couldn't parse valid source: %s", err)
-	}
-	for i, method := range []string{"GET", "HEAD"} {
-		if targets[i].Method != method ||
-			targets[i].URL != "http://lolcathost:9999/" {
-			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
-				targets[i].Method, targets[i].URL)
-		}
-	}
-}
-
 func TestNewTargets(t *testing.T) {
 	t.Parallel()
 
-	lines := []string{"GET http://lolcathost:9999/", "HEAD http://lolcathost:9999/"}
-	targets, err := NewTargets(lines, nil, nil)
+	src := []byte("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
+	targets, err := NewTargets(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}

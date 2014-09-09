@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
-	"strings"
 )
 
 // Target is a HTTP request blueprint
@@ -38,38 +36,37 @@ func (t *Target) Request() (*http.Request, error) {
 // Targets is a slice of Targets which can be shuffled
 type Targets []Target
 
-// NewTargetsFrom reads targets out of a line separated source skipping empty lines
+// NewTargets parses a line-separated byte src and returns Targets.
 // It sets the passed body and http.Header on all targets.
-func NewTargetsFrom(source io.Reader, body []byte, header http.Header) (Targets, error) {
-	scanner := bufio.NewScanner(source)
-	var lines []string
-	for scanner.Scan() {
-		line := scanner.Text()
+func NewTargets(src []byte, body []byte, header http.Header) (Targets, error) {
+	var tgts Targets
 
-		if line = strings.TrimSpace(line); line != "" && line[0:2] != "//" {
+	sc := bufio.NewScanner(bytes.NewReader(src))
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 || bytes.HasPrefix(line, []byte("//")) {
 			// Skipping comments or blank lines
-			lines = append(lines, line)
+			continue
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
 
-	return NewTargets(lines, body, header)
-}
-
-// NewTargets instantiates Targets from a slice of strings.
-// It sets the passed body and http.Header on all targets.
-func NewTargets(lines []string, body []byte, header http.Header) (Targets, error) {
-	var targets Targets
-	for _, line := range lines {
-		ps := strings.Split(line, " ")
+		ps := bytes.Split(line, []byte(" "))
 		if len(ps) != 2 {
 			return nil, fmt.Errorf("invalid request format: `%s`", line)
 		}
-		targets = append(targets, Target{Method: ps[0], URL: ps[1], Body: body, Header: header})
+
+		tgts = append(tgts, Target{
+			Method: string(ps[0]),
+			URL:    string(ps[1]),
+			Body:   body,
+			Header: header,
+		})
 	}
-	return targets, nil
+
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+
+	return tgts, nil
 }
 
 // Shuffle randomly alters the order of Targets with the provided seed

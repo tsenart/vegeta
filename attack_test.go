@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,8 +23,7 @@ func TestRateValidation(t *testing.T) {
 	opts := defaultOpts()
 	opts.rate = 0
 
-	err := attack(opts)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errRatePrefix)) {
+	if err := attack(opts); err != errZeroRate {
 		t.Errorf("Rate 0 shouldn't be valid: %s", err)
 	}
 }
@@ -36,8 +34,7 @@ func TestDurationValidation(t *testing.T) {
 	opts := defaultOpts()
 	opts.duration = 0
 
-	err := attack(opts)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errDurationPrefix)) {
+	if err := attack(opts); err != errZeroDuration {
 		t.Errorf("Duration 0 shouldn't be valid: %s", err)
 	}
 }
@@ -56,7 +53,7 @@ func TestTargetsValidation(t *testing.T) {
 	// Bad case
 	opts.targetsf = "randomInexistingFile12345.txt"
 	err = attack(opts)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errTargetsFilePrefix)) {
+	if err == nil {
 		t.Errorf("Targets file `%s` shouldn't be valid: %s", opts.targetsf, err)
 	}
 }
@@ -75,7 +72,7 @@ func TestBodyValidation(t *testing.T) {
 	// Bad case
 	opts.bodyf = "randomInexistingFile12345.txt"
 	err = attack(opts)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errBodyFilePrefix)) {
+	if err == nil {
 		t.Errorf("Body file `%s` shouldn't be valid: %s", opts.bodyf, err)
 	}
 }
@@ -96,8 +93,7 @@ func TestOrderingValidation(t *testing.T) {
 
 	// Bad case
 	opts.ordering = "lolcat"
-	err := attack(opts)
-	if err == nil || (err != nil && !strings.HasPrefix(err.Error(), errOrderingPrefix)) {
+	if err := attack(opts); err != errBadOrdering {
 		t.Errorf("Ordering `%s` shouldn't be valid: %s", opts.ordering, err)
 	}
 }
@@ -123,12 +119,31 @@ func TestHeadersParsing(t *testing.T) {
 	}
 }
 
+func TestClientCert(t *testing.T) {
+	t.Parallel()
+
+	opts := defaultOpts()
+
+	// Good cases
+	opts.certf = "./test/cert.pem"
+	if err := attack(opts); err != nil {
+		t.Errorf("Cert `%s` should be valid: %s", opts.certf, err)
+	}
+
+	// Bad case
+	opts.certf = "./test/badcert.pem"
+	if err := attack(opts); err != errBadCert {
+		t.Errorf("Cert `%s` shouldn't be valid: %s", opts.certf, err)
+	}
+}
+
 func defaultOpts() *attackOpts {
 	return &attackOpts{
 		rate:      uint64(1000),
 		duration:  5 * time.Millisecond,
-		targetsf:  ".targets.txt",
-		bodyf:     ".targets.txt",
+		targetsf:  "./test/targets.txt",
+		bodyf:     "./test/body.txt",
+		certf:     "",
 		ordering:  "random",
 		outputf:   os.DevNull,
 		redirects: 10,

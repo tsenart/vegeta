@@ -1,2 +1,0 @@
-HEAD http://lolcathost:9194
-
