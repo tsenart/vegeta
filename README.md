@@ -25,6 +25,7 @@ Usage: vegeta [globals] <command> [options]
 
 attack command:
   -body="": Requests body file
+  -cert="": x509 Certificate file
   -duration=10s: Duration of the test
   -header=: Request header
   -laddr=0.0.0.0: Local IP address
@@ -71,6 +72,9 @@ Usage of vegeta attack:
 
 #### -body
 Specifies the file whose content will be set as the body of every request.
+
+#### -cert
+Specifies the x509 TLS certificate to be used with HTTPS requests.
 
 #### -duration
 Specifies the amount of time to issue request to the targets.
