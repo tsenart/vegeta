@@ -118,14 +118,14 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
-	tlsc := vegeta.DefaultTLSConfig
+	tlsc := *vegeta.DefaultTLSConfig
 	if opts.certf != "" {
 		if tlsc.RootCAs, err = certPool(files[opts.certf]); err != nil {
 			return err
 		}
 	}
 
-	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, tlsc)
+	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, &tlsc)
 
 	log.Printf(
 		"Vegeta is attacking %d targets in %s order for %s...\n",

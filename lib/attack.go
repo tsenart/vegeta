@@ -24,7 +24,7 @@ var (
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config the DefaultAttacker uses in its
 	// requests
-	DefaultTLSConfig = tls.Config{InsecureSkipVerify: true}
+	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 )
 
 // DefaultAttacker is the default Attacker used by Attack
@@ -43,7 +43,7 @@ var DefaultAttacker = NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocal
 //
 // tlsc is the *tls.Config used for each HTTPS request.
 // Use DefaultTLSConfig for a sensible default.
-func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc tls.Config) *Attacker {
+func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc *tls.Config) *Attacker {
 	return &Attacker{http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -53,7 +53,7 @@ func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc tl
 				LocalAddr: &net.TCPAddr{IP: laddr.IP, Zone: laddr.Zone},
 			}).Dial,
 			ResponseHeaderTimeout: timeout,
-			TLSClientConfig:       &tlsc,
+			TLSClientConfig:       tlsc,
 			TLSHandshakeTimeout:   10 * time.Second,
 		},
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
