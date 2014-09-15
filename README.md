@@ -78,7 +78,8 @@ Usage of vegeta attack:
 ```
 
 #### -body
-Specifies the file whose content will be set as the body of every request.
+Specifies the file whose content will be set as the body of every
+request unless overridden per attack target, see `-targets`.
 
 #### -cert
 Specifies the x509 TLS certificate to be used with HTTPS requests.
@@ -90,8 +91,9 @@ The actual run time of the test can be longer than specified due to the
 responses delay.
 
 #### -header
-Specifies a request header to be used in all targets defined.
-You can specify as many as needed by repeating the flag.
+Specifies a request header to be used in all targets defined unless overridden
+per attack target, see `-targets`.  You can specify as many as needed by
+repeating the flag.
 
 #### -keepalive
 Specifies whether to reuse TCP connections between HTTP requests.
@@ -120,12 +122,30 @@ default is 10.
 
 #### -targets
 Specifies the attack targets in a line separated file, defaulting to stdin.
-The format should be as follows.
+The format should be as follows, combining any or all of the following:
+
+Simple targets
 ```
 GET http://goku:9090/path/to/dragon?item=balls
 GET http://user:password@goku:9090/path/to
 HEAD http://goku:9090/path/to/success
-...
+```
+
+Targets with custom headers (note the embedded [SPACE] representing a space in the header value)
+```
+GET http://user:password@goku:9090/path/to -HAccount-ID:8675309
+DELETE http://goku:9090/path/to/remove -HConfirmation-Token:90215 -HAuthorization:Token[SPACE]DEADBEEF
+```
+
+Targets with custom bodies
+```
+POST http://goku:9090/things <path/to/post_body.txt
+PATCH http://goku:9090/thingy/71988591 <path/to/patch_body.json
+```
+
+Targets with custom bodies and headers
+```
+POST http://goku:9090/things <path/to/post_body.txt -HAccount-ID:99
 ```
 
 #### -timeout
