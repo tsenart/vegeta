@@ -5,24 +5,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 )
 
 // Reporter represents any function which takes a slice of Results and
 // generates a report returned as a slice of bytes and an error in case
 // of failure
-type Reporter func([]Result) ([]byte, error)
+type Reporter func([]Result, []*Bucket) ([]byte, error)
 
 // ReportText returns a computed Metrics struct as aligned, formatted text
-func ReportText(results []Result) ([]byte, error) {
-	m := NewMetrics(results)
+func ReportText(results []Result, buckets []*Bucket) ([]byte, error) {
+	m := NewMetrics(results, buckets)
 	out := &bytes.Buffer{}
 
+	countUints := m.Buckets.Counts()
+	countStrings := make([]string, len(countUints))
+	for i, ui := range countUints {
+		countStrings[i] = strconv.FormatUint(ui, 10)
+	}
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
 	fmt.Fprintf(w, "Duration\t[total]\t%s\n", m.Duration)
 	fmt.Fprintf(w, "Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n",
 		m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
+	fmt.Fprintf(w, "Buckets\t[%s]\t%s\n",
+		strings.Join(m.Buckets.Labels(), ", "), strings.Join(countStrings, ", "))
 	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
 	fmt.Fprintf(w, "Bytes Out\t[total, mean]\t%d, %.2f\n", m.BytesOut.Total, m.BytesOut.Mean)
 	fmt.Fprintf(w, "Success\t[ratio]\t%.2f%%\n", m.Success*100)
@@ -42,13 +50,13 @@ func ReportText(results []Result) ([]byte, error) {
 }
 
 // ReportJSON writes a computed Metrics struct to as JSON
-func ReportJSON(results []Result) ([]byte, error) {
-	return json.Marshal(NewMetrics(results))
+func ReportJSON(results []Result, buckets []*Bucket) ([]byte, error) {
+	return json.Marshal(NewMetrics(results, buckets))
 }
 
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
-func ReportPlot(results []Result) ([]byte, error) {
+func ReportPlot(results []Result, buckets []*Bucket) ([]byte, error) {
 	series := &bytes.Buffer{}
 	for i, point := 0, ""; i < len(results); i++ {
 		point = "[" + strconv.FormatFloat(

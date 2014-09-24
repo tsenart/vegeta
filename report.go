@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 )
@@ -15,6 +17,7 @@ func reportCmd() command {
 	fs.StringVar(&opts.reporter, "reporter", "text", "Reporter [text, json, plot]")
 	fs.StringVar(&opts.inputf, "input", "stdin", "Input files (comma separated)")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+	fs.StringVar(&opts.bucketMins, "buckets", "", "Bucket minimum values in ms")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -24,9 +27,10 @@ func reportCmd() command {
 
 // reportOpts aggregates the report function command options
 type reportOpts struct {
-	reporter string
-	inputf   string
-	outputf  string
+	reporter   string
+	inputf     string
+	outputf    string
+	bucketMins string
 }
 
 // report validates the report arguments, sets up the required resources
@@ -36,6 +40,29 @@ func report(opts *reportOpts) error {
 	if !ok {
 		log.Println("Reporter provided is not supported. Using text")
 		rep = vegeta.ReportText
+	}
+
+	var buckets vegeta.Buckets
+	if opts.bucketMins != "" {
+		bucketMinStrs := strings.Split(opts.bucketMins, ",")
+		bucketMins := make([]time.Duration, len(bucketMinStrs))
+		for i, s := range bucketMinStrs {
+			ival, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				log.Printf("Error parsing bucket %q: %v", s, err)
+				continue
+			}
+			bucketMins[i] = time.Millisecond * time.Duration(ival)
+		}
+		buckets = make(vegeta.Buckets, len(bucketMins)+1)
+		buckets[0] = &vegeta.Bucket{Minimum: 0, Maximum: bucketMins[0]}
+		for i, min := range bucketMins {
+			if i == (len(bucketMins) - 1) {
+				buckets[i+1] = &vegeta.Bucket{Minimum: min, Maximum: -1}
+				continue
+			}
+			buckets[i+1] = &vegeta.Bucket{Minimum: min, Maximum: bucketMins[i+1]}
+		}
 	}
 
 	var all vegeta.Results
@@ -61,7 +88,7 @@ func report(opts *reportOpts) error {
 	}
 	defer out.Close()
 
-	data, err := rep(all)
+	data, err := rep(all, buckets)
 	if err != nil {
 		return err
 	}

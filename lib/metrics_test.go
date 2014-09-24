@@ -12,7 +12,7 @@ func TestNewMetrics(t *testing.T) {
 		Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
 		Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
 		Result{200, time.Unix(2, 0), 30 * time.Millisecond, 30, 10, ""},
-	})
+	}, nil)
 
 	for field, values := range map[string][]float64{
 		"BytesIn.Mean":  []float64{m.BytesIn.Mean, 20.0},
@@ -58,5 +58,5 @@ func TestNewMetrics(t *testing.T) {
 }
 
 func TestNewMetricsEmptyResults(t *testing.T) {
-	_ = NewMetrics([]Result{}) // Must not panic
+	_ = NewMetrics([]Result{}, nil) // Must not panic
 }

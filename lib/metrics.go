@@ -18,6 +18,8 @@ type Metrics struct {
 		Max  time.Duration `json:"max"`
 	} `json:"latencies"`
 
+	Buckets Buckets `json:"buckets,omitempty"`
+
 	BytesIn struct {
 		Total uint64  `json:"total"`
 		Mean  float64 `json:"mean"`
@@ -35,9 +37,53 @@ type Metrics struct {
 	Errors      []string       `json:"errors"`
 }
 
+// Bucket counts latencies between Minimum (inclusive) and Maximum (exclusive).
+type Bucket struct {
+	Minimum time.Duration `json:"minimum"`
+	Maximum time.Duration `json:"maximum"`
+	Count   uint64        `json:"count"`
+}
+
+func (b *Bucket) Label() string {
+	if b.Minimum == 0 {
+		return "<" + b.Maximum.String()
+	}
+	return ">=" + b.Minimum.String()
+}
+
+type Buckets []*Bucket
+
+// Counts returns a slice of each Bucket's Count in b.
+func (b Buckets) Counts() []uint64 {
+	labels := make([]uint64, len(b))
+	for i := range b {
+		labels[i] = b[i].Count
+	}
+	return labels
+}
+
+// Insert adds a latency to the correct Bucket in b.
+func (b Buckets) Insert(latency time.Duration) {
+	for _, bucket := range b {
+		if latency >= bucket.Minimum && (latency < bucket.Maximum || bucket.Maximum == -1) {
+			bucket.Count += 1
+			return
+		}
+	}
+}
+
+// Labels returns a slice of each Bucket's Label in b.
+func (b Buckets) Labels() []string {
+	labels := make([]string, len(b))
+	for i := range b {
+		labels[i] = b[i].Label()
+	}
+	return labels
+}
+
 // NewMetrics computes and returns a Metrics struct out of a slice of Results
-func NewMetrics(results []Result) *Metrics {
-	m := &Metrics{StatusCodes: map[string]int{}}
+func NewMetrics(results []Result, buckets []*Bucket) *Metrics {
+	m := &Metrics{StatusCodes: map[string]int{}, Buckets: buckets}
 
 	if len(results) == 0 {
 		return m
@@ -62,6 +108,7 @@ func NewMetrics(results []Result) *Metrics {
 		if result.Error != "" {
 			errorSet[result.Error] = struct{}{}
 		}
+		m.Buckets.Insert(result.Latency)
 	}
 
 	m.Requests = uint64(len(results))
