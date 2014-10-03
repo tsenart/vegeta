@@ -39,17 +39,6 @@ func TestAttackRate(t *testing.T) {
 	}
 }
 
-func NewURLGenerator(n int, target *Target) <-chan *Target {
-	tch := make(chan *Target)
-	go func() {
-		for i := 0; i < n; i++ {
-			tch <- target
-		}
-		close(tch)
-	}()
-	return tch
-}
-
 func TestAttackBody(t *testing.T) {
 	t.Parallel()
 

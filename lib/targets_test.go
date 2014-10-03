@@ -83,14 +83,14 @@ func TestNewTargets(t *testing.T) {
 func TestShuffle(t *testing.T) {
 	t.Parallel()
 
-	targets := make(Targets, 50)
+	targets := make([]*Target, 50)
 	for i := 0; i < 50; i++ {
-		targets[i] = Target{Method: "GET", URL: "http://:" + strconv.Itoa(i)}
+		targets[i] = &Target{Method: "GET", URL: "http://:" + strconv.Itoa(i)}
 	}
-	targetsCopy := make(Targets, 50)
+	targetsCopy := make([]*Target, 50)
 	copy(targetsCopy, targets)
 
-	targets.Shuffle(0)
+	Shuffle(0, targets)
 	for i, target := range targets {
 		if targetsCopy[i].URL != target.URL {
 			return

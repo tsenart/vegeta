@@ -102,22 +102,30 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
-	generator := vegeta.NewStreamTargetGenerator(r, files[opts.bodyf], opts.headers.Header)
+	var generator vegeta.TargetGenerator
+
+	switch opts.ordering {
+	case "random":
+		targets, err := vegeta.LoadAllTargetsFromFile(r, files[opts.bodyf], opts.headers.Header)
+		if err != nil {
+			return errParsingTargets
+		}
+
+		vegeta.Shuffle(time.Now().UnixNano(), targets)
+		generator = vegeta.NewArrayTargetGenerator(targets)
+
+	case "sequential":
+		generator = vegeta.NewStreamTargetGenerator(r, files[opts.bodyf], opts.headers.Header)
+		break
+	default:
+		return errBadOrdering
+	}
 
 	targetsCh, errCh := vegeta.NewTargetProducer(
 		opts.rate,
 		opts.duration,
 		generator,
 	)
-
-	switch opts.ordering {
-	case "random":
-		break
-	case "sequential":
-		break
-	default:
-		return errBadOrdering
-	}
 
 	out, err := file(opts.outputf, true)
 	if err != nil {
