@@ -58,15 +58,24 @@ func TestNewTargets(t *testing.T) {
 	t.Parallel()
 
 	src := []byte("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
-	targets, err := NewTargets(src, nil, nil)
-	if err != nil {
-		t.Fatalf("Couldn't parse valid source: %s", err)
+
+	stream := NewStreamTargetGenerator(bytes.NewReader(src), nil, nil)
+
+	tch := make(chan *Target, 2)
+
+	if err := stream(tch); err != nil {
+		t.Fatal(err)
 	}
-	for i, method := range []string{"GET", "HEAD"} {
-		if targets[i].Method != method ||
-			targets[i].URL != "http://lolcathost:9999/" {
-			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
-				targets[i].Method, targets[i].URL)
+
+	if err := stream(tch); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, method := range []string{"GET", "HEAD"} {
+		tt := <-tch
+		if tt.Method != method ||
+			tt.URL != "http://lolcathost:9999/" {
+			t.Fatalf("Request was parsed incorrectly. Got: %s %s", tt.Method, tt.URL)
 		}
 	}
 }

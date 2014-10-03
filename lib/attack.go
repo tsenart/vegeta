@@ -6,11 +6,12 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
 // Attacker is an attack executor which wraps an http.Client
-type Attacker struct{ client http.Client }
+type Attacker struct{ http.Client }
 
 var (
 	// DefaultRedirects represents the number of times the DefaultAttacker
@@ -70,41 +71,54 @@ func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc *t
 // The results of the attack are put into a slice which is returned.
 //
 // Attack is a wrapper around DefaultAttacker.Attack
-func Attack(tgts Targets, rate uint64, du time.Duration) Results {
-	return DefaultAttacker.Attack(tgts, rate, du)
+func Attack(tch <-chan *Target, maxreqs uint64) Results {
+	return DefaultAttacker.Attack(tch, maxreqs)
 }
 
 // Attack attacks the passed Targets (http.Requests) at the rate specified for
 // duration time and then waits for all the requests to come back.
 // The results of the attack are put into a slice which is returned.
-func (a *Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
-	hits := int(rate * uint64(du.Seconds()))
-	resc := make(chan Result)
-	throttle := time.NewTicker(time.Duration(1e9 / rate))
-	defer throttle.Stop()
+func (a *Attacker) Attack(targetCh <-chan *Target, maxreqs uint64) Results {
+	resc := make(chan *Result)
 
-	for i := 0; i < hits; i++ {
-		<-throttle.C
-		go func(tgt Target) { resc <- a.hit(tgt) }(tgts[i%len(tgts)])
+	var wg sync.WaitGroup
+
+	go func() {
+
+		// fire up the request pool
+		for i := uint64(0); i < maxreqs; i++ {
+			wg.Add(1)
+
+			go func() {
+				for t := range targetCh {
+					resc <- a.hit(t)
+				}
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+		close(resc)
+	}()
+
+	var results []*Result
+	for r := range resc {
+		results = append(results, r)
 	}
 
-	results := make(Results, 0, hits)
-	for len(results) < cap(results) {
-		results = append(results, <-resc)
-	}
-
-	return results.Sort()
+	return Results(results).Sort()
 }
 
-func (a *Attacker) hit(tgt Target) (res Result) {
+func (a *Attacker) hit(tgt *Target) (res *Result) {
 	req, err := tgt.Request()
 	if err != nil {
 		res.Error = err.Error()
 		return res
 	}
 
+	res = &Result{}
 	res.Timestamp = time.Now()
-	r, err := a.client.Do(req)
+	r, err := a.Do(req)
 	res.Latency = time.Since(res.Timestamp)
 	if err != nil {
 		res.Error = err.Error()
@@ -113,6 +127,7 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 
 	res.BytesOut = uint64(req.ContentLength)
 	res.Code = uint16(r.StatusCode)
+
 	if body, err := ioutil.ReadAll(r.Body); err != nil {
 		if res.Code < 200 || res.Code >= 300 {
 			res.Error = string(body)
@@ -120,6 +135,7 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 	} else {
 		res.BytesIn = uint64(len(body))
 	}
+
 	res.Latency = time.Since(res.Timestamp)
 
 	return res

@@ -23,12 +23,31 @@ func TestAttackRate(t *testing.T) {
 		}),
 	)
 
-	tgt := Target{Method: "GET", URL: server.URL}
 	rate := uint64(1000)
-	Attack(Targets{tgt}, rate, 1*time.Second)
+	target := &Target{Method: "GET", URL: server.URL}
+	tch, errch := NewTargetProducer(rate, 1*time.Second, func(tch chan<- *Target) error {
+		tch <- target
+		return nil
+	})
+
+	Attack(tch, rate)
 	if hits := atomic.LoadUint64(&hitCount); hits != rate {
 		t.Fatalf("Wrong number of hits: want %d, got %d\n", rate, hits)
 	}
+	if err := <-errch; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func NewURLGenerator(n int, target *Target) <-chan *Target {
+	tch := make(chan *Target)
+	go func() {
+		for i := 0; i < n; i++ {
+			tch <- target
+		}
+		close(tch)
+	}()
+	return tch
 }
 
 func TestAttackBody(t *testing.T) {
@@ -47,7 +66,8 @@ func TestAttackBody(t *testing.T) {
 		}),
 	)
 
-	Attack(Targets{{Method: "GET", URL: server.URL, Body: want}}, 100, 1*time.Second)
+	target := &Target{Method: "GET", URL: server.URL, Body: want}
+	Attack(NewURLGenerator(100, target), 1)
 }
 
 func TestDefaultAttackerCertConfig(t *testing.T) {
@@ -57,7 +77,7 @@ func TestDefaultAttackerCertConfig(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
 	request, _ := http.NewRequest("GET", server.URL, nil)
-	_, err := DefaultAttacker.client.Do(request)
+	_, err := DefaultAttacker.Do(request)
 	if err != nil && strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
 		t.Errorf("Invalid certificates should be ignored: Got `%s`", err)
 	}
@@ -79,9 +99,10 @@ func TestRedirects(t *testing.T) {
 	}
 
 	atk := NewAttacker(2, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
-	tgt := Target{Method: "GET", URL: servers[0].URL}
+	tgt := &Target{Method: "GET", URL: servers[0].URL}
+
 	var rate uint64 = 10
-	results := atk.Attack(Targets{tgt}, rate, 1*time.Second)
+	results := atk.Attack(NewURLGenerator(10, tgt), 1)
 
 	want := fmt.Sprintf("stopped after %d redirects", 2)
 	for _, result := range results {
@@ -105,8 +126,10 @@ func TestTimeout(t *testing.T) {
 	)
 
 	atk := NewAttacker(DefaultRedirects, 10*time.Millisecond, DefaultLocalAddr, DefaultTLSConfig)
-	tgt := Target{Method: "GET", URL: server.URL}
-	results := atk.Attack(Targets{tgt}, 1, 1*time.Second)
+
+	tgt := &Target{Method: "GET", URL: server.URL}
+
+	results := atk.Attack(NewURLGenerator(10, tgt), 1)
 
 	want := "net/http: timeout awaiting response headers"
 	for _, result := range results {
@@ -138,9 +161,9 @@ func TestLocalAddr(t *testing.T) {
 	)
 
 	atk := NewAttacker(DefaultRedirects, DefaultTimeout, *addr, DefaultTLSConfig)
-	tgt := Target{Method: "GET", URL: server.URL}
+	tgt := &Target{Method: "GET", URL: server.URL}
 
-	for _, result := range atk.Attack(Targets{tgt}, 1, 1*time.Second) {
+	for _, result := range atk.Attack(NewURLGenerator(10, tgt), 1) {
 		if result.Error != "" {
 			t.Fatal(result.Error)
 		}
