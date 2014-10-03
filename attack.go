@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -97,9 +98,17 @@ func attack(opts *attackOpts) (err error) {
 		}
 	}
 
-	r, err := os.Open(opts.targetsf)
-	if err != nil {
-		return err
+	var r io.Reader
+
+	switch opts.targetsf {
+	case "stdin":
+		r = os.Stdin
+	default:
+		var err error
+		r, err = os.Open(opts.targetsf)
+		if err != nil {
+			return err
+		}
 	}
 
 	var generator vegeta.TargetGenerator
