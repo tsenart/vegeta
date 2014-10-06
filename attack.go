@@ -6,10 +6,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -31,6 +33,7 @@ func attackCmd() command {
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
+	fs.Uint64Var(&opts.maxreqs, "maxreqs", 1000, "Max requests in flight at any given time")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
@@ -59,6 +62,7 @@ type attackOpts struct {
 	duration  time.Duration
 	timeout   time.Duration
 	rate      uint64
+	maxreqs   uint64
 	redirects int
 	headers   headers
 	laddr     localAddr
@@ -77,7 +81,7 @@ func attack(opts *attackOpts) (err error) {
 
 	// Open and read input files
 	files := map[string][]byte{}
-	for _, filename := range []string{opts.targetsf, opts.bodyf, opts.certf} {
+	for _, filename := range []string{opts.bodyf, opts.certf} {
 		if filename == "" {
 			files[filename] = []byte{}
 			continue
@@ -94,23 +98,43 @@ func attack(opts *attackOpts) (err error) {
 		}
 	}
 
-	targets, err := vegeta.NewTargets(
-		files[opts.targetsf],
-		files[opts.bodyf],
-		opts.headers.Header,
-	)
-	if err != nil {
-		return errParsingTargets
+	var r io.Reader
+
+	switch opts.targetsf {
+	case "stdin":
+		r = os.Stdin
+	default:
+		var err error
+		r, err = os.Open(opts.targetsf)
+		if err != nil {
+			return err
+		}
 	}
+
+	var generator vegeta.TargetGenerator
 
 	switch opts.ordering {
 	case "random":
-		targets.Shuffle(time.Now().UnixNano())
+		targets, err := vegeta.LoadAllTargetsFromFile(r, files[opts.bodyf], opts.headers.Header)
+		if err != nil {
+			return errParsingTargets
+		}
+
+		vegeta.Shuffle(time.Now().UnixNano(), targets)
+		generator = vegeta.NewArrayTargetGenerator(targets)
+
 	case "sequential":
+		generator = vegeta.NewStreamTargetGenerator(r, files[opts.bodyf], opts.headers.Header)
 		break
 	default:
 		return errBadOrdering
 	}
+
+	targetsCh, errCh := vegeta.NewTargetProducer(
+		opts.rate,
+		opts.duration,
+		generator,
+	)
 
 	out, err := file(opts.outputf, true)
 	if err != nil {
@@ -128,12 +152,19 @@ func attack(opts *attackOpts) (err error) {
 	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, &tlsc)
 
 	log.Printf(
-		"Vegeta is attacking %d targets in %s order for %s...\n",
-		len(targets),
-		opts.ordering,
+		"Vegeta is attacking for %s...\n",
 		opts.duration,
 	)
-	results := atk.Attack(targets, opts.rate, opts.duration)
+
+	results := atk.Attack(targetsCh, opts.maxreqs)
+
+	// check if there where any errors
+	for err := range errCh {
+		if err != nil {
+			log.Println("Error parsing ", err)
+			return errParsingTargets
+		}
+	}
 
 	log.Printf("Done! Writing results to '%s'...", opts.outputf)
 	return results.Encode(out)

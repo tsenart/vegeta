@@ -11,10 +11,10 @@ import (
 // Reporter represents any function which takes a slice of Results and
 // generates a report returned as a slice of bytes and an error in case
 // of failure
-type Reporter func([]Result) ([]byte, error)
+type Reporter func([]*Result) ([]byte, error)
 
 // ReportText returns a computed Metrics struct as aligned, formatted text
-func ReportText(results []Result) ([]byte, error) {
+func ReportText(results []*Result) ([]byte, error) {
 	m := NewMetrics(results)
 	out := &bytes.Buffer{}
 
@@ -42,13 +42,13 @@ func ReportText(results []Result) ([]byte, error) {
 }
 
 // ReportJSON writes a computed Metrics struct to as JSON
-func ReportJSON(results []Result) ([]byte, error) {
+func ReportJSON(results []*Result) ([]byte, error) {
 	return json.Marshal(NewMetrics(results))
 }
 
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
-func ReportPlot(results []Result) ([]byte, error) {
+func ReportPlot(results []*Result) ([]byte, error) {
 	series := &bytes.Buffer{}
 	for i, point := 0, ""; i < len(results); i++ {
 		point = "[" + strconv.FormatFloat(

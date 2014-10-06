@@ -8,10 +8,10 @@ import (
 func TestNewMetrics(t *testing.T) {
 	t.Parallel()
 
-	m := NewMetrics([]Result{
-		Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
-		Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
-		Result{200, time.Unix(2, 0), 30 * time.Millisecond, 30, 10, ""},
+	m := NewMetrics([]*Result{
+		&Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
+		&Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
+		&Result{200, time.Unix(2, 0), 30 * time.Millisecond, 30, 10, ""},
 	})
 
 	for field, values := range map[string][]float64{
@@ -58,5 +58,5 @@ func TestNewMetrics(t *testing.T) {
 }
 
 func TestNewMetricsEmptyResults(t *testing.T) {
-	_ = NewMetrics([]Result{}) // Must not panic
+	_ = NewMetrics([]*Result{}) // Must not panic
 }

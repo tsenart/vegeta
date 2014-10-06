@@ -36,7 +36,7 @@ type Metrics struct {
 }
 
 // NewMetrics computes and returns a Metrics struct out of a slice of Results
-func NewMetrics(results []Result) *Metrics {
+func NewMetrics(results []*Result) *Metrics {
 	m := &Metrics{StatusCodes: map[string]int{}}
 
 	if len(results) == 0 {

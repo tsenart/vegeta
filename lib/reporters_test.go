@@ -8,7 +8,7 @@ import (
 func BenchmarkReportPlot(b *testing.B) {
 	b.StopTimer()
 	// Build result set
-	results := make([]Result, 50000)
+	results := make([]*Result, 50000)
 	for began, i := time.Now(), 0; i < len(results); i++ {
 		results[i].Code = uint16(i % 600)
 		results[i].Latency = 50 * time.Millisecond

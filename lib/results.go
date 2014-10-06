@@ -20,7 +20,7 @@ type Result struct {
 
 // Results is a slice of Result structs with encoding,
 // decoding and sorting behavior attached
-type Results []Result
+type Results []*Result
 
 // Encode encodes the results and writes it to an io.Writer
 // returning an error in case of failure
