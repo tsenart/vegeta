@@ -109,6 +109,7 @@ func (a *Attacker) hit(tr Targeter) *Result {
 		res.Error = err.Error()
 		return res
 	}
+	defer r.Body.Close()
 
 	res.BytesOut = uint64(req.ContentLength)
 	res.Code = uint16(r.StatusCode)
