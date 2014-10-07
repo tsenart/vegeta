@@ -8,14 +8,14 @@ import (
 	"text/tabwriter"
 )
 
-// Reporter represents any function which takes a slice of Results and
+// Reporter is function which takes a slice of Results and
 // generates a report returned as a slice of bytes and an error in case
-// of failure
-type Reporter func([]Result) ([]byte, error)
+// of failure.
+type Reporter func(Results) ([]byte, error)
 
-// ReportText returns a computed Metrics struct as aligned, formatted text
-func ReportText(results []Result) ([]byte, error) {
-	m := NewMetrics(results)
+// ReportText returns a computed Metrics struct as aligned, formatted text.
+func ReportText(r Results) ([]byte, error) {
+	m := NewMetrics(r)
 	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
@@ -42,22 +42,22 @@ func ReportText(results []Result) ([]byte, error) {
 }
 
 // ReportJSON writes a computed Metrics struct to as JSON
-func ReportJSON(results []Result) ([]byte, error) {
-	return json.Marshal(NewMetrics(results))
+func ReportJSON(r Results) ([]byte, error) {
+	return json.Marshal(NewMetrics(r))
 }
 
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
-func ReportPlot(results []Result) ([]byte, error) {
+func ReportPlot(r Results) ([]byte, error) {
 	series := &bytes.Buffer{}
-	for i, point := 0, ""; i < len(results); i++ {
+	for i, point := 0, ""; i < len(r); i++ {
 		point = "[" + strconv.FormatFloat(
-			results[i].Timestamp.Sub(results[0].Timestamp).Seconds(), 'f', -1, 32) + ","
+			r[i].Timestamp.Sub(r[0].Timestamp).Seconds(), 'f', -1, 32) + ","
 
-		if results[i].Error == "" {
-			point += "NaN," + strconv.FormatFloat(results[i].Latency.Seconds()*1000, 'f', -1, 32) + "],"
+		if r[i].Error == "" {
+			point += "NaN," + strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32) + "],"
 		} else {
-			point += strconv.FormatFloat(results[i].Latency.Seconds()*1000, 'f', -1, 32) + ",NaN],"
+			point += strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32) + ",NaN],"
 		}
 
 		series.WriteString(point)

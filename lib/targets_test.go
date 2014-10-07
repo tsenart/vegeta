@@ -6,7 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"strconv"
+	"reflect"
 	"testing"
 )
 
@@ -54,38 +54,55 @@ func TestTargetRequest(t *testing.T) {
 	}
 }
 
-func TestNewTargets(t *testing.T) {
+func TestNewEagerTargeter(t *testing.T) {
 	t.Parallel()
 
 	src := []byte("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
-	targets, err := NewTargets(src, nil, nil)
+	read, err := NewEagerTargeter(bytes.NewReader(src), nil, nil)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
-	for i, method := range []string{"GET", "HEAD"} {
-		if targets[i].Method != method ||
-			targets[i].URL != "http://lolcathost:9999/" {
+	for _, method := range []string{"GET", "HEAD"} {
+		target, err := read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target.Method != method || target.URL != "http://lolcathost:9999/" {
 			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
-				targets[i].Method, targets[i].URL)
+				target.Method, target.URL)
 		}
 	}
 }
 
-func TestShuffle(t *testing.T) {
-	t.Parallel()
+func TestNewLazyTarget(t *testing.T) {
+	body, hdr := []byte("body"), http.Header{}
+	src := bytes.NewReader([]byte("GET http://lolcathost:9999/\n// this is a comment \nHEAD http://lolcathost:9999/\n"))
+	read := NewLazyTargeter(src, body, hdr)
 
-	targets := make(Targets, 50)
-	for i := 0; i < 50; i++ {
-		targets[i] = Target{Method: "GET", URL: "http://:" + strconv.Itoa(i)}
-	}
-	targetsCopy := make(Targets, 50)
-	copy(targetsCopy, targets)
-
-	targets.Shuffle(0)
-	for i, target := range targets {
-		if targetsCopy[i].URL != target.URL {
-			return
+	for _, want := range []*Target{
+		&Target{
+			Method: "GET",
+			URL:    "http://lolcathost:9999/",
+			Body:   body,
+			Header: hdr,
+		},
+		&Target{
+			Method: "HEAD",
+			URL:    "http://lolcathost:9999/",
+			Body:   body,
+			Header: hdr,
+		},
+	} {
+		if got, err := read(); err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(got, want) {
+			t.Errorf("got: %+v, want: %+v", got, want)
 		}
 	}
-	t.Fatal("Targets were not shuffled correctly")
+
+	if got, err := read(); err != ErrNoTargets {
+		t.Fatalf("got: %v, want: %v", err, ErrNoTargets)
+	} else if got != nil {
+		t.Fatalf("got: %v, want: %v", got, nil)
+	}
 }

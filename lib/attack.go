@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,9 +27,6 @@ var (
 	// requests
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 )
-
-// DefaultAttacker is the default Attacker used by Attack
-var DefaultAttacker = NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
 
 // NewAttacker returns a pointer to a new Attacker
 //
@@ -65,38 +63,39 @@ func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc *t
 	}}
 }
 
-// Attack hits the passed Targets (http.Requests) at the rate specified for
-// duration time and then waits for all the requests to come back.
-// The results of the attack are put into a slice which is returned.
+// Attack reads its Targets from the passed Targeter and attacks them at
+// the rate specified for duration time. Results are put into the returned channel
+// as soon as they arrive.
 //
-// Attack is a wrapper around DefaultAttacker.Attack
-func Attack(tgts Targets, rate uint64, du time.Duration) Results {
-	return DefaultAttacker.Attack(tgts, rate, du)
-}
-
-// Attack attacks the passed Targets (http.Requests) at the rate specified for
-// duration time and then waits for all the requests to come back.
-// The results of the attack are put into a slice which is returned.
-func (a *Attacker) Attack(tgts Targets, rate uint64, du time.Duration) Results {
-	hits := int(rate * uint64(du.Seconds()))
-	resc := make(chan Result)
+// If the passed Targeter doesn't provided enough Targets, ErrNoTargets
+// is returned.
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
+	hits := rate * uint64(du.Seconds())
+	resc := make(chan *Result)
 	throttle := time.NewTicker(time.Duration(1e9 / rate))
-	defer throttle.Stop()
 
-	for i := 0; i < hits; i++ {
-		<-throttle.C
-		go func(tgt Target) { resc <- a.hit(tgt) }(tgts[i%len(tgts)])
+	var done, i uint64
+	for ; i < hits; i++ {
+		go func() {
+			<-throttle.C
+			resc <- a.hit(tr)
+			if atomic.AddUint64(&done, 1) == hits {
+				close(resc)
+				throttle.Stop()
+			}
+		}()
 	}
 
-	results := make(Results, 0, hits)
-	for len(results) < cap(results) {
-		results = append(results, <-resc)
-	}
-
-	return results.Sort()
+	return resc
 }
 
-func (a *Attacker) hit(tgt Target) (res Result) {
+func (a *Attacker) hit(tr Targeter) *Result {
+	tgt, err := tr()
+	if err != nil {
+		return &Result{Error: err.Error()}
+	}
+
+	res := new(Result)
 	req, err := tgt.Request()
 	if err != nil {
 		res.Error = err.Error()
