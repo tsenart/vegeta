@@ -61,14 +61,16 @@ It defaults to the amount of CPUs available in the system.
 $ vegeta attack -h
 Usage of vegeta attack:
   -body="": Requests body file
+  -cert="": x509 Certificate file
   -duration=10s: Duration of the test
   -header=: Request header
-  -ordering="random": Attack ordering [sequential, random]
+  -laddr=0.0.0.0: Local IP address
+  -lazy=false: Read targets lazily
   -output="stdout": Output file
   -rate=50: Requests per second
   -redirects=10: Number of redirects to follow
   -targets="stdin": Targets file
-  -timeout=0: Requests timeout
+  -timeout=30s: Requests timeout
 ```
 
 #### -body
@@ -96,12 +98,6 @@ This allows streaming targets into the attack command and reduces memory
 footprint.
 The trade-off is one of added latency in each hit against the targets.
 
-#### -ordering
-Specifies the ordering of target attack. The default is `random` and
-it will randomly pick one of the targets per request.
-The other option is `sequential` and it round-robins through the list of
-targets for each request.
-
 #### -output
 Specifies the output file to which the binary results will be written
 to. Made to be piped to the report command input. Defaults to stdout.
@@ -128,6 +124,7 @@ HEAD http://goku:9090/path/to/success
 #### -timeout
 Specifies the timeout for each request. The default is 0 which disables
 timeouts.
+
 ### report
 ```
 $ vegeta report -h
