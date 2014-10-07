@@ -29,6 +29,7 @@ attack command:
   -duration=10s: Duration of the test
   -header=: Request header
   -laddr=0.0.0.0: Local IP address
+  -lazy=false: Read targets lazily
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
@@ -88,6 +89,12 @@ You can specify as many as needed by repeating the flag.
 
 #### -laddr
 Specifies the local IP address to be used.
+
+#### -lazy
+Specifies whether to read the input targets lazily instead of eagerly.
+This allows streaming targets into the attack command and reduces memory
+footprint.
+The trade-off is one of added latency in each hit against the targets.
 
 #### -ordering
 Specifies the ordering of target attack. The default is `random` and
