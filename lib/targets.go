@@ -3,12 +3,15 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
-	"math/rand"
+	"io"
 	"net/http"
+	"sync"
+	"sync/atomic"
 )
 
-// Target is a HTTP request blueprint
+// Target is an HTTP request blueprint.
 type Target struct {
 	Method string
 	URL    string
@@ -33,46 +36,72 @@ func (t *Target) Request() (*http.Request, error) {
 	return req, nil
 }
 
-// Targets is a slice of Targets which can be shuffled
-type Targets []Target
+// ErrNoTargets is returned when not enough Targets are available.
+var ErrNoTargets = errors.New("no targets to attack")
 
-// NewTargets parses a line-separated byte src and returns Targets.
-// It sets the passed body and http.Header on all targets.
-func NewTargets(src []byte, body []byte, header http.Header) (Targets, error) {
-	var tgts Targets
+// Targeter is a generator function which returns a new Target
+// or an error on every invocation. It is safe for concurrent use.
+type Targeter func() (*Target, error)
 
-	sc := bufio.NewScanner(bytes.NewReader(src))
-	for sc.Scan() {
-		line := bytes.TrimSpace(sc.Bytes())
-		if len(line) == 0 || bytes.HasPrefix(line, []byte("//")) {
-			// Skipping comments or blank lines
-			continue
-		}
-
-		ps := bytes.Split(line, []byte(" "))
-		if len(ps) != 2 {
-			return nil, fmt.Errorf("invalid request format: `%s`", line)
-		}
-
-		tgts = append(tgts, Target{
-			Method: string(ps[0]),
-			URL:    string(ps[1]),
-			Body:   body,
-			Header: header,
-		})
+// NewStaticTargeter returns a Targeter which round-robins over the passed
+// Targets.
+func NewStaticTargeter(tgts ...*Target) Targeter {
+	i := int64(-1)
+	return func() (*Target, error) {
+		return tgts[atomic.AddInt64(&i, 1)%int64(len(tgts))], nil
 	}
-
-	if err := sc.Err(); err != nil {
-		return nil, err
-	}
-
-	return tgts, nil
 }
 
-// Shuffle randomly alters the order of Targets with the provided seed
-func (t Targets) Shuffle(seed int64) {
-	rand.Seed(seed)
-	for i, rnd := range rand.Perm(len(t)) {
-		t[i], t[rnd] = t[rnd], t[i]
+// NewEagerTargeter eagerly reads all Targets out of the provided io.Reader and
+// returns a NewStaticTargeter with them.
+// The targets' bodies and headers will be set to the passed body and header arguments.
+func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
+	var (
+		sc   = NewLazyTargeter(src, body, header)
+		tgts []*Target
+		tgt  *Target
+		err  error
+	)
+	for {
+		if tgt, err = sc(); err == ErrNoTargets {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		tgts = append(tgts, tgt)
+	}
+	if len(tgts) == 0 {
+		return nil, ErrNoTargets
+	}
+	return NewStaticTargeter(tgts...), nil
+}
+
+// NewLazyTargeter returns a new Targeter that lazily scans Targets from the
+// provided io.Reader on every invocation.
+// The targets' bodies and headers will be set to the passed body and header arguments.
+func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+	var mu sync.Mutex
+	sc := bufio.NewScanner(src)
+	return func() (*Target, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		for sc.Scan() {
+			line := bytes.TrimSpace(sc.Bytes())
+			if len(line) == 0 || bytes.HasPrefix(line, []byte("//")) {
+				// Skipping comments or blank lines
+				continue
+			}
+			ps := bytes.Split(line, []byte(" "))
+			if len(ps) != 2 {
+				return nil, fmt.Errorf("invalid target: `%s`", line)
+			}
+			return &Target{
+				Method: string(ps[0]),
+				URL:    string(ps[1]),
+				Body:   body,
+				Header: hdr,
+			}, nil
+		}
+		return nil, ErrNoTargets
 	}
 }

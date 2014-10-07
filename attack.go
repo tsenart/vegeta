@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"crypto/x509"
+	"encoding/gob"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -27,7 +28,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "x509 Certificate file")
-	fs.StringVar(&opts.ordering, "ordering", "random", "Attack ordering [sequential, random]")
+	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
@@ -42,11 +43,9 @@ func attackCmd() command {
 }
 
 var (
-	errZeroDuration   = errors.New("duration must be bigger than zero")
-	errZeroRate       = errors.New("rate must be bigger than zero")
-	errParsingTargets = errors.New("error parsing targets")
-	errBadOrdering    = errors.New("bad ordering")
-	errBadCert        = errors.New("bad certificate")
+	errZeroDuration = errors.New("duration must be bigger than zero")
+	errZeroRate     = errors.New("rate must be bigger than zero")
+	errBadCert      = errors.New("bad certificate")
 )
 
 // attackOpts aggregates the attack function command options
@@ -55,7 +54,7 @@ type attackOpts struct {
 	outputf   string
 	bodyf     string
 	certf     string
-	ordering  string
+	lazy      bool
 	duration  time.Duration
 	timeout   time.Duration
 	rate      uint64
@@ -75,41 +74,35 @@ func attack(opts *attackOpts) (err error) {
 		return errZeroDuration
 	}
 
-	// Open and read input files
-	files := map[string][]byte{}
+	files := map[string]io.Reader{}
 	for _, filename := range []string{opts.targetsf, opts.bodyf, opts.certf} {
 		if filename == "" {
-			files[filename] = []byte{}
 			continue
 		}
-
 		f, err := file(filename, false)
 		if err != nil {
 			return fmt.Errorf("error opening %s: %s", filename, err)
 		}
 		defer f.Close()
+		files[filename] = f
+	}
 
-		if files[filename], err = ioutil.ReadAll(f); err != nil {
-			return fmt.Errorf("error reading %s: %s", filename, err)
+	var body []byte
+	if bodyf, ok := files[opts.bodyf]; ok {
+		if body, err = ioutil.ReadAll(bodyf); err != nil {
+			return fmt.Errorf("error reading %s: %s", opts.bodyf, err)
 		}
 	}
 
-	targets, err := vegeta.NewTargets(
-		files[opts.targetsf],
-		files[opts.bodyf],
-		opts.headers.Header,
+	var (
+		tr  vegeta.Targeter
+		src = files[opts.targetsf]
+		hdr = opts.headers.Header
 	)
-	if err != nil {
-		return errParsingTargets
-	}
-
-	switch opts.ordering {
-	case "random":
-		targets.Shuffle(time.Now().UnixNano())
-	case "sequential":
-		break
-	default:
-		return errBadOrdering
+	if opts.lazy {
+		tr = vegeta.NewLazyTargeter(src, body, hdr)
+	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
+		return err
 	}
 
 	out, err := file(opts.outputf, true)
@@ -118,25 +111,28 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
+	var cert []byte
+	if certf, ok := files[opts.certf]; ok {
+		if cert, err = ioutil.ReadAll(certf); err != nil {
+			return fmt.Errorf("error reading %s: %s", opts.certf, err)
+		}
+	}
 	tlsc := *vegeta.DefaultTLSConfig
 	if opts.certf != "" {
-		if tlsc.RootCAs, err = certPool(files[opts.certf]); err != nil {
+		if tlsc.RootCAs, err = certPool(cert); err != nil {
 			return err
 		}
 	}
 
 	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, &tlsc)
+	dec := gob.NewEncoder(out)
+	for res := range atk.Attack(tr, opts.rate, opts.duration) {
+		if err = dec.Encode(res); err != nil {
+			return err
+		}
+	}
 
-	log.Printf(
-		"Vegeta is attacking %d targets in %s order for %s...\n",
-		len(targets),
-		opts.ordering,
-		opts.duration,
-	)
-	results := atk.Attack(targets, opts.rate, opts.duration)
-
-	log.Printf("Done! Writing results to '%s'...", opts.outputf)
-	return results.Encode(out)
+	return nil
 }
 
 // headers is the http.Header used in each target request

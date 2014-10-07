@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"strings"
 
@@ -38,22 +39,15 @@ func report(opts *reportOpts) error {
 		rep = vegeta.ReportText
 	}
 
-	var all vegeta.Results
-	for _, input := range strings.Split(opts.inputf, ",") {
-		in, err := file(input, false)
+	files := strings.Split(opts.inputf, ",")
+	srcs := make([]io.Reader, len(files))
+	for i, f := range files {
+		in, err := file(f, false)
 		if err != nil {
 			return err
 		}
-
-		var results vegeta.Results
-		if err = results.Decode(in); err != nil {
-			return err
-		}
-		in.Close()
-
-		all = append(all, results...)
+		srcs[i] = in
 	}
-	all.Sort()
 
 	out, err := file(opts.outputf, true)
 	if err != nil {
@@ -61,12 +55,16 @@ func report(opts *reportOpts) error {
 	}
 	defer out.Close()
 
-	data, err := rep(all)
+	res, err := vegeta.NewResults(srcs...)
+	if err != nil {
+		return err
+	}
+
+	data, err := rep(res)
 	if err != nil {
 		return err
 	}
 	_, err = out.Write(data)
-
 	return err
 }
 
