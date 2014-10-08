@@ -210,9 +210,10 @@ to change the moving average window size (in data points).
 package main
 
 import (
-  vegeta "github.com/tsenart/vegeta/lib"
   "time"
   "fmt"
+
+  vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func main() {
@@ -239,7 +240,7 @@ func main() {
   }
 
   metrics := vegeta.NewMetrics(results)
-  fmt.Printf("Mean latency: %s\n", metrics.Latencies.Mean)
+  fmt.Printf("99th percentile: %s\n", metrics.Latencies.P99)
 }
 ```
 
