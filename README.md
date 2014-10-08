@@ -216,14 +216,30 @@ import (
 )
 
 func main() {
-  targets, _ := vegeta.NewTargets([]string{"GET http://localhost:9100/"})
+
+  target := &vegeta.Target{
+    Method: "GET",
+    URL:    "http://localhost:9100/",
+  }
+
+  attacker := vegeta.NewAttacker(
+    vegeta.DefaultRedirects,
+    vegeta.DefaultTimeout,
+    vegeta.DefaultLocalAddr,
+    vegeta.DefaultTLSConfig,
+  )
+
   rate := uint64(100) // per second
   duration := 4 * time.Second
+  targeter := vegeta.NewStaticTargeter(target)
 
-  results := vegeta.Attack(targets, rate, duration)
+  var results vegeta.Results
+  for res := range attacker.Attack(targeter, rate, duration) {
+    results = append(results, res)
+  }
+
   metrics := vegeta.NewMetrics(results)
-
-  fmt.Printf("Mean latency: %s", metrics.Latencies.Mean)
+  fmt.Printf("Mean latency: %s\n", metrics.Latencies.Mean)
 }
 ```
 
