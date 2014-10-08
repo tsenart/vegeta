@@ -21,6 +21,7 @@ func ReportText(r Results) ([]byte, error) {
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
 	fmt.Fprintf(w, "Duration\t[total]\t%s\n", m.Duration)
+	fmt.Fprintf(w, "Processing\t[total]\t%s\n", m.Processing)
 	fmt.Fprintf(w, "Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n",
 		m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
 	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
