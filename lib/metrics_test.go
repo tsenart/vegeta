@@ -31,6 +31,7 @@ func TestNewMetrics(t *testing.T) {
 		"Latencies.P95":  []time.Duration{m.Latencies.P95, 30 * time.Millisecond},
 		"Latencies.P99":  []time.Duration{m.Latencies.P99, 30 * time.Millisecond},
 		"Duration":       []time.Duration{m.Duration, 2 * time.Second},
+		"Wait":           []time.Duration{m.Wait, 30 * time.Millisecond},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %s, got: %s", field, values[1], values[0])

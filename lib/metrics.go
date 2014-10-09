@@ -28,11 +28,18 @@ type Metrics struct {
 		Mean  float64 `json:"mean"`
 	} `json:"bytes_out"`
 
-	Duration    time.Duration  `json:"duration"`
-	Requests    uint64         `json:"requests"`
-	Success     float64        `json:"success"`
+	// Duration is the duration of the attack.
+	Duration time.Duration `json:"duration"`
+	// Wait is the extra time waiting for responses from targets.
+	Wait time.Duration `json:"wait"`
+	// Requests is the total number of requests executed.
+	Requests uint64 `json:"requests"`
+	// Success is the percentage of non-error responses.
+	Success float64 `json:"success"`
+	// StatusCodes is a histogram of the responses' status codes.
 	StatusCodes map[string]int `json:"status_codes"`
-	Errors      []string       `json:"errors"`
+	// Errors is a set of unique errors returned by the targets during the attack.
+	Errors []string `json:"errors"`
 }
 
 // NewMetrics computes and returns a Metrics struct out of a slice of Results.
@@ -43,9 +50,13 @@ func NewMetrics(r Results) *Metrics {
 		return m
 	}
 
-	errorSet := map[string]struct{}{}
-	quants := quantile.NewTargeted(0.50, 0.95, 0.99)
-	totalSuccess, totalLatencies := 0, time.Duration(0)
+	var (
+		errorSet       = map[string]struct{}{}
+		quants         = quantile.NewTargeted(0.50, 0.95, 0.99)
+		totalSuccess   int
+		totalLatencies time.Duration
+		latest         time.Time
+	)
 
 	for _, result := range r {
 		quants.Insert(float64(result.Latency))
@@ -55,6 +66,9 @@ func NewMetrics(r Results) *Metrics {
 		m.BytesIn.Total += result.BytesIn
 		if result.Latency > m.Latencies.Max {
 			m.Latencies.Max = result.Latency
+		}
+		if end := result.Timestamp.Add(result.Latency); end.After(latest) {
+			latest = end
 		}
 		if result.Code >= 200 && result.Code < 300 {
 			totalSuccess++
@@ -66,6 +80,7 @@ func NewMetrics(r Results) *Metrics {
 
 	m.Requests = uint64(len(r))
 	m.Duration = r[len(r)-1].Timestamp.Sub(r[0].Timestamp)
+	m.Wait = latest.Sub(r[len(r)-1].Timestamp)
 	m.Latencies.Mean = time.Duration(float64(totalLatencies) / float64(m.Requests))
 	m.Latencies.P50 = time.Duration(quants.Query(0.50))
 	m.Latencies.P95 = time.Duration(quants.Query(0.95))

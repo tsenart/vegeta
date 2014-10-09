@@ -149,8 +149,8 @@ Specifies the kind of report to be generated. It defaults to text.
 ##### text
 ```
 Requests      [total]                   1200
-Duration      [total]                   1.998307684s
-Latencies     [mean, 50, 95, 99, max]   223.340085ms, 240.12234ms, 326.913687ms, 416.537743ms, 7.788103259s
+Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
+Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
 Bytes In      [total, mean]             3714690, 3095.57
 Bytes Out     [total, mean]             0, 0.00
 Success       [ratio]                   55.42%
@@ -182,7 +182,8 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
     "total": 0,
     "mean": 0
   },
-  "duration": 1998307684,
+  "duration": 9949883921,
+  "wait": 145082066,
   "requests": 1200,
   "success": 0.11666666666666667,
   "status_codes": {
