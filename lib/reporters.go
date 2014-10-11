@@ -26,11 +26,11 @@ var ReportText ReporterFunc = func(r Results) ([]byte, error) {
 	m := NewMetrics(r)
 	out := &bytes.Buffer{}
 
-	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
+	w := tabwriter.NewWriter(out, 0, 8, 2, ' ', tabwriter.StripEscape)
 	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
 	fmt.Fprintf(w, "Duration\t[total, attack, wait]\t%s, %s, %s\n", m.Duration+m.Wait, m.Duration, m.Wait)
-	fmt.Fprintf(w, "Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n",
-		m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
+	fmt.Fprintf(w, "Latencies\t[mean, min, 50, 95, 99, 999, max]\t%s, %s, %s, %s, %s, %s, %s\n",
+		m.Latencies.Mean, m.Latencies.Min, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.P999, m.Latencies.Max)
 	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
 	fmt.Fprintf(w, "Bytes Out\t[total, mean]\t%d, %.2f\n", m.BytesOut.Total, m.BytesOut.Mean)
 	fmt.Fprintf(w, "Success\t[ratio]\t%.2f%%\n", m.Success*100)
