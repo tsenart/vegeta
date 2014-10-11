@@ -19,7 +19,7 @@ func TestAttackRate(t *testing.T) {
 	)
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
 	rate := uint64(100)
-	atk := NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
+	atk := NewAttacker()
 	var hits uint64
 	for _ = range atk.Attack(tr, rate, 1*time.Second) {
 		hits++
@@ -35,7 +35,7 @@ func TestDefaultAttackerCertConfig(t *testing.T) {
 	server := httptest.NewTLSServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
-	atk := NewAttacker(DefaultRedirects, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
+	atk := NewAttacker()
 	request, _ := http.NewRequest("GET", server.URL, nil)
 	_, err := atk.client.Do(request)
 	if err != nil && strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
@@ -58,7 +58,7 @@ func TestRedirects(t *testing.T) {
 		)
 	}
 
-	atk := NewAttacker(2, DefaultTimeout, DefaultLocalAddr, DefaultTLSConfig)
+	atk := NewAttacker(Redirects(2))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: servers[0].URL})
 	var rate uint64 = 10
 	results := atk.Attack(tr, rate, 1*time.Second)
@@ -84,7 +84,7 @@ func TestTimeout(t *testing.T) {
 		}),
 	)
 
-	atk := NewAttacker(DefaultRedirects, 10*time.Millisecond, DefaultLocalAddr, DefaultTLSConfig)
+	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
 	results := atk.Attack(tr, 1, 1*time.Second)
 
@@ -117,7 +117,7 @@ func TestLocalAddr(t *testing.T) {
 		}),
 	)
 
-	atk := NewAttacker(DefaultRedirects, DefaultTimeout, *addr, DefaultTLSConfig)
+	atk := NewAttacker(LocalAddr(*addr))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
 
 	for result := range atk.Attack(tr, 1, 1*time.Second) {
