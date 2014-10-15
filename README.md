@@ -219,21 +219,13 @@ import (
 
 func main() {
 
-  target := &vegeta.Target{
-    Method: "GET",
-    URL:    "http://localhost:9100/",
-  }
-
-  attacker := vegeta.NewAttacker(
-    vegeta.DefaultRedirects,
-    vegeta.DefaultTimeout,
-    vegeta.DefaultLocalAddr,
-    vegeta.DefaultTLSConfig,
-  )
-
   rate := uint64(100) // per second
   duration := 4 * time.Second
-  targeter := vegeta.NewStaticTargeter(target)
+  targeter := vegeta.NewStaticTargeter(&vegeta.Target{
+    Method: "GET",
+    URL:    "http://localhost:9100/",
+  })
+  attacker := vegeta.NewAttacker()
 
   var results vegeta.Results
   for res := range attacker.Attack(targeter, rate, duration) {

@@ -124,7 +124,12 @@ func attack(opts *attackOpts) (err error) {
 		}
 	}
 
-	atk := vegeta.NewAttacker(opts.redirects, opts.timeout, *opts.laddr.IPAddr, &tlsc)
+	atk := vegeta.NewAttacker(
+		vegeta.Redirects(opts.redirects),
+		vegeta.Timeout(opts.timeout),
+		vegeta.LocalAddr(*opts.laddr.IPAddr),
+		vegeta.TLSConfig(&tlsc),
+	)
 	dec := gob.NewEncoder(out)
 	for res := range atk.Attack(tr, opts.rate, opts.duration) {
 		if err = dec.Encode(res); err != nil {

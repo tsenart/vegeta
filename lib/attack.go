@@ -11,7 +11,10 @@ import (
 )
 
 // Attacker is an attack executor which wraps an http.Client
-type Attacker struct{ client http.Client }
+type Attacker struct {
+	dialer *net.Dialer
+	client http.Client
+}
 
 var (
 	// DefaultRedirects represents the number of times the DefaultAttacker
@@ -28,39 +31,74 @@ var (
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 )
 
-// NewAttacker returns a pointer to a new Attacker
-//
-// redirects is the max amount of redirects the attacker will follow.
-// Use DefaultRedirects for a sensible default.
-//
-// timeout is the client side timeout for each request.
-// Use DefaultTimeout for a sensible default.
-//
-// laddr is the local IP address used for each request.
-// Use DefaultLocalAddr for a sensible default.
-//
-// tlsc is the *tls.Config used for each HTTPS request.
-// Use DefaultTLSConfig for a sensible default.
-func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr, tlsc *tls.Config) *Attacker {
-	return &Attacker{http.Client{
+// NewAttacker returns a new Attacker with default options which are overridden
+// by the optionally provided opts.
+func NewAttacker(opts ...func(*Attacker)) *Attacker {
+	a := &Attacker{}
+	a.dialer = &net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
+		KeepAlive: 30 * time.Second,
+		Timeout:   DefaultTimeout,
+	}
+	a.client = http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
-			Dial: (&net.Dialer{
-				Timeout:   timeout,
-				KeepAlive: 30 * time.Second,
-				LocalAddr: &net.TCPAddr{IP: laddr.IP, Zone: laddr.Zone},
-			}).Dial,
-			ResponseHeaderTimeout: timeout,
-			TLSClientConfig:       tlsc,
+			Dial:  a.dialer.Dial,
+			ResponseHeaderTimeout: DefaultTimeout,
+			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
 		},
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) > redirects {
-				return fmt.Errorf("stopped after %d redirects", redirects)
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
+}
+
+// Redirects returns a functional option which sets the maximum
+// number of redirects an Attacker will follow.
+func Redirects(n int) func(*Attacker) {
+	return func(a *Attacker) {
+		a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+			if len(via) > n {
+				return fmt.Errorf("stopped after %d redirects", n)
 			}
 			return nil
-		},
-	}}
+		}
+	}
+}
+
+// Timeout returns a functional option which sets the maximum amount of time
+// an Attacker will wait for a request to be responded to.
+func Timeout(d time.Duration) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.ResponseHeaderTimeout = d
+		a.dialer.Timeout = d
+		tr.Dial = a.dialer.Dial
+		a.client.Transport = tr
+	}
+}
+
+// LocalAddr returns a functional option which sets the local address
+// an Attacker will use with its requests.
+func LocalAddr(addr net.IPAddr) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
+		tr.Dial = a.dialer.Dial
+		a.client.Transport = tr
+	}
+}
+
+// TLSConfig returns a functional option which sets the *tls.Config for a
+// Attacker to use with its requests.
+func TLSConfig(c *tls.Config) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.TLSClientConfig = c
+		a.client.Transport = tr
+	}
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at
