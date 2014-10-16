@@ -17,17 +17,15 @@ type Attacker struct {
 }
 
 var (
-	// DefaultRedirects represents the number of times the DefaultAttacker
-	// follows redirects
+	// DefaultRedirects is the default number of times an Attacker follows
+	// redirects.
 	DefaultRedirects = 10
-	// DefaultTimeout represents the amount of time the DefaultAttacker waits
-	// for a request before it times out
+	// DefaultTimeout is the default amount of time an Attacker waits for a request
+	// before it times out.
 	DefaultTimeout = 30 * time.Second
-	// DefaultLocalAddr is the local IP address the DefaultAttacker uses in its
-	// requests
+	// DefaultLocalAddr is the default local IP address an Attacker uses.
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
-	// DefaultTLSConfig is the default tls.Config the DefaultAttacker uses in its
-	// requests
+	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 )
 
