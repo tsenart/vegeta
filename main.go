@@ -9,7 +9,11 @@ import (
 )
 
 func main() {
-	commands := map[string]command{"attack": attackCmd(), "report": reportCmd()}
+	commands := map[string]command{
+		"attack":  attackCmd(),
+		"collect": collectCmd(),
+		"report":  reportCmd(),
+	}
 
 	flag.Usage = func() {
 		fmt.Println("Usage: vegeta [globals] <command> [options]")
