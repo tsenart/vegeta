@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -132,14 +134,26 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.LocalAddr(*opts.laddr.IPAddr),
 		vegeta.TLSConfig(&tlsc),
 	)
-	dec := gob.NewEncoder(out)
-	for res := range atk.Attack(tr, opts.rate, opts.duration, opts.workers) {
-		if err = dec.Encode(res); err != nil {
-			return err
+
+	res := atk.Attack(tr, opts.rate, opts.duration, opts.workers)
+	enc := gob.NewEncoder(out)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+
+	for {
+		select {
+		case s := <-sig:
+			fmt.Printf("Received signal: %s. Exiting gracefully...", s)
+			return nil
+		case r, ok := <-res:
+			if !ok {
+				return nil
+			}
+			if err = enc.Encode(r); err != nil {
+				return err
+			}
 		}
 	}
-
-	return nil
 }
 
 // headers is the http.Header used in each target request
