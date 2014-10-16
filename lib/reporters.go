@@ -8,13 +8,21 @@ import (
 	"text/tabwriter"
 )
 
-// Reporter is function which takes a slice of Results and
-// generates a report returned as a slice of bytes and an error in case
-// of failure.
-type Reporter func(Results) ([]byte, error)
+// Reporter is an interface defining Report computation.
+type Reporter interface {
+	Report(Results) ([]byte, error)
+}
+
+// ReporterFunc is an adapter to allow the use of ordinary functions as
+// Reporters. If f is a function with the appropriate signature, ReporterFunc(f)
+// is a Reporter object that calls f.
+type ReporterFunc func(Results) ([]byte, error)
+
+// Report implements the Reporter interface.
+func (f ReporterFunc) Report(r Results) ([]byte, error) { return f(r) }
 
 // ReportText returns a computed Metrics struct as aligned, formatted text.
-func ReportText(r Results) ([]byte, error) {
+var ReportText ReporterFunc = func(r Results) ([]byte, error) {
 	m := NewMetrics(r)
 	out := &bytes.Buffer{}
 
@@ -42,13 +50,13 @@ func ReportText(r Results) ([]byte, error) {
 }
 
 // ReportJSON writes a computed Metrics struct to as JSON
-func ReportJSON(r Results) ([]byte, error) {
+var ReportJSON ReporterFunc = func(r Results) ([]byte, error) {
 	return json.Marshal(NewMetrics(r))
 }
 
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
-func ReportPlot(r Results) ([]byte, error) {
+var ReportPlot ReporterFunc = func(r Results) ([]byte, error) {
 	series := &bytes.Buffer{}
 	for i, point := 0, ""; i < len(r); i++ {
 		point = "[" + strconv.FormatFloat(

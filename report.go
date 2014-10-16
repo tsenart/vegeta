@@ -60,7 +60,7 @@ func report(opts *reportOpts) error {
 		return err
 	}
 
-	data, err := rep(res)
+	data, err := rep.Report(res)
 	if err != nil {
 		return err
 	}
