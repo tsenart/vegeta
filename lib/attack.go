@@ -57,6 +57,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 
 // Workers returns a functional option which sets the number of workers
 // an Attacker uses to hit its targets.
+// If zero or greater than the total number of hits, workers will be capped
+// to that maximum.
 func Workers(n uint64) func(*Attacker) {
 	return func(a *Attacker) { a.workers = n }
 }
@@ -110,10 +112,6 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for duration time. Results are put into the returned channel
 // as soon as they arrive.
-//
-// The number of workers used in the attack is specified by wrk.
-// If wrk is zero or greater than the total number of hits, it will be capped
-// to that maximum.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
 	resc := make(chan *Result)
 	throttle := time.NewTicker(time.Duration(1e9 / rate))
