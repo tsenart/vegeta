@@ -143,6 +143,7 @@ func attack(opts *attackOpts) (err error) {
 	for {
 		select {
 		case _ = <-sig:
+			atk.Stop()
 			return nil
 		case r, ok := <-res:
 			if !ok {
