@@ -142,8 +142,7 @@ func attack(opts *attackOpts) (err error) {
 
 	for {
 		select {
-		case s := <-sig:
-			fmt.Printf("Received signal: %s. Exiting gracefully...", s)
+		case _ = <-sig:
 			return nil
 		case r, ok := <-res:
 			if !ok {

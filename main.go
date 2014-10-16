@@ -10,9 +10,8 @@ import (
 
 func main() {
 	commands := map[string]command{
-		"attack":  attackCmd(),
-		"collect": collectCmd(),
-		"report":  reportCmd(),
+		"attack": attackCmd(),
+		"report": reportCmd(),
 	}
 
 	flag.Usage = func() {
