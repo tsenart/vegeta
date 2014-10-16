@@ -21,7 +21,7 @@ func TestAttackRate(t *testing.T) {
 	rate := uint64(100)
 	atk := NewAttacker()
 	var hits uint64
-	for _ = range atk.Attack(tr, rate, 1*time.Second) {
+	for _ = range atk.Attack(tr, rate, 1*time.Second, 0) {
 		hits++
 	}
 	if hits != rate {
@@ -61,7 +61,7 @@ func TestRedirects(t *testing.T) {
 	atk := NewAttacker(Redirects(2))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: servers[0].URL})
 	var rate uint64 = 10
-	results := atk.Attack(tr, rate, 1*time.Second)
+	results := atk.Attack(tr, rate, 1*time.Second, 0)
 
 	want := fmt.Sprintf("stopped after %d redirects", 2)
 	for result := range results {
@@ -86,7 +86,7 @@ func TestTimeout(t *testing.T) {
 
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
-	results := atk.Attack(tr, 1, 1*time.Second)
+	results := atk.Attack(tr, 1, 1*time.Second, 0)
 
 	want := "net/http: timeout awaiting response headers"
 	for result := range results {
@@ -120,7 +120,7 @@ func TestLocalAddr(t *testing.T) {
 	atk := NewAttacker(LocalAddr(*addr))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
 
-	for result := range atk.Attack(tr, 1, 1*time.Second) {
+	for result := range atk.Attack(tr, 1, 1*time.Second, 0) {
 		if result.Error != "" {
 			t.Fatal(result.Error)
 		}

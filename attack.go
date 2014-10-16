@@ -32,6 +32,7 @@ func attackCmd() command {
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
+	fs.Uint64Var(&opts.workers, "workers", 0, "Number of workers")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
@@ -58,6 +59,7 @@ type attackOpts struct {
 	duration  time.Duration
 	timeout   time.Duration
 	rate      uint64
+	workers   uint64
 	redirects int
 	headers   headers
 	laddr     localAddr
@@ -131,7 +133,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.TLSConfig(&tlsc),
 	)
 	dec := gob.NewEncoder(out)
-	for res := range atk.Attack(tr, opts.rate, opts.duration) {
+	for res := range atk.Attack(tr, opts.rate, opts.duration, opts.workers) {
 		if err = dec.Encode(res); err != nil {
 			return err
 		}

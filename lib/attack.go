@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -105,24 +105,35 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // the rate specified for duration time. Results are put into the returned channel
 // as soon as they arrive.
 //
-// If the passed Targeter doesn't provided enough Targets, ErrNoTargets
-// is returned.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
-	hits := rate * uint64(du.Seconds())
+// The number of workers used in the attack is specified by wrk.
+// If wrk is zero or greater than the total number of hits, it will be capped
+// to that maximum.
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, wrk uint64) chan *Result {
 	resc := make(chan *Result)
 	throttle := time.NewTicker(time.Duration(1e9 / rate))
-
-	var done, i uint64
-	for ; i < hits; i++ {
-		go func() {
-			<-throttle.C
-			resc <- a.hit(tr)
-			if atomic.AddUint64(&done, 1) == hits {
-				close(resc)
-				throttle.Stop()
-			}
-		}()
+	hits := rate * uint64(du.Seconds())
+	if wrk == 0 || wrk > hits {
+		wrk = hits
 	}
+	share := hits / wrk
+
+	var wg sync.WaitGroup
+	for i := uint64(0); i < wrk; i++ {
+		wg.Add(1)
+		go func(share uint64) {
+			for j := uint64(0); j < share; j++ {
+				<-throttle.C
+				resc <- a.hit(tr)
+			}
+			wg.Done()
+		}(share)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resc)
+		throttle.Stop()
+	}()
 
 	return resc
 }
