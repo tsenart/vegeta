@@ -36,6 +36,7 @@ attack command:
   -redirects=10: Number of redirects to follow
   -targets="stdin": Targets file
   -timeout=0: Requests timeout
+  -workers=0: Number of workers
 
 report command:
   -input="stdin": Input files (comma separated)
@@ -71,6 +72,7 @@ Usage of vegeta attack:
   -redirects=10: Number of redirects to follow
   -targets="stdin": Targets file
   -timeout=30s: Requests timeout
+  -workers=0: Number of workers
 ```
 
 #### -body
@@ -124,6 +126,10 @@ HEAD http://goku:9090/path/to/success
 #### -timeout
 Specifies the timeout for each request. The default is 0 which disables
 timeouts.
+
+#### -workers
+Specifies the number of workers used in the attack. The default 0
+means every single hit runs in its own worker.
 
 ### report
 ```
