@@ -14,6 +14,7 @@ import (
 type Attacker struct {
 	dialer *net.Dialer
 	client http.Client
+	stop   chan struct{}
 }
 
 var (
@@ -119,11 +120,15 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, wrk uint64
 	for i := uint64(0); i < wrk; i++ {
 		wg.Add(1)
 		go func(share uint64) {
+			defer wg.Done()
 			for j := uint64(0); j < share; j++ {
-				<-throttle.C
-				resc <- a.hit(tr)
+				select {
+				case <-throttle.C:
+					resc <- a.hit(tr)
+				case <-a.stop:
+					return
+				}
 			}
-			wg.Done()
 		}(share)
 	}
 
@@ -135,6 +140,9 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, wrk uint64
 
 	return resc
 }
+
+// Stop stops the current attack.
+func (a *Attacker) Stop() { close(a.stop) }
 
 func (a *Attacker) hit(tr Targeter) *Result {
 	tgt, err := tr()
