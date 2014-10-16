@@ -12,9 +12,10 @@ import (
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer *net.Dialer
-	client http.Client
-	stop   chan struct{}
+	dialer  *net.Dialer
+	client  http.Client
+	stop    chan struct{}
+	workers uint64
 }
 
 var (
@@ -33,7 +34,7 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{}
+	a := &Attacker{stop: make(chan struct{})}
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
@@ -52,6 +53,12 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		opt(a)
 	}
 	return a
+}
+
+// Workers returns a functional option which sets the number of workers
+// an Attacker uses to hit its targets.
+func Workers(n uint64) func(*Attacker) {
+	return func(a *Attacker) { a.workers = n }
 }
 
 // Redirects returns a functional option which sets the maximum
@@ -107,10 +114,11 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // The number of workers used in the attack is specified by wrk.
 // If wrk is zero or greater than the total number of hits, it will be capped
 // to that maximum.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, wrk uint64) chan *Result {
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
 	resc := make(chan *Result)
 	throttle := time.NewTicker(time.Duration(1e9 / rate))
 	hits := rate * uint64(du.Seconds())
+	wrk := a.workers
 	if wrk == 0 || wrk > hits {
 		wrk = hits
 	}
