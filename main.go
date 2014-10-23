@@ -46,7 +46,7 @@ const examples = `
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
   vegeta attack -targets=targets.txt > results.bin
-  vegeta report -input=results.bin -reporter=json > metrics.json
+  vegeta report -inputs=results.bin -reporter=json > metrics.json
   cat results.bin | vegeta report -reporter=plot > plot.html
 `
 
