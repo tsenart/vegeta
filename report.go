@@ -64,7 +64,10 @@ outer:
 				break outer
 			}
 			results = append(results, r)
-		case err := <-errs:
+		case err, ok := <-errs:
+			if !ok {
+				break outer
+			}
 			return err
 		}
 	}
