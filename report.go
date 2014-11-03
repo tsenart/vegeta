@@ -52,7 +52,7 @@ func report(reporter, inputs, output string) error {
 	var results vegeta.Results
 	res, errs := vegeta.Collect(srcs...)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	signal.Notify(sig, os.Interrupt)
 
 outer:
 	for {

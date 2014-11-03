@@ -139,7 +139,7 @@ func attack(opts *attackOpts) (err error) {
 	res := atk.Attack(tr, opts.rate, opts.duration)
 	enc := gob.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	signal.Notify(sig, os.Interrupt)
 
 	for {
 		select {
