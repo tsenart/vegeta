@@ -138,6 +138,6 @@ func TestKeepAlive(t *testing.T) {
 
 	disableKeepAlive := atk.client.Transport.(*http.Transport).DisableKeepAlives
 	if disableKeepAlive == false {
-		t.Fatalf("Transport DisableKeepAlives is not enabled. Want true. Got %s", disableKeepAlive)
+		t.Fatalf("Transport DisableKeepAlives is not enabled. Want true. Got %t", disableKeepAlive)
 	}
 }
