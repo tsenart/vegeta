@@ -31,6 +31,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "x509 Certificate file")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
+	fs.BoolVar(&opts.keepalive, "keepalive", true, "Reuse TCP connections between requests")
 	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
@@ -58,6 +59,7 @@ type attackOpts struct {
 	bodyf     string
 	certf     string
 	lazy      bool
+	keepalive bool
 	duration  time.Duration
 	timeout   time.Duration
 	rate      uint64
@@ -134,6 +136,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.LocalAddr(*opts.laddr.IPAddr),
 		vegeta.TLSConfig(&tlsc),
 		vegeta.Workers(opts.workers),
+		vegeta.KeepAlive(opts.keepalive),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)

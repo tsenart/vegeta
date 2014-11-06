@@ -47,6 +47,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
+			DisableKeepAlives:     false,
 		},
 	}
 	for _, opt := range opts {
@@ -76,6 +77,15 @@ func Redirects(n int) func(*Attacker) {
 	}
 }
 
+// KeepAlive returns a functional option which enables or disables HTTP
+// keepalive (TCP connection reuse).
+func KeepAlive(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.DisableKeepAlives = !enabled
+	}
+}
+
 // Timeout returns a functional option which sets the maximum amount of time
 // an Attacker will wait for a request to be responded to.
 func Timeout(d time.Duration) func(*Attacker) {
@@ -84,7 +94,6 @@ func Timeout(d time.Duration) func(*Attacker) {
 		tr.ResponseHeaderTimeout = d
 		a.dialer.Timeout = d
 		tr.Dial = a.dialer.Dial
-		a.client.Transport = tr
 	}
 }
 
@@ -95,7 +104,6 @@ func LocalAddr(addr net.IPAddr) func(*Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
 		tr.Dial = a.dialer.Dial
-		a.client.Transport = tr
 	}
 }
 
@@ -105,7 +113,6 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		tr.TLSClientConfig = c
-		a.client.Transport = tr
 	}
 }
 

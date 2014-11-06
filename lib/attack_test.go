@@ -126,3 +126,45 @@ func TestLocalAddr(t *testing.T) {
 		}
 	}
 }
+
+func TestKeepAlive(t *testing.T) {
+	t.Parallel()
+
+	addrs := make(chan string, 20)
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			addrs <- r.RemoteAddr
+		}),
+	)
+
+	atk := NewAttacker(KeepAlive(true))
+	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+
+	for result := range atk.Attack(tr, 10, 1*time.Second) {
+		if result.Error != "" {
+			t.Fatal(result.Error)
+		}
+	}
+
+	var last string
+	for addr := range addrs {
+		if last != "" && addr != last {
+			t.Fatalf("expected same TCP connection between requests. got: %s, %s", last, addr)
+		}
+		last = addr
+	}
+
+	atk = NewAttacker(KeepAlive(false))
+	for result := range atk.Attack(tr, 10, 1*time.Second) {
+		if result.Error != "" {
+			t.Fatal(result.Error)
+		}
+	}
+
+	for addr := range addrs {
+		if last != "" && addr == last {
+			t.Fatalf("expected different TCP connections between requests. got: %s, %s", last, addr)
+		}
+		last = addr
+	}
+}
