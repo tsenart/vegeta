@@ -209,7 +209,7 @@ out.
 Input a different number on the bottom left corner input field
 to change the moving average window size (in data points).
 
-![Plot](https://dl.dropboxusercontent.com/u/83217940/plot.png)
+![Plot](https://dl.dropbox.com/s/hliyows2mjpgp2z/Screenshot%202014-11-05%2020.37.29.png?dl=1)
 
 
 ## Usage (Library)
