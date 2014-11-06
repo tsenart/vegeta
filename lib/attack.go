@@ -99,6 +99,18 @@ func LocalAddr(addr net.IPAddr) func(*Attacker) {
 	}
 }
 
+func KeepAlive(keepalive bool) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.DisableKeepAlives = !keepalive
+		if !keepalive {
+			a.dialer.KeepAlive = 0
+			tr.Dial = a.dialer.Dial
+		}
+		a.client.Transport = tr
+	}
+}
+
 // TLSConfig returns a functional option which sets the *tls.Config for a
 // Attacker to use with its requests.
 func TLSConfig(c *tls.Config) func(*Attacker) {
