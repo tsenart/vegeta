@@ -84,7 +84,6 @@ func Timeout(d time.Duration) func(*Attacker) {
 		tr.ResponseHeaderTimeout = d
 		a.dialer.Timeout = d
 		tr.Dial = a.dialer.Dial
-		a.client.Transport = tr
 	}
 }
 
@@ -95,7 +94,6 @@ func LocalAddr(addr net.IPAddr) func(*Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
 		tr.Dial = a.dialer.Dial
-		a.client.Transport = tr
 	}
 }
 
@@ -109,7 +107,6 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 			a.dialer.KeepAlive = 0
 			tr.Dial = a.dialer.Dial
 		}
-		a.client.Transport = tr
 	}
 }
 
@@ -119,7 +116,6 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		tr.TLSClientConfig = c
-		a.client.Transport = tr
 	}
 }
 
