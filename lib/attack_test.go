@@ -126,3 +126,18 @@ func TestLocalAddr(t *testing.T) {
 		}
 	}
 }
+
+func TestKeepAlive(t *testing.T) {
+	t.Parallel()
+
+	atk := NewAttacker(KeepAlive(false))
+
+	if atk.dialer.KeepAlive != 0 {
+		t.Fatalf("Dialer KeepAlive is not disabled. Want 0. Got %d", atk.dialer.KeepAlive)
+	}
+
+	disableKeepAlive := atk.client.Transport.(*http.Transport).DisableKeepAlives
+	if disableKeepAlive == false {
+		t.Fatalf("Transport DisableKeepAlives is not enabled. Want true. Got %t", disableKeepAlive)
+	}
+}

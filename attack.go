@@ -38,6 +38,7 @@ func attackCmd() command {
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
+	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -65,6 +66,7 @@ type attackOpts struct {
 	redirects int
 	headers   headers
 	laddr     localAddr
+	keepalive bool
 }
 
 // attack validates the attack arguments, sets up the
@@ -134,6 +136,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.LocalAddr(*opts.laddr.IPAddr),
 		vegeta.TLSConfig(&tlsc),
 		vegeta.Workers(opts.workers),
+		vegeta.KeepAlive(opts.keepalive),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)
