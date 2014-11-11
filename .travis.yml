@@ -5,7 +5,7 @@ go:
   - tip
 
 install:
-  - go get -v code.google.com/p/go.tools/cmd/vet
+  - go get -v golang.org/x/tools/cmd/vet
   - go get -v github.com/golang/lint/golint
   - go get -d -t -v ./...
   - go build -v ./...
