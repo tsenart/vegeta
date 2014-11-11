@@ -2,7 +2,7 @@ package vegeta
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -29,6 +29,9 @@ var (
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
+
+	// ErrTooManyRedirects is an error when redirects received is more than allowed
+	ErrTooManyRedirects = errors.New("too many redirects")
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
@@ -69,9 +72,10 @@ func Redirects(n int) func(*Attacker) {
 	return func(a *Attacker) {
 		a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 			if len(via) > n {
-				return fmt.Errorf("stopped after %d redirects", n)
+				return ErrTooManyRedirects
+			} else {
+				return nil
 			}
-			return nil
 		}
 	}
 }
