@@ -139,8 +139,8 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 			defer wg.Done()
 			for j := uint64(0); j < share; j++ {
 				select {
-				case <-throttle.C:
-					resc <- a.hit(tr)
+				case tm := <-throttle.C:
+					resc <- a.hit(tr, tm)
 				case <-a.stop:
 					return
 				}
@@ -160,9 +160,9 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 // Stop stops the current attack.
 func (a *Attacker) Stop() { close(a.stop) }
 
-func (a *Attacker) hit(tr Targeter) *Result {
-	res := Result{Timestamp: time.Now()}
-	defer func() { res.Latency = time.Since(res.Timestamp) }()
+func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
+	res := Result{Timestamp: tm}
+	defer func() { res.Latency = time.Since(tm) }()
 
 	tgt, err := tr()
 	if err != nil {
