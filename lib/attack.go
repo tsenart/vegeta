@@ -124,13 +124,13 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // as soon as they arrive.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
 	resc := make(chan *Result)
-	throttle := time.NewTicker(time.Duration(1e9 / rate))
 	hits := rate * uint64(du.Seconds())
 	wrk := a.workers
 	if wrk == 0 || wrk > hits {
 		wrk = hits
 	}
 	share := hits / wrk
+	throttle := time.NewTicker(time.Duration(1e9 / rate))
 
 	var wg sync.WaitGroup
 	for i := uint64(0); i < wrk; i++ {
