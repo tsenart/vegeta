@@ -161,24 +161,25 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 func (a *Attacker) Stop() { close(a.stop) }
 
 func (a *Attacker) hit(tr Targeter) *Result {
+	res := Result{Timestamp: time.Now()}
+	defer func() { res.Latency = time.Since(res.Timestamp) }()
+
 	tgt, err := tr()
 	if err != nil {
-		return &Result{Error: err.Error()}
+		res.Error = err.Error()
+		return &res
 	}
 
-	res := new(Result)
 	req, err := tgt.Request()
 	if err != nil {
 		res.Error = err.Error()
-		return res
+		return &res
 	}
 
-	res.Timestamp = time.Now()
 	r, err := a.client.Do(req)
-	res.Latency = time.Since(res.Timestamp)
 	if err != nil {
 		res.Error = err.Error()
-		return res
+		return &res
 	}
 	defer r.Body.Close()
 
@@ -191,7 +192,5 @@ func (a *Attacker) hit(tr Targeter) *Result {
 	} else {
 		res.BytesIn = uint64(len(body))
 	}
-	res.Latency = time.Since(res.Timestamp)
-
-	return res
+	return &res
 }
