@@ -39,6 +39,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
+	fs.StringVar(&opts.proxy, "proxy", "none", "Set HTTP proxy (need to specify scheme. e.g. http://127.0.0.1:8888)")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -67,6 +68,7 @@ type attackOpts struct {
 	headers   headers
 	laddr     localAddr
 	keepalive bool
+	proxy     string
 }
 
 // attack validates the attack arguments, sets up the
@@ -137,6 +139,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.TLSConfig(&tlsc),
 		vegeta.Workers(opts.workers),
 		vegeta.KeepAlive(opts.keepalive),
+		vegeta.SetProxy(opts.proxy),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)
