@@ -28,6 +28,7 @@ attack command:
   -cert="": x509 Certificate file
   -duration=10s: Duration of the test
   -header=: Request header
+  -keepalive=true: Use persistent connections
   -laddr=0.0.0.0: Local IP address
   -lazy=false: Read targets lazily
   -ordering="random": Attack ordering [sequential, random]
@@ -65,6 +66,7 @@ Usage of vegeta attack:
   -cert="": x509 Certificate file
   -duration=10s: Duration of the test
   -header=: Request header
+  -keepalive=true: Use persistent connections
   -laddr=0.0.0.0: Local IP address
   -lazy=false: Read targets lazily
   -output="stdout": Output file
@@ -90,6 +92,9 @@ responses delay.
 #### -header
 Specifies a request header to be used in all targets defined.
 You can specify as many as needed by repeating the flag.
+
+#### -keepalive
+Specifies whether to reuse TCP connections between HTTP requests.
 
 #### -laddr
 Specifies the local IP address to be used.
