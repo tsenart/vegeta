@@ -120,7 +120,7 @@ func SetProxy(proxy string) func(*Attacker) {
 		if proxy != "none" {
 			proxyUrl, err := url.Parse(proxy)
 			if err != nil {
-				log.Fatal(err)
+				panic(err)
 			}
 			tr.Proxy = http.ProxyURL(proxyUrl)
 		} else {
