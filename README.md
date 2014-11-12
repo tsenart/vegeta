@@ -159,50 +159,51 @@ Specifies the kind of report to be generated. It defaults to text.
 
 ##### text
 ```
-Requests      [total]                   1200
-Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
-Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
-Bytes In      [total, mean]             3714690, 3095.57
-Bytes Out     [total, mean]             0, 0.00
-Success       [ratio]                   55.42%
-Status Codes  [code:count]              0:535  200:665
+Requests      [total]                            3000
+Duration      [total, attack, wait]              10.000908765s, 10.000333187s, 575.578us
+Latencies     [mean, min, 50, 95, 99, 999, max]  290.959305ms, 239.872us, 655.359us, 1.871052799s, 2.239496191s, 2.318794751s, 2.327768447s
+Bytes In      [total, mean]                      17478504, 5826.17
+Bytes Out     [total, mean]                      0, 0.00
+Success       [ratio]                            99.90%
+Status Codes  [code:count]                       200:2997  0:3
 Error Set:
-Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
-Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
-Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection reset by peer
-Get http://localhost:6060: write tcp 127.0.0.1:6060: broken pipe
-Get http://localhost:6060: net/http: transport closed before response was received
-Get http://localhost:6060: http: can't write HTTP request on broken connection
+Get http://:6060: read tcp 127.0.0.1:6060: connection reset by peer
+Get http://:6060: net/http: transport closed before response was received
+Get http://:6060: write tcp 127.0.0.1:6060: broken pipe
 ```
 
 ##### json
 ```json
 {
   "latencies": {
-    "mean": 9093653647,
-    "50th": 2401223400,
-    "95th": 12553709381,
-    "99th": 12604629125,
-    "max": 12604629125
+    "mean": 290954696,
+    "50th": 655359,
+    "95th": 1871708159,
+    "99th": 2239758335,
+    "999th": 2319450111,
+    "max": 2327768447,
+    "min": 239872
   },
   "bytes_in": {
-    "total": 782040,
-    "mean": 651.7
+    "total": 17478504,
+    "mean": 5826.168
   },
   "bytes_out": {
     "total": 0,
     "mean": 0
   },
-  "duration": 9949883921,
-  "wait": 145082066,
-  "requests": 1200,
-  "success": 0.11666666666666667,
+  "duration": 10000333187,
+  "wait": 575578,
+  "requests": 3000,
+  "success": 0.999,
   "status_codes": {
-    "0": 1060,
-    "200": 140
+    "0": 3,
+    "200": 2997
   },
   "errors": [
-    "Get http://localhost:6060: dial tcp 127.0.0.1:6060: operation timed out"
+    "Get http://:6060: read tcp 127.0.0.1:6060: connection reset by peer",
+    "Get http://:6060: net/http: transport closed before response was received",
+    "Get http://:6060: write tcp 127.0.0.1:6060: broken pipe"
   ]
 }
 ```
@@ -214,7 +215,7 @@ out.
 Input a different number on the bottom left corner input field
 to change the moving average window size (in data points).
 
-![Plot](http://i.imgur.com/oi0cgGq.png)
+![Plot](http://i.imgur.com/uCdxdaC.png)
 
 
 ## Usage (Library)
