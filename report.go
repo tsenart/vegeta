@@ -52,7 +52,7 @@ func report(reporter, inputs, output string) error {
 	var results vegeta.Results
 	res, errs := vegeta.Collect(srcs...)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	signal.Notify(sig, os.Interrupt)
 
 outer:
 	for {
@@ -64,7 +64,10 @@ outer:
 				break outer
 			}
 			results = append(results, r)
-		case err := <-errs:
+		case err, ok := <-errs:
+			if !ok {
+				break outer
+			}
 			return err
 		}
 	}
@@ -80,7 +83,7 @@ outer:
 
 var reporters = map[string]vegeta.Reporter{
 	"csv":  vegeta.ReportCSV,
-	"text": vegeta.ReportText,
 	"json": vegeta.ReportJSON,
 	"plot": vegeta.ReportPlot,
+	"text": vegeta.ReportText,
 }
