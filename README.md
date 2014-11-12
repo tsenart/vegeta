@@ -38,6 +38,8 @@ attack command:
   -targets="stdin": Targets file
   -timeout=0: Requests timeout
   -workers=0: Number of workers
+  -keepalive=true: Use persistent connections
+  -proxy="none": Set HTTP proxy (need to specify scheme. e.g. http://127.0.0.1:8888)
 
 report command:
   -inputs="stdin": Input files (comma separated)
