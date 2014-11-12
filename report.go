@@ -14,7 +14,7 @@ import (
 
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
+	reporter := fs.String("reporter", "text", "Reporter [csv, json, plot, text]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	return command{fs, func(args []string) error {
@@ -52,7 +52,7 @@ func report(reporter, inputs, output string) error {
 	var results vegeta.Results
 	res, errs := vegeta.Collect(srcs...)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, os.Interrupt, os.Kill)
 
 outer:
 	for {
@@ -64,10 +64,7 @@ outer:
 				break outer
 			}
 			results = append(results, r)
-		case err, ok := <-errs:
-			if !ok {
-				break outer
-			}
+		case err := <-errs:
 			return err
 		}
 	}
@@ -82,6 +79,7 @@ outer:
 }
 
 var reporters = map[string]vegeta.Reporter{
+	"csv":  vegeta.ReportCSV,
 	"text": vegeta.ReportText,
 	"json": vegeta.ReportJSON,
 	"plot": vegeta.ReportPlot,
