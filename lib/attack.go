@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -40,10 +41,10 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		KeepAlive: 30 * time.Second,
 		Timeout:   DefaultTimeout,
 	}
+
 	a.client = http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			Dial:  a.dialer.Dial,
+			Dial: a.dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -106,6 +107,24 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 		if !keepalive {
 			a.dialer.KeepAlive = 0
 			tr.Dial = a.dialer.Dial
+		}
+	}
+}
+
+// SetProxy returns a functional option which sets the proxy
+// settings.
+func SetProxy(proxy string) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+
+		if proxy != "none" {
+			proxyUrl, err := url.Parse(proxy)
+			if err != nil {
+				panic(err)
+			}
+			tr.Proxy = http.ProxyURL(proxyUrl)
+		} else {
+			tr.Proxy = http.ProxyFromEnvironment
 		}
 	}
 }

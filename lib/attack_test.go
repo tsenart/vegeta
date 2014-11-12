@@ -141,3 +141,24 @@ func TestKeepAlive(t *testing.T) {
 		t.Fatalf("Transport DisableKeepAlives is not enabled. Want true. Got %t", disableKeepAlive)
 	}
 }
+
+func TestSetProxy(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-time.After(20 * time.Millisecond)
+		}),
+	)
+
+	atk := NewAttacker(SetProxy("http://127.0.0.1:8888"))
+	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	results := atk.Attack(tr, 1, 1*time.Second)
+
+	want := "connection refused"
+	for result := range results {
+		if !strings.Contains(result.Error, want) {
+			t.Fatalf("Expected error to be: %s, Got: %s", want, result.Error)
+		}
+	}
+}
