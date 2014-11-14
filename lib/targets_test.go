@@ -46,7 +46,7 @@ func TestTargetRequest(t *testing.T) {
 
 	tgt.Header.Set("X-Stuff", "0")
 	if req.Header.Get("X-Stuff") == "0" {
-		t.Error("Each Target must have it's own Header")
+		t.Error("Each Target must have its own Header")
 	}
 
 	want, got := tgt.Header.Get("Host"), req.Header.Get("Host")
@@ -71,17 +71,19 @@ func TestNewEagerTargeter(t *testing.T) {
 			Method: "GET",
 			URL:    "http://:6060/",
 			Body:   []byte("body"),
+			Header: http.Header{},
 		},
 		&Target{
 			Method: "HEAD",
 			URL:    "http://:6606/",
 			Body:   []byte("body"),
+			Header: http.Header{},
 		},
 	} {
 		if got, err := read(); err != nil {
 			t.Fatal(err)
-		} else if !reflect.DeepEqual(&want, got) {
-			t.Fatalf("want: %+v, got: %+v", want, got)
+		} else if !reflect.DeepEqual(want, got) {
+			t.Fatalf("want: %#v, got: %#v", want, got)
 		}
 	}
 }
@@ -137,6 +139,7 @@ func TestNewLazyTargeter(t *testing.T) {
 		&Target{
 			Method: "GET",
 			URL:    "http://:6060/",
+			Body:   []byte{},
 			Header: http.Header{
 				"X-Header":     []string{"1", "2"},
 				"Content-Type": []string{"text/plain"},
@@ -145,11 +148,13 @@ func TestNewLazyTargeter(t *testing.T) {
 		&Target{
 			Method: "PUT",
 			URL:    "https://:6060/123",
+			Body:   []byte{},
 			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
 		&Target{
 			Method: "POST",
 			URL:    "http://foobar.org/fnord",
+			Body:   []byte("Hello world!"),
 			Header: http.Header{
 				"Authorization": []string{"x12345"},
 				"Content-Type":  []string{"text/plain"},
@@ -159,7 +164,7 @@ func TestNewLazyTargeter(t *testing.T) {
 		if got, err := read(); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(want, got) {
-			t.Fatalf("want: %+v, got: %+v", want, got)
+			t.Fatalf("want: %#v, got: %#v", want, got)
 		}
 	}
 	if got, err := read(); err != ErrNoTargets {
