@@ -1,7 +1,6 @@
 package vegeta
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +42,7 @@ func TestDefaultAttackerCertConfig(t *testing.T) {
 	}
 }
 
-func TestRedirects(t *testing.T) {
+func TestTooManyRedirects(t *testing.T) {
 	t.Parallel()
 
 	var servers [2]*httptest.Server
@@ -63,7 +62,7 @@ func TestRedirects(t *testing.T) {
 	var rate uint64 = 10
 	results := atk.Attack(tr, rate, 1*time.Second)
 
-	want := fmt.Sprintf("stopped after %d redirects", 2)
+	want := ErrTooManyRedirects.Error()
 	for result := range results {
 		if !strings.Contains(result.Error, want) {
 			t.Fatalf("Expected error to be: %s, Got: %s", want, result.Error)
