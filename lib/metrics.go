@@ -2,7 +2,6 @@ package vegeta
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bmizerany/perks/quantile"
@@ -71,10 +70,10 @@ func NewMetrics(r Results) *Metrics {
 		if end := result.Timestamp.Add(result.Latency); end.After(latest) {
 			latest = end
 		}
-		if result.Code >= 200 && result.Code < 400 {
+		if result.Code >= 200 && result.Code < 300 {
 			totalSuccess++
 		}
-		if result.Error != "" && !strings.Contains(result.Error, ErrTooManyRedirects.Error()) {
+		if result.Error != "" {
 			errorSet[result.Error] = struct{}{}
 		}
 	}
