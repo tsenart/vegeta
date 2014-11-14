@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -58,24 +61,32 @@ func TestTargetRequest(t *testing.T) {
 func TestNewEagerTargeter(t *testing.T) {
 	t.Parallel()
 
-	src := []byte("GET http://lolcathost:9999/\n\nHEAD http://lolcathost:9999/")
-	read, err := NewEagerTargeter(bytes.NewReader(src), nil, nil)
+	src := []byte("GET http://:6060/\nHEAD http://:6606/")
+	read, err := NewEagerTargeter(bytes.NewReader(src), []byte("body"), nil)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
-	for _, method := range []string{"GET", "HEAD"} {
-		target, err := read()
-		if err != nil {
+	for _, want := range []*Target{
+		&Target{
+			Method: "GET",
+			URL:    "http://:6060/",
+			Body:   []byte("body"),
+		},
+		&Target{
+			Method: "HEAD",
+			URL:    "http://:6606/",
+			Body:   []byte("body"),
+		},
+	} {
+		if got, err := read(); err != nil {
 			t.Fatal(err)
-		}
-		if target.Method != method || target.URL != "http://lolcathost:9999/" {
-			t.Fatalf("Request was parsed incorrectly. Got: %s %s",
-				target.Method, target.URL)
+		} else if !reflect.DeepEqual(&want, got) {
+			t.Fatalf("want: %+v, got: %+v", want, got)
 		}
 	}
 }
 
-func TestNewLazyTarget(t *testing.T) {
+func TestNewLazyTargeter(t *testing.T) {
 	for want, def := range map[error]string{
 		errors.New("bad target"): "GET",
 		errors.New("bad method"): "SET http://:6060",
@@ -100,5 +111,60 @@ func TestNewLazyTarget(t *testing.T) {
 		}
 	}
 
-	// TODO: Test good path
+	bodyf, err := ioutil.TempFile("", "vegeta-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bodyf.Close()
+	defer os.Remove(bodyf.Name())
+	bodyf.WriteString("Hello world!")
+
+	targets := fmt.Sprint(`
+		GET http://:6060/
+		X-Header: 1
+		X-Header: 2
+
+		PUT https://:6060/123
+
+		POST http://foobar.org/fnord
+		Authorization: x12345
+		@`, bodyf.Name(),
+	)
+
+	src := bytes.NewBufferString(strings.TrimSpace(targets))
+	read := NewLazyTargeter(src, []byte{}, http.Header{"Content-Type": []string{"text/plain"}})
+	for _, want := range []*Target{
+		&Target{
+			Method: "GET",
+			URL:    "http://:6060/",
+			Header: http.Header{
+				"X-Header":     []string{"1", "2"},
+				"Content-Type": []string{"text/plain"},
+			},
+		},
+		&Target{
+			Method: "PUT",
+			URL:    "https://:6060/123",
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
+		},
+		&Target{
+			Method: "POST",
+			URL:    "http://foobar.org/fnord",
+			Header: http.Header{
+				"Authorization": []string{"x12345"},
+				"Content-Type":  []string{"text/plain"},
+			},
+		},
+	} {
+		if got, err := read(); err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(want, got) {
+			t.Fatalf("want: %+v, got: %+v", want, got)
+		}
+	}
+	if got, err := read(); err != ErrNoTargets {
+		t.Fatalf("got: %v, want: %v", err, ErrNoTargets)
+	} else if got != nil {
+		t.Fatalf("got: %v, want: %v", got, nil)
+	}
 }

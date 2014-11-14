@@ -18,7 +18,6 @@ import (
 type Target struct {
 	Method string
 	URL    string
-	Proto  string
 	Body   []byte
 	Header http.Header
 }
@@ -58,7 +57,9 @@ func NewStaticTargeter(tgts ...*Target) Targeter {
 
 // NewEagerTargeter eagerly reads all Targets out of the provided io.Reader and
 // returns a NewStaticTargeter with them.
-// The targets' bodies and headers will be set to the passed body and header arguments.
+//
+// body will be set as the Target's body if no body is provided.
+// hdr will be merged with the each Target's headers.
 func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
 	var (
 		sc   = NewLazyTargeter(src, body, header)
@@ -82,7 +83,9 @@ func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter,
 
 // NewLazyTargeter returns a new Targeter that lazily scans Targets from the
 // provided io.Reader on every invocation.
-// The targets' bodies and headers will be set to the passed body and header arguments.
+//
+// body will be set as the Target's body if no body is provided.
+// hdr will be merged with the each Target's headers.
 func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	var mu sync.Mutex
 	sc := bufio.NewScanner(src)
@@ -90,9 +93,12 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		mu.Lock()
 		defer mu.Unlock()
 
-		tgt := Target{Body: body, Header: hdr}
 		if !sc.Scan() {
 			return nil, ErrNoTargets
+		}
+		tgt := Target{Body: body, Header: http.Header{}}
+		for k, vs := range hdr {
+			tgt.Header[k] = append(tgt.Header[k], vs...)
 		}
 		line := strings.TrimSpace(sc.Text())
 		tokens := strings.SplitN(line, " ", 2)
@@ -120,8 +126,13 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 				break
 			}
 			tokens = strings.SplitN(line, ":", 2)
-			if len(tokens) < 2 || tokens[0] == "" || tokens[1] == "" {
+			if len(tokens) < 2 {
 				return nil, fmt.Errorf("bad header: %s", line)
+			}
+			for i := range tokens {
+				if tokens[i] = strings.TrimSpace(tokens[i]); tokens[i] == "" {
+					return nil, fmt.Errorf("bad header: %s", line)
+				}
 			}
 			tgt.Header.Add(tokens[0], tokens[1])
 		}
