@@ -3,10 +3,11 @@ package vegeta
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -57,7 +58,7 @@ func TestTargetRequest(t *testing.T) {
 func TestNewEagerTargeter(t *testing.T) {
 	t.Parallel()
 
-	src := []byte("GET http://lolcathost:9999/\n\n      // HEAD http://lolcathost.com this is a comment \nHEAD http://lolcathost:9999/\n")
+	src := []byte("GET http://lolcathost:9999/\n\nHEAD http://lolcathost:9999/")
 	read, err := NewEagerTargeter(bytes.NewReader(src), nil, nil)
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
@@ -75,34 +76,29 @@ func TestNewEagerTargeter(t *testing.T) {
 }
 
 func TestNewLazyTarget(t *testing.T) {
-	body, hdr := []byte("body"), http.Header{}
-	src := bytes.NewReader([]byte("GET http://lolcathost:9999/\n// this is a comment \nHEAD http://lolcathost:9999/\n"))
-	read := NewLazyTargeter(src, body, hdr)
-
-	for _, want := range []*Target{
-		&Target{
-			Method: "GET",
-			URL:    "http://lolcathost:9999/",
-			Body:   body,
-			Header: hdr,
-		},
-		&Target{
-			Method: "HEAD",
-			URL:    "http://lolcathost:9999/",
-			Body:   body,
-			Header: hdr,
-		},
+	for want, def := range map[error]string{
+		errors.New("bad target"): "GET",
+		errors.New("bad method"): "SET http://:6060",
+		errors.New("bad URL"):    "GET foobar",
+		errors.New("bad body"): `
+			GET http://:6060
+			@238hhqwjhd8hhw3r.txt`,
+		errors.New("bad header"): `
+		  GET http://:6060
+			Authorization`,
+		errors.New("bad header"): `
+			GET http://:6060
+			Authorization:`,
+		errors.New("bad header"): `
+			GET http://:6060
+			: 1234`,
 	} {
-		if got, err := read(); err != nil {
-			t.Fatal(err)
-		} else if !reflect.DeepEqual(got, want) {
-			t.Errorf("got: %+v, want: %+v", got, want)
+		src := bytes.NewBufferString(strings.TrimSpace(def))
+		read := NewLazyTargeter(src, []byte{}, http.Header{})
+		if _, got := read(); got == nil || !strings.HasPrefix(got.Error(), want.Error()) {
+			t.Errorf("got: %s, want: %s\n%s", got, want, def)
 		}
 	}
 
-	if got, err := read(); err != ErrNoTargets {
-		t.Fatalf("got: %v, want: %v", err, ErrNoTargets)
-	} else if got != nil {
-		t.Fatalf("got: %v, want: %v", got, nil)
-	}
+	// TODO: Test good path
 }
