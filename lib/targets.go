@@ -151,7 +151,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 var httpMethodChecker, _ = regexp.Compile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS) ")
 
 func startsWithHttpMethod(t string) bool {
-	return httpMethodChecker.FindString(t) != ""
+	return httpMethodChecker.MatchString(t)
 }
 
 // Wrap a Scanner so we can cheat and look at the next value and react accordingly,
