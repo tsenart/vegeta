@@ -42,7 +42,7 @@ attack command:
 report command:
   -inputs="stdin": Input files (comma separated)
   -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot]
+  -reporter="text": Reporter [text, json, plot, hist[buckets]]
 
 global flags:
   -cpus=8 Number of CPUs to use
@@ -52,6 +52,7 @@ examples:
   vegeta attack -targets=targets.txt > results.bin
   vegeta report -inputs=results.bin -reporter=json > metrics.json
   cat results.bin | vegeta report -reporter=plot > plot.html
+  cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
 ```
 
 #### -cpus
@@ -171,7 +172,7 @@ $ vegeta report -h
 Usage of vegeta report:
   -input="stdin": Input files (comma separated)
   -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot]
+  -reporter="text": Reporter [text, json, plot, hist[buckets]]
 ```
 
 #### -input
@@ -245,6 +246,17 @@ to change the moving average window size (in data points).
 
 ![Plot](http://i.imgur.com/oi0cgGq.png)
 
+##### hist
+Computes and prints a text based histogram for the given buckets.
+Each bucket upper bound is non-inclusive.
+```
+cat results.bin | vegeta report -reporter='hist[0,2ms,4ms,6ms]'
+Bucket         #     %       Histogram
+[0,     2ms]   6007  32.65%  ########################
+[2ms,   4ms]   5505  29.92%  ######################
+[4ms,   6ms]   2117  11.51%  ########
+[6ms,   +Inf]  4771  25.93%  ###################
+```
 
 ## Usage (Library)
 ```go
