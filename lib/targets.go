@@ -117,7 +117,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		}
 		tgt.URL = tokens[1]
 		line = strings.TrimSpace(sc.Peek())
-		if line == "" || startsWithHttpMethod(line) {
+		if line == "" || startsWithHTTPMethod(line) {
 			return &tgt, nil
 		}
 		for sc.Scan() {
@@ -148,9 +148,9 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	}
 }
 
-var httpMethodChecker, _ = regexp.Compile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS) ")
+var httpMethodChecker = regexp.MustCompile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS) ")
 
-func startsWithHttpMethod(t string) bool {
+func startsWithHTTPMethod(t string) bool {
 	return httpMethodChecker.MatchString(t)
 }
 
