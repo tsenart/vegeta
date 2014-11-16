@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/tabwriter"
+	"time"
 )
 
 // Reporter is an interface defining Report computation.
@@ -20,6 +22,74 @@ type ReporterFunc func(Results) ([]byte, error)
 
 // Report implements the Reporter interface.
 func (f ReporterFunc) Report(r Results) ([]byte, error) { return f(r) }
+
+// HistogramReporter is a reporter that computes latency histograms with the
+// given buckets.
+type HistogramReporter []time.Duration
+
+// Report implements the Reporter interface.
+func (h HistogramReporter) Report(r Results) ([]byte, error) {
+	var total uint64
+	counts := make([]uint64, len(h))
+	for _, result := range r {
+		var i int
+		for ; i < len(h)-1; i++ {
+			if result.Latency >= h[i] && result.Latency < h[i+1] {
+				break
+			}
+		}
+		counts[i]++
+		total++
+	}
+
+	var buf bytes.Buffer
+	w := tabwriter.NewWriter(&buf, 0, 8, 2, ' ', tabwriter.StripEscape)
+	fmt.Fprintf(w, "Bucket\t\t#\t%%\tHistogram\n")
+
+	bucket := func(i int) string {
+		if i+1 >= len(h) {
+			return fmt.Sprintf("[%s,\t+Inf]", h[i])
+		}
+		return fmt.Sprintf("[%s,\t%s]", h[i], h[i+1])
+	}
+
+	for i := range h {
+		ratio := float64(counts[i]) / float64(total)
+		fmt.Fprintf(w, "%s\t%d\t%.2f%%\t%s\n",
+			bucket(i),
+			counts[i],
+			ratio*100,
+			strings.Repeat("#", int(ratio*75)),
+		)
+	}
+
+	err := w.Flush()
+	return buf.Bytes(), err
+}
+
+// Set implements the flag.Value interface.
+func (h *HistogramReporter) Set(value string) error {
+	for _, v := range strings.Split(value[1:len(value)-1], ",") {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return err
+		}
+		*h = append(*h, d)
+	}
+	if len(*h) == 0 {
+		return fmt.Errorf("bad buckets: %s", value)
+	}
+	return nil
+}
+
+// String implements the fmt.Stringer interface.
+func (h HistogramReporter) String() string {
+	strs := make([]string, len(h))
+	for i := range strs {
+		strs[i] = strconv.FormatInt(int64(h[i]), 10)
+	}
+	return "[" + strings.Join(strs, ",") + "]"
+}
 
 // ReportText returns a computed Metrics struct as aligned, formatted text.
 var ReportText ReporterFunc = func(r Results) ([]byte, error) {

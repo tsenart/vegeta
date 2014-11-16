@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"sort"
@@ -14,7 +14,7 @@ import (
 
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot]")
+	reporter := fs.String("reporter", "text", "Reporter [text, json, plot, hist[buckets]]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	return command{fs, func(args []string) error {
@@ -26,10 +26,26 @@ func reportCmd() command {
 // report validates the report arguments, sets up the required resources
 // and writes the report
 func report(reporter, inputs, output string) error {
-	rep, ok := reporters[reporter]
-	if !ok {
-		log.Println("Reporter provided is not supported. Using text")
+	if len(reporter) < 4 {
+		return fmt.Errorf("bad reporter: %s", reporter)
+	}
+	var rep vegeta.Reporter
+	switch reporter[:4] {
+	case "text":
 		rep = vegeta.ReportText
+	case "json":
+		rep = vegeta.ReportJSON
+	case "plot":
+		rep = vegeta.ReportPlot
+	case "hist":
+		if len(reporter) < 6 {
+			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
+		}
+		var hist vegeta.HistogramReporter
+		if err := hist.Set(reporter[4:len(reporter)]); err != nil {
+			return err
+		}
+		rep = hist
 	}
 
 	files := strings.Split(inputs, ",")
@@ -79,10 +95,4 @@ outer:
 	}
 	_, err = out.Write(data)
 	return err
-}
-
-var reporters = map[string]vegeta.Reporter{
-	"text": vegeta.ReportText,
-	"json": vegeta.ReportJSON,
-	"plot": vegeta.ReportPlot,
 }
