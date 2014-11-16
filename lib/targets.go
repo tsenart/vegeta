@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -88,7 +89,7 @@ func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter,
 // hdr will be merged with the each Target's headers.
 func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	var mu sync.Mutex
-	sc := bufio.NewScanner(src)
+	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func() (*Target, error) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -98,7 +99,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		}
 		tgt := Target{Body: body, Header: http.Header{}}
 		for k, vs := range hdr {
-			tgt.Header[k] = append(tgt.Header[k], vs...)
+			tgt.Header[k] = vs
 		}
 		line := strings.TrimSpace(sc.Text())
 		tokens := strings.SplitN(line, " ", 2)
@@ -115,6 +116,10 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			return nil, fmt.Errorf("bad URL: %s", tokens[1])
 		}
 		tgt.URL = tokens[1]
+		line = strings.TrimSpace(sc.Peek())
+		if line == "" || startsWithHttpMethod(line) {
+			return &tgt, nil
+		}
 		for sc.Scan() {
 			if line = strings.TrimSpace(sc.Text()); line == "" {
 				break
@@ -141,4 +146,45 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		}
 		return &tgt, nil
 	}
+}
+
+var httpMethodChecker, _ = regexp.Compile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS) ")
+
+func startsWithHttpMethod(t string) bool {
+	return httpMethodChecker.MatchString(t)
+}
+
+// Wrap a Scanner so we can cheat and look at the next value and react accordingly,
+// but still have it be around the next time we Scan() + Text()
+type peekingScanner struct {
+	src    *bufio.Scanner
+	peeked string
+}
+
+func (s *peekingScanner) Err() error {
+	return s.src.Err()
+}
+
+func (s *peekingScanner) Peek() string {
+	if !s.src.Scan() {
+		return ""
+	}
+	s.peeked = s.src.Text()
+	return s.peeked
+}
+
+func (s *peekingScanner) Scan() bool {
+	if s.peeked == "" {
+		return s.src.Scan()
+	}
+	return true
+}
+
+func (s *peekingScanner) Text() string {
+	if s.peeked == "" {
+		return s.src.Text()
+	}
+	t := s.peeked
+	s.peeked = ""
+	return t
 }
