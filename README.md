@@ -91,7 +91,7 @@ The actual run time of the test can be longer than specified due to the
 responses delay.
 
 #### -header
-Specifies a request header to be used in all targets defined, see `-targets`. 
+Specifies a request header to be used in all targets defined, see `-targets`.
 You can specify as many as needed by repeating the flag.
 
 #### -keepalive
