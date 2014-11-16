@@ -42,7 +42,7 @@ attack command:
 report command:
   -inputs="stdin": Input files (comma separated)
   -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot]
+  -reporter="text": Reporter [csv, json, plot, text]
 
 global flags:
   -cpus=8 Number of CPUs to use
@@ -171,7 +171,7 @@ $ vegeta report -h
 Usage of vegeta report:
   -input="stdin": Input files (comma separated)
   -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot]
+  -reporter="text": Reporter [csv, json, plot, text]
 ```
 
 #### -input
@@ -186,24 +186,17 @@ Specifies the output file to which the report will be written to.
 #### -reporter
 Specifies the kind of report to be generated. It defaults to text.
 
-##### text
-```
-Requests      [total]                   1200
-Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
-Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
-Bytes In      [total, mean]             3714690, 3095.57
-Bytes Out     [total, mean]             0, 0.00
-Success       [ratio]                   55.42%
-Status Codes  [code:count]              0:535  200:665
-Error Set:
-Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
-Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
-Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection reset by peer
-Get http://localhost:6060: write tcp 127.0.0.1:6060: broken pipe
-Get http://localhost:6060: net/http: transport closed before response was received
-Get http://localhost:6060: http: can't write HTTP request on broken connection
-```
+##### csv
+Exports the contents of the attack files as CSV, with one record on each line.
+There are six columns, and they are unix timestamp in ns since epoch, http
+status code, request latency in ns, bytes out, bytes in, and lastly the error
+message (if any).
 
+```
+1415728437723806078,200,2738814,0,7435,
+1415728437727151573,200,754425,0,563,dial tcp 127.0.0.1:6060: connection reset by peer
+1415728437730499285,200,1253913,0,1428,
+```
 ##### json
 ```json
 {
@@ -245,6 +238,23 @@ to change the moving average window size (in data points).
 
 ![Plot](http://i.imgur.com/oi0cgGq.png)
 
+##### text
+```
+Requests      [total]                   1200
+Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
+Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
+Bytes In      [total, mean]             3714690, 3095.57
+Bytes Out     [total, mean]             0, 0.00
+Success       [ratio]                   55.42%
+Status Codes  [code:count]              0:535  200:665
+Error Set:
+Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
+Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
+Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection reset by peer
+Get http://localhost:6060: write tcp 127.0.0.1:6060: broken pipe
+Get http://localhost:6060: net/http: transport closed before response was received
+Get http://localhost:6060: http: can't write HTTP request on broken connection
+```
 
 ## Usage (Library)
 ```go

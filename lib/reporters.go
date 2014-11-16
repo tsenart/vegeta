@@ -21,6 +21,15 @@ type ReporterFunc func(Results) ([]byte, error)
 // Report implements the Reporter interface.
 func (f ReporterFunc) Report(r Results) ([]byte, error) { return f(r) }
 
+// ReportCSV returns raw attack data in a columnar format
+var ReportCSV ReporterFunc = func(rs Results) ([]byte, error) {
+	out := &bytes.Buffer{}
+	for _, r := range rs {
+		fmt.Fprintf(out, "%d,%d,%d,%d,%d,%s\n", r.Timestamp.UnixNano(), r.Code, r.Latency.Nanoseconds(), r.BytesOut, r.BytesIn, r.Error)
+	}
+	return out.Bytes(), nil
+}
+
 // ReportText returns a computed Metrics struct as aligned, formatted text.
 var ReportText ReporterFunc = func(r Results) ([]byte, error) {
 	m := NewMetrics(r)
