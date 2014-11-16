@@ -78,7 +78,8 @@ Usage of vegeta attack:
 ```
 
 #### -body
-Specifies the file whose content will be set as the body of every request.
+Specifies the file whose content will be set as the body of every
+request unless overridden per attack target, see `-targets`.
 
 #### -cert
 Specifies the x509 TLS certificate to be used with HTTPS requests.
@@ -90,7 +91,7 @@ The actual run time of the test can be longer than specified due to the
 responses delay.
 
 #### -header
-Specifies a request header to be used in all targets defined.
+Specifies a request header to be used in all targets defined, see `-targets`. 
 You can specify as many as needed by repeating the flag.
 
 #### -keepalive
@@ -120,13 +121,41 @@ default is 10.
 
 #### -targets
 Specifies the attack targets in a line separated file, defaulting to stdin.
-The format should be as follows.
+The format should be as follows, combining any or all of the following:
+
+Simple targets
 ```
 GET http://goku:9090/path/to/dragon?item=balls
 GET http://user:password@goku:9090/path/to
 HEAD http://goku:9090/path/to/success
-...
 ```
+
+Targets with custom headers
+```
+GET http://user:password@goku:9090/path/to
+X-Account-ID: 8675309
+
+DELETE http://goku:9090/path/to/remove
+Confirmation-Token: 90215
+Authorization: Token DEADBEEF
+```
+
+Targets with custom bodies
+```
+POST http://goku:9090/things
+@/path/to/newthing.json
+
+PATCH http://goku:9090/thing/71988591
+@/path/to/thing-71988591.json
+```
+
+Targets with custom bodies and headers
+```
+POST http://goku:9090/things
+X-Account-ID: 99
+@/path/to/newthing.json
+```
+
 
 #### -timeout
 Specifies the timeout for each request. The default is 0 which disables
