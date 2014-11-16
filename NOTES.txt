@@ -1,1 +1,0 @@
-- Target file comments support has been removed.
