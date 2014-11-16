@@ -29,22 +29,8 @@ type HistogramReporter []time.Duration
 
 // Report implements the Reporter interface.
 func (h HistogramReporter) Report(r Results) ([]byte, error) {
-	var total uint64
-	counts := make([]uint64, len(h))
-	for _, result := range r {
-		var i int
-		for ; i < len(h)-1; i++ {
-			if result.Latency >= h[i] && result.Latency < h[i+1] {
-				break
-			}
-		}
-		counts[i]++
-		total++
-	}
-
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 8, 2, ' ', tabwriter.StripEscape)
-	fmt.Fprintf(w, "Bucket\t\t#\t%%\tHistogram\n")
 
 	bucket := func(i int) string {
 		if i+1 >= len(h) {
@@ -53,11 +39,12 @@ func (h HistogramReporter) Report(r Results) ([]byte, error) {
 		return fmt.Sprintf("[%s,\t%s]", h[i], h[i+1])
 	}
 
-	for i := range h {
-		ratio := float64(counts[i]) / float64(total)
+	fmt.Fprintf(w, "Bucket\t\t#\t%%\tHistogram\n")
+	for i, count := range Histogram(h, r) {
+		ratio := float64(count) / float64(len(r))
 		fmt.Fprintf(w, "%s\t%d\t%.2f%%\t%s\n",
 			bucket(i),
-			counts[i],
+			count,
 			ratio*100,
 			strings.Repeat("#", int(ratio*75)),
 		)
