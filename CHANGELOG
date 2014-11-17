@@ -1,3 +1,6 @@
+2014-11-17: v5.5.0
+	* Optionally ignore redirects and treat them as successes.
+
 2014-11-17: v5.4.0
 	* Added a histogram reporter to the report command.
 
