@@ -75,6 +75,35 @@ func TestRedirects(t *testing.T) {
 	}
 }
 
+func TestMarkRedirectsAsSuccess(t *testing.T) {
+	t.Parallel()
+
+	var server *httptest.Server
+	var hits uint64
+
+	server = httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddUint64(&hits, 1)
+			http.Redirect(w, r, "/redirect-here", 302)
+		}),
+	)
+
+	atk := NewAttacker(Redirects(-1))
+	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	var rate uint64 = 10
+	results := atk.Attack(tr, rate, 1*time.Second)
+
+	for result := range results {
+		if result.Error != "" {
+			t.Fatalf("Unexpected error: %s", result.Error)
+		}
+	}
+
+	if want, got := rate, hits; want != got {
+		t.Fatalf("Expected hits to be: %d, Got: %d", want, got)
+	}
+}
+
 func TestTimeout(t *testing.T) {
 	t.Parallel()
 

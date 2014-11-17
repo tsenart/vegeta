@@ -6,16 +6,18 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer  *net.Dialer
-	client  http.Client
-	stop    chan struct{}
-	workers uint64
+	dialer    *net.Dialer
+	client    http.Client
+	stop      chan struct{}
+	workers   uint64
+	redirects int
 }
 
 var (
@@ -29,6 +31,9 @@ var (
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
+
+	// MarkRedirectsAsSuccess is the value when redirects are not followed but marked successful
+	MarkRedirectsAsSuccess = -1
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
@@ -67,6 +72,7 @@ func Workers(n uint64) func(*Attacker) {
 // number of redirects an Attacker will follow.
 func Redirects(n int) func(*Attacker) {
 	return func(a *Attacker) {
+		a.redirects = n
 		a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 			if len(via) > n {
 				return fmt.Errorf("stopped after %d redirects", n)
@@ -178,8 +184,13 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 
 	r, err := a.client.Do(req)
 	if err != nil {
-		res.Error = err.Error()
-		return &res
+		errStr := err.Error()
+		if a.redirects == MarkRedirectsAsSuccess && strings.Contains(errStr, "stopped after") {
+			// ignore redirect errors when the user gave --redirects=MarkRedirectsAsSuccess
+		} else {
+			res.Error = errStr
+			return &res
+		}
 	}
 	defer r.Body.Close()
 

@@ -34,7 +34,7 @@ attack command:
   -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
-  -redirects=10: Number of redirects to follow
+  -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
   -targets="stdin": Targets file
   -timeout=0: Requests timeout
   -workers=0: Number of workers
@@ -118,7 +118,8 @@ garbage collection, but overall it should stay very close to the specified.
 
 #### -redirects
 Specifies the max number of redirects followed on each request. The
-default is 10.
+default is 10. When the value is -1, redirects are not followed but
+the response is marked as successful.
 
 #### -targets
 Specifies the attack targets in a line separated file, defaulting to stdin.
