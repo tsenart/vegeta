@@ -1,3 +1,6 @@
+2014-11-17: v5.4.0
+	* Added a histogram reporter to the report command.
+
 2014-11-16: v5.3.0
 	* Added support for extended targets dsl that supports per-target headers and body.
 	* Target file comments support has been removed.
