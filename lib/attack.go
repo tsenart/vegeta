@@ -185,9 +185,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	r, err := a.client.Do(req)
 	if err != nil {
 		errStr := err.Error()
-		if a.redirects == NoFollow && strings.Contains(errStr, "stopped after") {
-			// ignore redirect errors when the user gave --redirects=NoFollow
-		} else {
+		if err != nil && (a.redirects != NoFollow || !strings.Contains(err.Error(), "stopped after")) {
 			res.Error = errStr
 			return &res
 		}
