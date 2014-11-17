@@ -33,7 +33,7 @@ var (
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 	// MarkRedirectsAsSuccess is the value when redirects are not followed but marked successful
-	MarkRedirectsAsSuccess = -1
+	NoFollow = -1
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
@@ -185,8 +185,8 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	r, err := a.client.Do(req)
 	if err != nil {
 		errStr := err.Error()
-		if a.redirects == MarkRedirectsAsSuccess && strings.Contains(errStr, "stopped after") {
-			// ignore redirect errors when the user gave --redirects=MarkRedirectsAsSuccess
+		if a.redirects == NoFollow && strings.Contains(errStr, "stopped after") {
+			// ignore redirect errors when the user gave --redirects=NoFollow
 		} else {
 			res.Error = errStr
 			return &res
