@@ -23,7 +23,7 @@ func (f DumperFunc) Dump(r *Result) ([]byte, error) { return f(r) }
 // request latency in ns, bytes out, bytes in, and lastly the error.
 var DumpCSV DumperFunc = func(r *Result) ([]byte, error) {
 	var buf bytes.Buffer
-	_, err := fmt.Fprintf(&buf, "%d,%d,%d,%d,%d,'%s'\n",
+	_, err := fmt.Fprintf(&buf, "%d,%d,%d,%d,%d,\"%s\"\n",
 		r.Timestamp.UnixNano(),
 		r.Code,
 		r.Latency.Nanoseconds(),
