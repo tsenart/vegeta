@@ -1,3 +1,6 @@
+2014-11-21: v5.6.0
+	* Implements dump command with CSV and JSON record format.
+
 2014-11-17: v5.5.0
 	* Optionally ignore redirects and treat them as successes.
 
