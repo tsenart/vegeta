@@ -31,7 +31,6 @@ attack command:
   -keepalive=true: Use persistent connections
   -laddr=0.0.0.0: Local IP address
   -lazy=false: Read targets lazily
-  -ordering="random": Attack ordering [sequential, random]
   -output="stdout": Output file
   -rate=50: Requests per second
   -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
