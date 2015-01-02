@@ -194,13 +194,20 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	defer r.Body.Close()
 
 	res.BytesOut = uint64(req.ContentLength)
-	res.Code = uint16(r.StatusCode)
-	if body, err := ioutil.ReadAll(r.Body); err != nil {
-		if res.Code < 200 || res.Code >= 400 {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		res.Error = err.Error()
+		return &res
+	}
+	res.BytesIn = uint64(len(body))
+
+	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
+		if len(body) == 0 {
+			res.Error = r.Status
+		} else {
 			res.Error = string(body)
 		}
-	} else {
-		res.BytesIn = uint64(len(body))
 	}
+
 	return &res
 }

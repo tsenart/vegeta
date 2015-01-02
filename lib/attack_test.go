@@ -170,3 +170,21 @@ func TestKeepAlive(t *testing.T) {
 		t.Fatalf("Transport DisableKeepAlives is not enabled. Want true. Got %t", disableKeepAlive)
 	}
 }
+
+func TestStatusCodeErrors(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}),
+	)
+
+	atk := NewAttacker()
+	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	for result := range atk.Attack(tr, 1, 1*time.Second) {
+		if got, want := result.Error, "400 Bad Request"; got != want {
+			t.Fatalf("got: %s, want: %s", got, want)
+		}
+	}
+}
