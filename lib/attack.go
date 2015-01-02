@@ -184,28 +184,24 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 
 	r, err := a.client.Do(req)
 	if err != nil {
-		errStr := err.Error()
 		// ignore redirect errors when the user set --redirects=NoFollow
-		if err != nil && (a.redirects != NoFollow || !strings.Contains(err.Error(), "stopped after")) {
-			res.Error = errStr
-			return &res
+		if a.redirects != NoFollow || !strings.Contains(err.Error(), "stopped after") {
+			res.Error = err.Error()
 		}
+		return &res
 	}
 	defer r.Body.Close()
 
 	res.BytesOut = uint64(req.ContentLength)
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		res.Error = err.Error()
-		return &res
-	}
-	res.BytesIn = uint64(len(body))
+	res.Code = uint16(r.StatusCode)
 
-	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
-		if len(body) == 0 {
-			res.Error = r.Status
-		} else {
+	if body, err := ioutil.ReadAll(r.Body); err != nil {
+		res.Error = err.Error()
+	} else if res.BytesIn = uint64(len(body)); res.Code < 200 || res.Code >= 400 {
+		if len(body) != 0 {
 			res.Error = string(body)
+		} else {
+			res.Error = r.Status
 		}
 	}
 
