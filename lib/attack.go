@@ -3,7 +3,6 @@ package vegeta
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -167,42 +166,48 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 func (a *Attacker) Stop() { close(a.stop) }
 
 func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
-	res := Result{Timestamp: tm}
-	defer func() { res.Latency = time.Since(tm) }()
+	var (
+		res = Result{Timestamp: tm}
+		err error
+	)
+
+	defer func() {
+		res.Latency = time.Since(tm)
+		if err != nil {
+			res.Error = err.Error()
+		}
+	}()
 
 	tgt, err := tr()
 	if err != nil {
-		res.Error = err.Error()
 		return &res
 	}
 
 	req, err := tgt.Request()
 	if err != nil {
-		res.Error = err.Error()
 		return &res
 	}
 
 	r, err := a.client.Do(req)
 	if err != nil {
 		// ignore redirect errors when the user set --redirects=NoFollow
-		if a.redirects != NoFollow || !strings.Contains(err.Error(), "stopped after") {
-			res.Error = err.Error()
+		if a.redirects == NoFollow && strings.Contains(err.Error(), "stopped after") {
+			err = nil
 		}
 		return &res
 	}
-	defer r.Body.Close()
+	r.Body.Close()
 
-	res.BytesOut = uint64(req.ContentLength)
-	res.Code = uint16(r.StatusCode)
+	if req.ContentLength != -1 {
+		res.BytesOut = uint64(req.ContentLength)
+	}
 
-	if body, err := ioutil.ReadAll(r.Body); err != nil {
-		res.Error = err.Error()
-	} else if res.BytesIn = uint64(len(body)); res.Code < 200 || res.Code >= 400 {
-		if len(body) != 0 {
-			res.Error = string(body)
-		} else {
-			res.Error = r.Status
-		}
+	if r.ContentLength != -1 {
+		res.BytesIn = uint64(r.ContentLength)
+	}
+
+	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
+		res.Error = r.Status
 	}
 
 	return &res
