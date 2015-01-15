@@ -340,7 +340,7 @@ Just pass a new number as the argument to change it.
 ```
 The MIT License (MIT)
 
-Copyright (c) 2013, 2014 Tomás Senart
+Copyright (c) 2013-2015 Tomás Senart
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
