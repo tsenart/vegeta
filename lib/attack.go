@@ -19,20 +19,22 @@ type Attacker struct {
 	redirects int
 }
 
-var (
+const (
 	// DefaultRedirects is the default number of times an Attacker follows
 	// redirects.
 	DefaultRedirects = 10
 	// DefaultTimeout is the default amount of time an Attacker waits for a request
 	// before it times out.
 	DefaultTimeout = 30 * time.Second
+	// NoFollow is the value when redirects are not followed but marked successful
+	NoFollow = -1
+)
+
+var (
 	// DefaultLocalAddr is the default local IP address an Attacker uses.
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
-
-	// MarkRedirectsAsSuccess is the value when redirects are not followed but marked successful
-	NoFollow = -1
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
