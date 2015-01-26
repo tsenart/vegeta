@@ -16,9 +16,9 @@ func TestNewMetrics(t *testing.T) {
 	})
 
 	for field, values := range map[string][]float64{
-		"BytesIn.Mean":  []float64{m.BytesIn.Mean, 20.0},
-		"BytesOut.Mean": []float64{m.BytesOut.Mean, 20.0},
-		"Sucess":        []float64{m.Success, 0.750000},
+		"BytesIn.Mean":  {m.BytesIn.Mean, 20.0},
+		"BytesOut.Mean": {m.BytesOut.Mean, 20.0},
+		"Sucess":        {m.Success, 0.750000},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %f, got: %f", field, values[1], values[0])
@@ -26,13 +26,13 @@ func TestNewMetrics(t *testing.T) {
 	}
 
 	for field, values := range map[string][]time.Duration{
-		"Latencies.Max":  []time.Duration{m.Latencies.Max, 100 * time.Millisecond},
-		"Latencies.Mean": []time.Duration{m.Latencies.Mean, 40 * time.Millisecond},
-		"Latencies.P50":  []time.Duration{m.Latencies.P50, 20 * time.Millisecond},
-		"Latencies.P95":  []time.Duration{m.Latencies.P95, 30 * time.Millisecond},
-		"Latencies.P99":  []time.Duration{m.Latencies.P99, 30 * time.Millisecond},
-		"Duration":       []time.Duration{m.Duration, 2 * time.Second},
-		"Wait":           []time.Duration{m.Wait, 30 * time.Millisecond},
+		"Latencies.Max":  {m.Latencies.Max, 100 * time.Millisecond},
+		"Latencies.Mean": {m.Latencies.Mean, 40 * time.Millisecond},
+		"Latencies.P50":  {m.Latencies.P50, 20 * time.Millisecond},
+		"Latencies.P95":  {m.Latencies.P95, 30 * time.Millisecond},
+		"Latencies.P99":  {m.Latencies.P99, 30 * time.Millisecond},
+		"Duration":       {m.Duration, 2 * time.Second},
+		"Wait":           {m.Wait, 30 * time.Millisecond},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %s, got: %s", field, values[1], values[0])
@@ -40,9 +40,9 @@ func TestNewMetrics(t *testing.T) {
 	}
 
 	for field, values := range map[string][]uint64{
-		"BytesOut.Total": []uint64{m.BytesOut.Total, 80},
-		"BytesIn.Total":  []uint64{m.BytesIn.Total, 80},
-		"Requests":       []uint64{m.Requests, 4},
+		"BytesOut.Total": {m.BytesOut.Total, 80},
+		"BytesIn.Total":  {m.BytesIn.Total, 80},
+		"Requests":       {m.Requests, 4},
 	} {
 		if values[0] != values[1] {
 			t.Errorf("%s: want: %d, got: %d", field, values[1], values[0])

@@ -42,7 +42,7 @@ func report(reporter, inputs, output string) error {
 			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
 		}
 		var hist vegeta.HistogramReporter
-		if err := hist.Set(reporter[4:len(reporter)]); err != nil {
+		if err := hist.Set(reporter[4:]); err != nil {
 			return err
 		}
 		rep = hist

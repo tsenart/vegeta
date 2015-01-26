@@ -67,13 +67,13 @@ func TestNewEagerTargeter(t *testing.T) {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
 	for _, want := range []*Target{
-		&Target{
+		{
 			Method: "GET",
 			URL:    "http://:6060/",
 			Body:   []byte("body"),
 			Header: http.Header{},
 		},
-		&Target{
+		{
 			Method: "HEAD",
 			URL:    "http://:6606/",
 			Body:   []byte("body"),
@@ -136,7 +136,7 @@ func TestNewLazyTargeter(t *testing.T) {
 	src := bytes.NewBufferString(strings.TrimSpace(targets))
 	read := NewLazyTargeter(src, []byte{}, http.Header{"Content-Type": []string{"text/plain"}})
 	for _, want := range []*Target{
-		&Target{
+		{
 			Method: "GET",
 			URL:    "http://:6060/",
 			Body:   []byte{},
@@ -145,13 +145,13 @@ func TestNewLazyTargeter(t *testing.T) {
 				"Content-Type": []string{"text/plain"},
 			},
 		},
-		&Target{
+		{
 			Method: "PUT",
 			URL:    "https://:6060/123",
 			Body:   []byte{},
 			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
-		&Target{
+		{
 			Method: "POST",
 			URL:    "http://foobar.org/fnord",
 			Body:   []byte("Hello world!"),
