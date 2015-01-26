@@ -16,6 +16,7 @@ type Dumper interface {
 // is a Dumper object that calls f.
 type DumperFunc func(*Result) ([]byte, error)
 
+// Dump implements the Dumper interface.
 func (f DumperFunc) Dump(r *Result) ([]byte, error) { return f(r) }
 
 // DumpCSV dumps a Result as a CSV record with six columns.
