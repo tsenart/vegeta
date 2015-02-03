@@ -336,7 +336,7 @@ $ ulimit -u # processes / threads
 ```
 Just pass a new number as the argument to change it.
 
-## Licence
+## License
 ```
 The MIT License (MIT)
 
