@@ -18,6 +18,13 @@ $ go get github.com/tsenart/vegeta
 $ go install github.com/tsenart/vegeta
 ```
 
+### Homebrew on Mac OS X
+You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/) package manager on Mac OS X:
+```shell
+$ brew update
+$ brew install vegeta
+```
+
 ## Usage manual
 ```shell
 $ vegeta -h
