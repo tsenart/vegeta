@@ -10,19 +10,18 @@ It can be used both as a command line utility and a library.
 ### Pre-compiled executables
 Get them [here](http://github.com/tsenart/vegeta/releases).
 
+### Homebrew on Mac OS X
+You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/) package manager on Mac OS X:
+```shell
+$ brew update && brew install vegeta
+```
+
 ### Source
 You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 ```shell
 $ go get github.com/tsenart/vegeta
 $ go install github.com/tsenart/vegeta
-```
-
-### Homebrew on Mac OS X
-You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/) package manager on Mac OS X:
-```shell
-$ brew update
-$ brew install vegeta
 ```
 
 ## Usage manual
