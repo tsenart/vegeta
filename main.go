@@ -15,24 +15,33 @@ func main() {
 		"dump":   dumpCmd(),
 	}
 
-	flag.Usage = func() {
-		fmt.Println("Usage: vegeta [globals] <command> [options]")
+	fs := flag.NewFlagSet("vegeta", flag.ExitOnError)
+	cpus := fs.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
+	version := fs.Bool("version", false, "Print version and exit")
+
+	fs.Usage = func() {
+		fmt.Println("Usage: vegeta [global flags] <command> [command flags]")
+		fmt.Printf("\nglobal flags:\n")
+		fs.PrintDefaults()
 		for name, cmd := range commands {
 			fmt.Printf("\n%s command:\n", name)
 			cmd.fs.PrintDefaults()
 		}
-		fmt.Printf("\nglobal flags:\n  -cpus=%d Number of CPUs to use\n", runtime.NumCPU())
 		fmt.Println(examples)
 	}
 
-	cpus := flag.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
-	flag.Parse()
+	fs.Parse(os.Args[1:])
+
+	if *version {
+		fmt.Println(Version)
+		return
+	}
 
 	runtime.GOMAXPROCS(*cpus)
 
-	args := flag.Args()
+	args := fs.Args()
 	if len(args) == 0 {
-		flag.Usage()
+		fs.Usage()
 		os.Exit(1)
 	}
 
@@ -42,6 +51,8 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+var Version = "???"
 
 const examples = `
 examples:
