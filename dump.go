@@ -13,7 +13,7 @@ import (
 
 func dumpCmd() command {
 	fs := flag.NewFlagSet("vegeta dump", flag.ExitOnError)
-	dumper := fs.String("dumper", "", "Dumper [json, csv]")
+	dumper := fs.String("dumper", "json", "Dumper [json, csv]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	return command{fs, func(args []string) error {
