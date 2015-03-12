@@ -200,13 +200,13 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		}
 		return &res
 	}
+	defer r.Body.Close()
 
 	in, err := io.Copy(ioutil.Discard, r.Body)
 	if err != nil {
 		return &res
 	}
 	res.BytesIn = uint64(in)
-	r.Body.Close()
 
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)
