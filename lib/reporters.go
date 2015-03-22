@@ -56,8 +56,11 @@ func (h HistogramReporter) Report(r Results) ([]byte, error) {
 
 // Set implements the flag.Value interface.
 func (h *HistogramReporter) Set(value string) error {
+	if len(value) < 2 || value[0] != '[' || value[len(value)-1] != ']' {
+		return fmt.Errorf("bad buckets: %s", value)
+	}
 	for _, v := range strings.Split(value[1:len(value)-1], ",") {
-		d, err := time.ParseDuration(v)
+		d, err := time.ParseDuration(strings.TrimSpace(v))
 		if err != nil {
 			return err
 		}
