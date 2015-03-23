@@ -1,33 +1,33 @@
 2015-03-12: v5.6.0
-  * Set default dumper to "json" in the dump command.
-  * Add --version to global vegeta command flags.
-  * Fix response body leak regression introduced in v5.5.3.
+  Set default dumper to "json" in the dump command.
+  Add --version to global vegeta command flags.
+  Fix response body leak regression introduced in v5.5.3.
 
 2015-03-11: v5.5.3
-  * Always read response bodies for each request.
-  * Homebrew install instructions.
+  Always read response bodies for each request.
+  Homebrew install instructions.
 
 2015-01-3: v5.5.2
-  * Refactor core request logic and simplify tests with a 4x speedup.
+  Refactor core request logic and simplify tests with a 4x speedup.
 
 2015-01-2: v5.5.1
-  * Treat bad status codes as errors.
+  Treat bad status codes as errors.
 
 2014-11-21: v5.5.0
-  * Implement dump command with CSV and JSON record format.
-  * Optionally ignore redirects and treat them as successes.
+  Implement dump command with CSV and JSON record format.
+  Optionally ignore redirects and treat them as successes.
 
 2014-11-16: v5.4.0
-  * Add histogram reporter to the report command.
+  Add histogram reporter to the report command.
 
 2014-11-16: v5.3.0
-  * Add support for extended targets dsl that supports per-target headers and body.
-  * Target file comments support has been removed.
+  Add support for extended targets dsl that supports per-target headers and body.
+  Target file comments support has been removed.
 
 2014-11-7: v5.2.0
-  * Don't treat 3xx status codes as errors.
-  * Add -keepalive flag to the attack command.
+  Don't treat 3xx status codes as errors.
+  Add -keepalive flag to the attack command.
 
 2014-11-3: v5.1.1
-  * Add FreeBSD and Windows releases.
-  * Fix non termination bug in the report command. #85
+  Add FreeBSD and Windows releases.
+  Fix non termination bug in the report command. #85
