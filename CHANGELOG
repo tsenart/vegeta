@@ -1,3 +1,6 @@
+2015-03-23: v5.6.1
+  Allow spaces in hist reporter flag format
+
 2015-03-12: v5.6.0
   Set default dumper to "json" in the dump command.
   Add --version to global vegeta command flags.
