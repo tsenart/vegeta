@@ -141,7 +141,7 @@ var ReportPlot ReporterFunc = func(r Results) ([]byte, error) {
 	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), series)), nil
 }
 
-const plotsTemplate = `<!doctype>
+const plotsTemplate = `<!doctype html>
 <html>
 <head>
   <title>Vegeta Plots</title>
