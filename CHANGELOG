@@ -1,3 +1,8 @@
+2015-04-02: v5.6.2
+  Update dygraph to latest version
+  Improve plot reporter screenshot rendering by using html2canvas.js
+  Improve plot reporter performance
+
 2015-03-23: v5.6.1
   Allow spaces in hist reporter flag format
 
