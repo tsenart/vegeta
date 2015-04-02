@@ -138,7 +138,7 @@ var ReportPlot ReporterFunc = func(r Results) ([]byte, error) {
 	if len(series) > 0 {
 		series = series[:len(series)-1]
 	}
-	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), series)), nil
+	return []byte(fmt.Sprintf(plotsTemplate, asset(dygraphs), asset(html2canvas), series)), nil
 }
 
 const plotsTemplate = `<!doctype html>
@@ -148,10 +148,9 @@ const plotsTemplate = `<!doctype html>
 </head>
 <body>
   <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
-  <a href="#" download="vegetaplot.png" onclick="this.href = document.getElementsByTagName('canvas')[0].toDataURL('image/png').replace(/^data:image\/[^;]/, 'data:application/octet-stream')">Download as PNG</a>
-  <script>
-	%s
-  </script>
+  <button id="download">Download as PNG</button>
+  <script>%s</script>
+  <script>%s</script>
   <script>
   new Dygraph(
     document.getElementById("latencies"),
@@ -168,6 +167,15 @@ const plotsTemplate = `<!doctype html>
       strokeWidth: 1.3
     }
   );
+  document.getElementById("download").addEventListener("click", function(e) {
+    html2canvas(document.body, {background: "#fff"}).then(function(canvas) {
+      var url = canvas.toDataURL('image/png').replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+      var a = document.createElement("a");
+      a.setAttribute("download", "vegeta-plot.png");
+      a.setAttribute("href", url);
+      a.click();
+    });
+  });
   </script>
 </body>
 </html>`
