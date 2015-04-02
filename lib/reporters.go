@@ -117,24 +117,27 @@ var ReportJSON ReporterFunc = func(r Results) ([]byte, error) {
 // ReportPlot builds up a self contained HTML page with an interactive plot
 // of the latencies of the requests. Built with http://dygraphs.com/
 var ReportPlot ReporterFunc = func(r Results) ([]byte, error) {
-	series := &bytes.Buffer{}
-	for i, point := 0, ""; i < len(r); i++ {
-		point = "[" + strconv.FormatFloat(
-			r[i].Timestamp.Sub(r[0].Timestamp).Seconds(), 'f', -1, 32) + ","
+	var series []byte
+	for i := range r {
+		series = append(series, '[')
+		series = append(series, strconv.FormatFloat(
+			r[i].Timestamp.Sub(r[0].Timestamp).Seconds(), 'f', -1, 32)...)
+		series = append(series, ',')
 
+		latency := strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32)
 		if r[i].Error == "" {
-			point += "NaN," + strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32) + "],"
+			series = append(series, "NaN,"...)
+			series = append(series, latency...)
+			series = append(series, ']', ',')
 		} else {
-			point += strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32) + ",NaN],"
+			series = append(series, latency...)
+			series = append(series, ",NaN],"...)
 		}
-
-		series.WriteString(point)
 	}
 	// Remove trailing commas
-	if series.Len() > 0 {
-		series.Truncate(series.Len() - 1)
+	if len(series) > 0 {
+		series = series[:len(series)-1]
 	}
-
 	return []byte(fmt.Sprintf(plotsTemplate, dygraphJSLibSrc(), series)), nil
 }
 

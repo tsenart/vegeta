@@ -21,6 +21,7 @@ func BenchmarkReportPlot(b *testing.B) {
 		}
 	}
 	// Start benchmark
+	b.ReportAllocs()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		ReportPlot(results)
