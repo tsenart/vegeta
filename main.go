@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"runtime/pprof"
+	"strings"
 )
 
 func main() {
@@ -17,6 +19,7 @@ func main() {
 
 	fs := flag.NewFlagSet("vegeta", flag.ExitOnError)
 	cpus := fs.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
+	profile := fs.String("profile", "", "Enable profiling of [cpu, heap]")
 	version := fs.Bool("version", false, "Print version and exit")
 
 	fs.Usage = func() {
@@ -38,6 +41,26 @@ func main() {
 	}
 
 	runtime.GOMAXPROCS(*cpus)
+
+	for _, prof := range strings.Split(*profile, ",") {
+		if prof = strings.TrimSpace(prof); prof == "" {
+			continue
+		}
+
+		f, err := os.Create(prof + ".pprof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+
+		switch {
+		case strings.HasPrefix(prof, "cpu"):
+			pprof.StartCPUProfile(f)
+			defer pprof.StopCPUProfile()
+		case strings.HasPrefix(prof, "heap"):
+			defer pprof.Lookup("heap").WriteTo(f, 0)
+		}
+	}
 
 	args := fs.Args()
 	if len(args) == 0 {
