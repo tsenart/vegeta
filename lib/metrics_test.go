@@ -16,6 +16,7 @@ func TestNewMetrics(t *testing.T) {
 	})
 
 	for field, values := range map[string][]float64{
+		"Rate":          {m.Rate, 2.0},
 		"BytesIn.Mean":  {m.BytesIn.Mean, 20.0},
 		"BytesOut.Mean": {m.BytesOut.Mean, 20.0},
 		"Sucess":        {m.Success, 0.750000},

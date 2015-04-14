@@ -34,6 +34,8 @@ type Metrics struct {
 	Wait time.Duration `json:"wait"`
 	// Requests is the total number of requests executed.
 	Requests uint64 `json:"requests"`
+	// Rate is the rate of requests per second.
+	Rate float64 `json:"rate"`
 	// Success is the percentage of non-error responses.
 	Success float64 `json:"success"`
 	// StatusCodes is a histogram of the responses' status codes.
@@ -80,6 +82,7 @@ func NewMetrics(r Results) *Metrics {
 
 	m.Requests = uint64(len(r))
 	m.Duration = r[len(r)-1].Timestamp.Sub(r[0].Timestamp)
+	m.Rate = float64(m.Requests) / m.Duration.Seconds()
 	m.Wait = latest.Sub(r[len(r)-1].Timestamp)
 	m.Latencies.Mean = time.Duration(float64(totalLatencies) / float64(m.Requests))
 	m.Latencies.P50 = time.Duration(quants.Query(0.50))

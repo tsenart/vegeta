@@ -87,7 +87,7 @@ var ReportText ReporterFunc = func(r Results) ([]byte, error) {
 	out := &bytes.Buffer{}
 
 	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
-	fmt.Fprintf(w, "Requests\t[total]\t%d\n", m.Requests)
+	fmt.Fprintf(w, "Requests\t[total, rate]\t%d, %.2f\n", m.Requests, m.Rate)
 	fmt.Fprintf(w, "Duration\t[total, attack, wait]\t%s, %s, %s\n", m.Duration+m.Wait, m.Duration, m.Wait)
 	fmt.Fprintf(w, "Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n",
 		m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
