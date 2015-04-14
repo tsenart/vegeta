@@ -16,7 +16,7 @@ import (
 type Attacker struct {
 	dialer    *net.Dialer
 	client    http.Client
-	stop      chan struct{}
+	stopch    chan struct{}
 	workers   uint64
 	redirects int
 }
@@ -42,7 +42,7 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{stop: make(chan struct{})}
+	a := &Attacker{stopch: make(chan struct{})}
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
@@ -55,6 +55,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
+			MaxIdleConnsPerHost:   10000,
 		},
 	}
 	for _, opt := range opts {
@@ -132,42 +133,51 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // the rate specified for duration time. Results are put into the returned channel
 // as soon as they arrive.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
-	resc := make(chan *Result)
-	throttle := time.NewTicker(time.Duration(1e9 / rate))
 	hits := rate * uint64(du.Seconds())
 	wrk := a.workers
-	if wrk == 0 || wrk > hits {
-		wrk = hits
+	if wrk == 0 || wrk > rate {
+		wrk = rate
 	}
-	share := hits / wrk
 
-	var wg sync.WaitGroup
+	workers := &sync.WaitGroup{}
+	results := make(chan *Result)
+	ticks := make(chan time.Time)
 	for i := uint64(0); i < wrk; i++ {
-		wg.Add(1)
-		go func(share uint64) {
-			defer wg.Done()
-			for j := uint64(0); j < share; j++ {
-				select {
-				case tm := <-throttle.C:
-					resc <- a.hit(tr, tm)
-				case <-a.stop:
-					return
-				}
-			}
-		}(share)
+		go a.attack(tr, workers, ticks, results)
 	}
 
 	go func() {
-		wg.Wait()
-		close(resc)
-		throttle.Stop()
+		defer close(results)
+		defer workers.Wait()
+		defer close(ticks)
+		interval := 1e9 / rate
+		for began, done := time.Now(), uint64(0); done < hits; done++ {
+			next := began.Add(time.Duration(done * interval))
+			time.Sleep(next.Sub(time.Now()))
+			select {
+			case ticks <- next:
+			case <-a.stopch:
+				return
+			default: // all workers are blocked. start one more and try again
+				go a.attack(tr, workers, ticks, results)
+				done--
+			}
+		}
 	}()
 
-	return resc
+	return results
 }
 
 // Stop stops the current attack.
-func (a *Attacker) Stop() { close(a.stop) }
+func (a *Attacker) Stop() { close(a.stopch) }
+
+func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
+	workers.Add(1)
+	defer workers.Done()
+	for tm := range ticks {
+		results <- a.hit(tr, tm)
+	}
+}
 
 func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	var (
