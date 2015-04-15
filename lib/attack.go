@@ -67,10 +67,11 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	return a
 }
 
-// Workers returns a functional option which sets the number of workers
-// an Attacker uses to hit its targets.
-// If zero or greater than the total number of hits, workers will be capped
-// to that maximum.
+// Workers returns a functional option which sets the initial number of workers
+// an Attacker uses to hit its targets. More workers may be spawned dynamically
+// to sustain the requested rate in the face of slow responses and errors.
+//
+// If zero or greater than an attack's rate, workers will be set to that rate.
 func Workers(n uint64) func(*Attacker) {
 	return func(a *Attacker) { a.workers = n }
 }
