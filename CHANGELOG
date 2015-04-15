@@ -1,3 +1,9 @@
+2015-04-15: v5.6.3
+  Expose connections flag in the attack command
+  Add global cpu and heap profiling flags
+  Measure actual attack rate and print it in relevant reporters
+  Major performance improvements that allow much higher attack rates
+
 2015-04-02: v5.6.2
   Update dygraph to latest version
   Improve plot reporter screenshot rendering by using html2canvas.js
