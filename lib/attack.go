@@ -165,10 +165,10 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 		defer close(ticks)
 		interval := 1e9 / rate
 		for began, done := time.Now(), uint64(0); done < hits; done++ {
-			next := began.Add(time.Duration(done * interval))
-			time.Sleep(next.Sub(time.Now()))
+			now, next := time.Now(), began.Add(time.Duration(done*interval))
+			time.Sleep(next.Sub(now))
 			select {
-			case ticks <- next:
+			case ticks <- max(next, now):
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
@@ -240,4 +240,11 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 
 	return &res
+}
+
+func max(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
