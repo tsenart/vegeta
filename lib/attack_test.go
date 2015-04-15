@@ -111,6 +111,14 @@ func TestKeepAlive(t *testing.T) {
 	}
 }
 
+func TestConnections(t *testing.T) {
+	atk := NewAttacker(Connections(23))
+	got := atk.client.Transport.(*http.Transport).MaxIdleConnsPerHost
+	if want := 23; got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
 func TestStatusCodeErrors(t *testing.T) {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -35,6 +35,7 @@ func attackCmd() command {
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
 	fs.Uint64Var(&opts.workers, "workers", 0, "Number of workers")
+	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
@@ -54,19 +55,20 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	targetsf  string
-	outputf   string
-	bodyf     string
-	certf     string
-	lazy      bool
-	duration  time.Duration
-	timeout   time.Duration
-	rate      uint64
-	workers   uint64
-	redirects int
-	headers   headers
-	laddr     localAddr
-	keepalive bool
+	targetsf    string
+	outputf     string
+	bodyf       string
+	certf       string
+	lazy        bool
+	duration    time.Duration
+	timeout     time.Duration
+	rate        uint64
+	workers     uint64
+	connections int
+	redirects   int
+	headers     headers
+	laddr       localAddr
+	keepalive   bool
 }
 
 // attack validates the attack arguments, sets up the
@@ -137,6 +139,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.TLSConfig(&tlsc),
 		vegeta.Workers(opts.workers),
 		vegeta.KeepAlive(opts.keepalive),
+		vegeta.Connections(opts.connections),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)

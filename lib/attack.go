@@ -28,6 +28,9 @@ const (
 	// DefaultTimeout is the default amount of time an Attacker waits for a request
 	// before it times out.
 	DefaultTimeout = 30 * time.Second
+	// DefaultConnections is the default amount of max open idle connections per
+	// target host.
+	DefaultConnections = 10000
 	// NoFollow is the value when redirects are not followed but marked successful
 	NoFollow = -1
 )
@@ -55,7 +58,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
-			MaxIdleConnsPerHost:   10000,
+			MaxIdleConnsPerHost:   DefaultConnections,
 		},
 	}
 	for _, opt := range opts {
@@ -70,6 +73,15 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 // to that maximum.
 func Workers(n uint64) func(*Attacker) {
 	return func(a *Attacker) { a.workers = n }
+}
+
+// Connections returns a functional option which sets the number of maximum idle
+// open connections per target host.
+func Connections(n int) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.MaxIdleConnsPerHost = n
+	}
 }
 
 // Redirects returns a functional option which sets the maximum
