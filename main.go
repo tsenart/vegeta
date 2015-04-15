@@ -75,6 +75,7 @@ func main() {
 	}
 }
 
+// Version is set at compile time.
 var Version = "???"
 
 const examples = `
