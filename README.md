@@ -47,7 +47,7 @@ attack command:
   -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
   -targets="stdin": Targets file
   -timeout=30s: Requests timeout
-  -workers=0: Initial number of workers
+  -workers=10: Initial number of workers
 
 report command:
   -inputs="stdin": Input files (comma separated)
@@ -87,7 +87,7 @@ Usage of vegeta attack:
   -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
   -targets="stdin": Targets file
   -timeout=30s: Requests timeout
-  -workers=0: Initial number of workers
+  -workers=10: Initial number of workers
 ```
 
 #### -body
@@ -179,8 +179,9 @@ Specifies the timeout for each request. The default is 0 which disables
 timeouts.
 
 #### -workers
-Specifies the number of workers used in the attack. The default 0
-means every single hit runs in its own worker.
+Specifies the initial number of workers used in the attack. The actual
+number of workers will increase if necessary in order to sustain the
+requested rate.
 
 ### report
 ```

@@ -31,6 +31,8 @@ const (
 	// DefaultConnections is the default amount of max open idle connections per
 	// target host.
 	DefaultConnections = 10000
+	// DefaultWorkers is the default initial number of workers used to carry an attack.
+	DefaultWorkers = 10
 	// NoFollow is the value when redirects are not followed but marked successful
 	NoFollow = -1
 )
@@ -45,7 +47,7 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{stopch: make(chan struct{})}
+	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers}
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
@@ -70,8 +72,6 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 // Workers returns a functional option which sets the initial number of workers
 // an Attacker uses to hit its targets. More workers may be spawned dynamically
 // to sustain the requested rate in the face of slow responses and errors.
-//
-// If zero or greater than an attack's rate, workers will be set to that rate.
 func Workers(n uint64) func(*Attacker) {
 	return func(a *Attacker) { a.workers = n }
 }
@@ -146,16 +146,10 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // the rate specified for duration time. Results are put into the returned channel
 // as soon as they arrive.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
-	hits := rate * uint64(du.Seconds())
-	wrk := a.workers
-	if wrk == 0 || wrk > rate {
-		wrk = rate
-	}
-
 	workers := &sync.WaitGroup{}
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
-	for i := uint64(0); i < wrk; i++ {
+	for i := uint64(0); i < a.workers; i++ {
 		go a.attack(tr, workers, ticks, results)
 	}
 
@@ -164,6 +158,7 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Resu
 		defer workers.Wait()
 		defer close(ticks)
 		interval := 1e9 / rate
+		hits := rate * uint64(du.Seconds())
 		for began, done := time.Now(), uint64(0); done < hits; done++ {
 			now, next := time.Now(), began.Add(time.Duration(done*interval))
 			time.Sleep(next.Sub(now))
