@@ -26,12 +26,17 @@ $ go install github.com/tsenart/vegeta
 
 ## Usage manual
 ```shell
-$ vegeta -h
-Usage: vegeta [globals] <command> [options]
+Usage: vegeta [global flags] <command> [command flags]
+
+global flags:
+  -cpus=8: Number of CPUs to use
+  -profile="": Enable profiling of [cpu, heap]
+  -version=false: Print version and exit
 
 attack command:
   -body="": Requests body file
   -cert="": x509 Certificate file
+  -connections=10000: Max open idle connections per target host
   -duration=10s: Duration of the test
   -header=: Request header
   -keepalive=true: Use persistent connections
@@ -41,8 +46,8 @@ attack command:
   -rate=50: Requests per second
   -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
   -targets="stdin": Targets file
-  -timeout=0: Requests timeout
-  -workers=0: Number of workers
+  -timeout=30s: Requests timeout
+  -workers=0: Initial number of workers
 
 report command:
   -inputs="stdin": Input files (comma separated)
@@ -50,12 +55,9 @@ report command:
   -reporter="text": Reporter [text, json, plot, hist[buckets]]
 
 dump command:
-  -dumper="": Dumper [json, csv]
+  -dumper="json": Dumper [json, csv]
   -inputs="stdin": Input files (comma separated)
   -output="stdout": Output file
-
-global flags:
-  -cpus=8 Number of CPUs to use
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -71,10 +73,10 @@ It defaults to the amount of CPUs available in the system.
 
 ### attack
 ```shell
-$ vegeta attack -h
 Usage of vegeta attack:
   -body="": Requests body file
   -cert="": x509 Certificate file
+  -connections=10000: Max open idle connections per target host
   -duration=10s: Duration of the test
   -header=: Request header
   -keepalive=true: Use persistent connections
@@ -82,10 +84,10 @@ Usage of vegeta attack:
   -lazy=false: Read targets lazily
   -output="stdout": Output file
   -rate=50: Requests per second
-  -redirects=10: Number of redirects to follow
+  -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
   -targets="stdin": Targets file
   -timeout=30s: Requests timeout
-  -workers=0: Number of workers
+  -workers=0: Initial number of workers
 ```
 
 #### -body
@@ -94,6 +96,9 @@ request unless overridden per attack target, see `-targets`.
 
 #### -cert
 Specifies the x509 TLS certificate to be used with HTTPS requests.
+
+### -connections
+Specifies the maximum number of idle open connections per target host.
 
 #### -duration
 Specifies the amount of time to issue request to the targets.
@@ -237,6 +242,7 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
   "duration": 9949883921,
   "wait": 145082066,
   "requests": 1200,
+  "rate": 1200.0,
   "success": 0.11666666666666667,
   "status_codes": {
     "0": 1060,
