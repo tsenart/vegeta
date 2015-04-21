@@ -206,7 +206,7 @@ Specifies the kind of report to be generated. It defaults to text.
 
 ##### text
 ```
-Requests      [total]                   1200
+Requests      [total, rate]             1200, 120.00
 Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
 Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
 Bytes In      [total, mean]             3714690, 3095.57
@@ -301,6 +301,46 @@ Dumps attack results as JSON objects.
 Dumps attack results as CSV records with six columns.
 The columns are: unix timestamp in ns since epoch, http status code,
 request latency in ns, bytes out, bytes in, and lastly the error.
+
+## Usage: Distributed attacks
+Whenever your load test can't be conducted due to Vegeta hitting machine limits
+such as open files, memory, CPU or network bandwidth, it's a good idea to use Vegeta in a distributed manner.
+
+In a hypothetical scenario where the desired attack rate is 60k requests per second,
+let's assume we have 3 machines with `vegeta` installed.
+
+Make sure open file descriptor and process limits are set to a high number for your user **on each machine**
+using the `ulimit` command.
+
+We're ready to start the attack. All we need to do is to divide the intended rate by the number of machines,
+and use that number on each attack. Here we'll use [pdsh](https://code.google.com/p/pdsh/) for orchestration.
+
+```shell
+$ pdsh -b -w '10.0.1.1,10.0.2.1,10.0.3.1' \
+    'echo "GET http://target/" | vegeta attack -rate=20000 -duration=60s > result.bin'
+```
+
+After the previous command finishes, we can gather the result files to use on our report.
+
+```shell
+$ for machine in "10.0.1.1 10.0.2.1 10.0.3.1"; do
+    scp $machine:~/result.bin $machine.bin &
+  done
+```
+
+The `report` command accepts multiple result files in a comma separated list.
+It'll read and sort them by timestamp before generating reports.
+
+```shell
+$ vegeta report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
+Requests      [total, rate]         3600000, 60000.00
+Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
+Bytes In      [total, mean]         3714690, 3095.57
+Bytes Out     [total, mean]         0, 0.00
+Success       [ratio]               100.0%
+Status Codes  [code:count]          200:3600000
+Error Set:
+```
 
 ## Usage (Library)
 ```go
