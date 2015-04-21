@@ -145,7 +145,7 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for duration time. Results are put into the returned channel
 // as soon as they arrive.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) chan *Result {
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
 	workers := &sync.WaitGroup{}
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
