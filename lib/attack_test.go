@@ -75,7 +75,7 @@ func TestTimeout(t *testing.T) {
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
-	want := "net/http: timeout awaiting response headers"
+	want := "use of closed network connection"
 	if got := res.Error; !strings.HasSuffix(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
 	}
