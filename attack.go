@@ -186,7 +186,7 @@ func (h headers) Set(value string) error {
 	if key == "" || val == "" {
 		return fmt.Errorf("header '%s' has a wrong format", value)
 	}
-	h.Add(key, val)
+	h.Header[key] = append(h.Header[key], val)
 	return nil
 }
 
