@@ -177,6 +177,7 @@ func (h headers) String() string {
 	return buf.String()
 }
 
+// Set implements the flag.Value interface for a map of HTTP Headers.
 func (h headers) Set(value string) error {
 	parts := strings.SplitN(value, ":", 2)
 	if len(parts) != 2 {
@@ -186,7 +187,10 @@ func (h headers) Set(value string) error {
 	if key == "" || val == "" {
 		return fmt.Errorf("header '%s' has a wrong format", value)
 	}
-	h.Add(key, val)
+	// Add key/value directly to the http.Header (map[string][]string).
+	// http.Header.Add() cannonicalizes keys but vegeta is used
+	// to test systems that require case-sensitive headers.
+	h.Header[key] = append(h.Header[key], val)
 	return nil
 }
 
