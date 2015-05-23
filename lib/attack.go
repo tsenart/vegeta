@@ -102,7 +102,12 @@ func Redirects(n int) func(*Attacker) {
 // Timeout returns a functional option which sets the maximum amount of time
 // an Attacker will wait for a request to be responded to.
 func Timeout(d time.Duration) func(*Attacker) {
-	return func(a *Attacker) { a.client.Timeout = d }
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.ResponseHeaderTimeout = d
+		a.dialer.Timeout = d
+		tr.Dial = a.dialer.Dial
+	}
 }
 
 // LocalAddr returns a functional option which sets the local address
