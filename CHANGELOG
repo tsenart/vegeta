@@ -1,3 +1,6 @@
+2015-05-23: v5.7.1
+  Revert end-to-end attack timeout change
+
 2015-05-23: v5.7.0
   Allow case sensitve headers in attacks
 
