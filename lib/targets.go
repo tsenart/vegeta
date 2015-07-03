@@ -17,16 +17,29 @@ import (
 
 // Target is an HTTP request blueprint.
 type Target struct {
-	Method string
-	URL    string
-	Body   []byte
-	Header http.Header
+	Method            string
+	URL               string
+	Body              []byte
+	Header            http.Header
+	URLInterpolators  []URLInterpolator
+	BodyInterpolators []BodyInterpolator
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) Request() (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewBuffer(t.Body))
+	requestURL := t.URL
+	requestBody := t.Body
+
+	for _, interpolator := range t.URLInterpolators {
+		requestURL = interpolator.InterpolateURL(requestURL)
+	}
+
+	for _, interpolator := range t.BodyInterpolators {
+		requestBody = interpolator.InterpolateBody(requestBody)
+	}
+
+	req, err := http.NewRequest(t.Method, requestURL, bytes.NewBuffer(requestBody))
 	if err != nil {
 		return nil, err
 	}

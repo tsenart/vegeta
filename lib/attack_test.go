@@ -21,7 +21,7 @@ func TestAttackRate(t *testing.T) {
 	rate := uint64(100)
 	atk := NewAttacker()
 	var hits uint64
-	for range atk.Attack(tr, rate, 1*time.Second) {
+	for _ = range atk.Attack(tr, rate, 1*time.Second) {
 		hits++
 	}
 	if got, want := hits, rate; got != want {
