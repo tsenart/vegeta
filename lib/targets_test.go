@@ -2,11 +2,10 @@ package vegeta
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"reflect"
@@ -17,20 +16,31 @@ import (
 func TestTargetRequest(t *testing.T) {
 	t.Parallel()
 
-	body, err := ioutil.ReadAll(io.LimitReader(rand.Reader, 1024*512))
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := []byte(`{"id": "{foo}", "value": "bar"}`)
 
 	tgt := Target{
 		Method: "GET",
-		URL:    "http://:9999/",
+		URL:    "http://{foo}:9999/",
 		Body:   body,
 		Header: http.Header{
 			"X-Some-Header":       []string{"1"},
 			"X-Some-Other-Header": []string{"2"},
 			"X-Some-New-Header":   []string{"3"},
 			"Host":                []string{"lolcathost"},
+		},
+		URLInterpolators: []URLInterpolator{
+			&RandomNumericInterpolation{
+				Key:   "{foo}",
+				Limit: int(^uint(0) >> 1),
+				Rand:  rand.New(rand.NewSource(1435875839)),
+			},
+		},
+		BodyInterpolators: []BodyInterpolator{
+			&RandomNumericInterpolation{
+				Key:   "{foo}",
+				Limit: int(^uint(0) >> 1),
+				Rand:  rand.New(rand.NewSource(1435875839)),
+			},
 		},
 	}
 	req, _ := tgt.Request()
@@ -40,8 +50,12 @@ func TestTargetRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(tgt.Body, reqBody) {
+	if !bytes.Equal([]byte(`{"id": "2290778204292519845", "value": "bar"}`), reqBody) {
 		t.Fatalf("Target body wasn't copied correctly")
+	}
+
+	if req.URL.String() != "http://2290778204292519845:9999/" {
+		t.Fatalf("Target URL wasn't resolved correctly")
 	}
 
 	tgt.Header.Set("X-Stuff", "0")
