@@ -1,3 +1,6 @@
+2015-08-11: v5.8.0
+  Change reporters quantile estimation method to match R's 8th type.
+
 2015-05-23: v5.7.1
   Revert end-to-end attack timeout change
 
