@@ -262,6 +262,8 @@ out.
 Input a different number on the bottom left corner input field
 to change the moving average window size (in data points).
 
+Each point on the plot shows a request, the X axis represents the time at the start of the request and the Y axis represents the time taken to complete that request.
+
 ![Plot](http://i.imgur.com/oi0cgGq.png)
 
 ##### hist
