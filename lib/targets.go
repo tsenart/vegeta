@@ -107,7 +107,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			return nil, fmt.Errorf("bad target: %s", line)
 		}
 		switch tokens[0] {
-		case "HEAD", "GET", "PUT", "POST", "PATCH", "OPTIONS":
+		case "HEAD", "GET", "PUT", "POST", "PATCH", "OPTIONS", "DELETE":
 			tgt.Method = tokens[0]
 		default:
 			return nil, fmt.Errorf("bad method: %s", tokens[0])
@@ -148,7 +148,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	}
 }
 
-var httpMethodChecker = regexp.MustCompile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS) ")
+var httpMethodChecker = regexp.MustCompile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS|DELETE) ")
 
 func startsWithHTTPMethod(t string) bool {
 	return httpMethodChecker.MatchString(t)

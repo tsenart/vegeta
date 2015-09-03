@@ -128,6 +128,8 @@ func TestNewLazyTargeter(t *testing.T) {
 
 		PUT https://:6060/123
 
+		DELETE http://moo:443/boo
+
 		POST http://foobar.org/fnord
 		Authorization: x12345
 		@`, bodyf.Name(),
@@ -148,6 +150,12 @@ func TestNewLazyTargeter(t *testing.T) {
 		{
 			Method: "PUT",
 			URL:    "https://:6060/123",
+			Body:   []byte{},
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
+		},
+		{
+			Method: "DELETE",
+			URL:    "http://moo:443/boo",
 			Body:   []byte{},
 			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
