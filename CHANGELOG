@@ -1,3 +1,6 @@
+2015-09-04: v5.8.1
+  Fix support for DELETE methods in targets
+
 2015-08-11: v5.8.0
   Change reporters quantile estimation method to match R's 8th type.
 
