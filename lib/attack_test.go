@@ -17,7 +17,7 @@ func TestAttackRate(t *testing.T) {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	rate := uint64(100)
 	atk := NewAttacker()
 	var hits uint64
@@ -45,7 +45,7 @@ func TestRedirects(t *testing.T) {
 	)
 	redirects := 2
 	atk := NewAttacker(Redirects(redirects))
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
 	want := fmt.Sprintf("stopped after %d redirects", redirects)
 	if got := res.Error; !strings.HasSuffix(got, want) {
@@ -60,7 +60,7 @@ func TestNoFollow(t *testing.T) {
 		}),
 	)
 	atk := NewAttacker(Redirects(NoFollow))
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	if res := atk.hit(tr, time.Now()); res.Error != "" {
 		t.Fatalf("got err: %v", res.Error)
 	}
@@ -73,7 +73,7 @@ func TestTimeout(t *testing.T) {
 		}),
 	)
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
 	want := "net/http: timeout awaiting response headers"
 	if got := res.Error; !strings.HasSuffix(got, want) {
@@ -96,7 +96,7 @@ func TestLocalAddr(t *testing.T) {
 		}),
 	)
 	atk := NewAttacker(LocalAddr(*addr))
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	atk.hit(tr, time.Now())
 }
 
@@ -126,7 +126,7 @@ func TestStatusCodeErrors(t *testing.T) {
 		}),
 	)
 	atk := NewAttacker()
-	tr := NewStaticTargeter(&Target{Method: "GET", URL: server.URL})
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
 	if got, want := res.Error, "400 Bad Request"; got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
@@ -135,7 +135,7 @@ func TestStatusCodeErrors(t *testing.T) {
 
 func TestBadTargeterError(t *testing.T) {
 	atk := NewAttacker()
-	tr := func() (*Target, error) { return nil, io.EOF }
+	tr := func(*Target) error { return io.EOF }
 	res := atk.hit(tr, time.Now())
 	if got, want := res.Error, io.EOF.Error(); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)

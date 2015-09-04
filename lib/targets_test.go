@@ -66,7 +66,7 @@ func TestNewEagerTargeter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
-	for _, want := range []*Target{
+	for _, want := range []Target{
 		{
 			Method: "GET",
 			URL:    "http://:6060/",
@@ -80,7 +80,8 @@ func TestNewEagerTargeter(t *testing.T) {
 			Header: http.Header{},
 		},
 	} {
-		if got, err := read(); err != nil {
+		var got Target
+		if err := read(&got); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(want, got) {
 			t.Fatalf("want: %#v, got: %#v", want, got)
@@ -108,7 +109,7 @@ func TestNewLazyTargeter(t *testing.T) {
 	} {
 		src := bytes.NewBufferString(strings.TrimSpace(def))
 		read := NewLazyTargeter(src, []byte{}, http.Header{})
-		if _, got := read(); got == nil || !strings.HasPrefix(got.Error(), want.Error()) {
+		if got := read(&Target{}); got == nil || !strings.HasPrefix(got.Error(), want.Error()) {
 			t.Errorf("got: %s, want: %s\n%s", got, want, def)
 		}
 	}
@@ -137,7 +138,7 @@ func TestNewLazyTargeter(t *testing.T) {
 
 	src := bytes.NewBufferString(strings.TrimSpace(targets))
 	read := NewLazyTargeter(src, []byte{}, http.Header{"Content-Type": []string{"text/plain"}})
-	for _, want := range []*Target{
+	for _, want := range []Target{
 		{
 			Method: "GET",
 			URL:    "http://:6060/",
@@ -169,15 +170,33 @@ func TestNewLazyTargeter(t *testing.T) {
 			},
 		},
 	} {
-		if got, err := read(); err != nil {
+		var got Target
+		if err := read(&got); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(want, got) {
 			t.Fatalf("want: %#v, got: %#v", want, got)
 		}
 	}
-	if got, err := read(); err != ErrNoTargets {
+	var got Target
+	if err := read(&got); err != ErrNoTargets {
 		t.Fatalf("got: %v, want: %v", err, ErrNoTargets)
-	} else if got != nil {
+	} else if !reflect.DeepEqual(got, Target{}) {
 		t.Fatalf("got: %v, want: %v", got, nil)
+	}
+}
+
+func TestErrNilTarget(t *testing.T) {
+	eager, err := NewEagerTargeter(strings.NewReader("GET http://foo.bar"), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, tr := range []Targeter{
+		NewStaticTargeter(Target{Method: "GET", URL: "http://foo.bar"}),
+		NewLazyTargeter(strings.NewReader("GET http://foo.bar"), nil, nil),
+		eager,
+	} {
+		if got, want := tr(nil), ErrNilTarget; got != want {
+			t.Errorf("test #%d: got: %v, want: %v", i, got, want)
+		}
 	}
 }

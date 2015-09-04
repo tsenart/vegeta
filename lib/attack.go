@@ -190,6 +190,7 @@ func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan tim
 func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	var (
 		res = Result{Timestamp: tm}
+		tgt Target
 		err error
 	)
 
@@ -200,8 +201,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		}
 	}()
 
-	tgt, err := tr()
-	if err != nil {
+	if err = tr(&tgt); err != nil {
 		return &res
 	}
 
