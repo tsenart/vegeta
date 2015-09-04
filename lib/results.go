@@ -2,8 +2,10 @@ package vegeta
 
 import (
 	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"io"
-	"sync"
+	"sort"
 	"time"
 )
 
@@ -22,45 +24,88 @@ type Result struct {
 	Error     string        `json:"error"`
 }
 
-// Collect concurrently reads Results from multiple io.Readers until all of
-// them return io.EOF. Each read Result is passed to the returned Results channel
-// while errors will be put in the returned error channel.
-func Collect(in ...io.Reader) (<-chan *Result, <-chan error) {
-	var wg sync.WaitGroup
-	resc := make(chan *Result)
-	errs := make(chan error)
+// End returns the time at which a Result ended.
+func (r *Result) End() time.Time { return r.Timestamp.Add(r.Latency) }
 
-	for i := range in {
-		wg.Add(1)
-		go func(src io.Reader) {
-			dec := gob.NewDecoder(src)
-			for {
-				var r Result
-				if err := dec.Decode(&r); err != nil {
-					if err == io.EOF {
-						wg.Done()
-						return
-					}
-					errs <- err
-					continue
-				}
-				resc <- &r
-			}
-		}(in[i])
+// Results is a slice of Results.
+type Results []Result
+
+// Add implements the Add method of the Report interface by appending the given
+// Result to the slice.
+func (rs *Results) Add(r *Result) { *rs = append(*rs, *r) }
+
+// Close implements the Close method of the Report interface by sorting the
+// Results.
+func (rs *Results) Close() { sort.Sort(rs) }
+
+// The following methods implement sort.Interface
+func (rs Results) Len() int           { return len(rs) }
+func (rs Results) Less(i, j int) bool { return rs[i].Timestamp.Before(rs[j].Timestamp) }
+func (rs Results) Swap(i, j int)      { rs[i], rs[j] = rs[j], rs[i] }
+
+// A Decoder decodes a Result and returns an error in case of failure.
+type Decoder func(*Result) error
+
+// NewDecoder returns a new Result decoder closure for the given io.Readers.
+// It round robins across the io.Readers on every invocation and decoding error.
+func NewDecoder(readers ...io.Reader) Decoder {
+	dec := make([]*gob.Decoder, len(readers))
+	for i := range readers {
+		dec[i] = gob.NewDecoder(readers[i])
 	}
-
-	go func() {
-		wg.Wait()
-		close(resc)
-		close(errs)
-	}()
-
-	return resc, errs
+	var seq uint64
+	return func(r *Result) (err error) {
+		for range dec {
+			robin := seq % uint64(len(dec))
+			seq++
+			if err = dec[robin].Decode(r); err != nil {
+				continue
+			}
+			return nil
+		}
+		return err
+	}
 }
 
-// Results is a slice of pointers to results with sorting behavior attached.
-type Results []*Result
+// Decode is an an adapter method calling the Decoder function itself with the
+// given parameters.
+func (dec Decoder) Decode(r *Result) error { return dec(r) }
 
-func (r Results) Len() int           { return len(r) }
-func (r Results) Less(i, j int) bool { return r[i].Timestamp.Before(r[j].Timestamp) }
-func (r Results) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
+// An Encoder encodes a Result and returns an error in case of failure.
+type Encoder func(*Result) error
+
+// NewEncoder returns a new Result encoder closure for the given io.Writer
+func NewEncoder(r io.Writer) Encoder {
+	enc := gob.NewEncoder(r)
+	return func(r *Result) error {
+		return enc.Encode(r)
+	}
+}
+
+// Encode is an an adapter method calling the Encoder function itself with the
+// given parameters.
+func (enc Encoder) Encode(r *Result) error { return enc(r) }
+
+// NewCSVEncoder returns an Encoder that dumps the given *Result as a CSV
+// record with six columns. The columns are: UNIX timestamp in ns since epoch,
+// HTTP status code, request latency in ns, bytes out, bytes in, and lastly the error.
+func NewCSVEncoder(w io.Writer) Encoder {
+	return func(r *Result) error {
+		_, err := fmt.Fprintf(w, "%d,%d,%d,%d,%d,\"%s\"\n",
+			r.Timestamp.UnixNano(),
+			r.Code,
+			r.Latency.Nanoseconds(),
+			r.BytesOut,
+			r.BytesIn,
+			r.Error,
+		)
+		return err
+	}
+}
+
+// NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
+// object.
+func NewJSONEncoder(w io.Writer) Encoder {
+	enc := json.NewEncoder(w)
+	return func(r *Result) error { return enc.Encode(r) }
+}

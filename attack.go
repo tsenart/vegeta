@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/x509"
-	"encoding/gob"
 	"errors"
 	"flag"
 	"fmt"
@@ -143,7 +142,7 @@ func attack(opts *attackOpts) (err error) {
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)
-	enc := gob.NewEncoder(out)
+	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 

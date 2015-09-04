@@ -1,147 +1,152 @@
 package vegeta
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
-// Reporter is an interface defining Report computation.
-type Reporter interface {
-	Report(Results) ([]byte, error)
+// A Report represents the state a Reporter uses to write out its reports.
+type Report interface {
+	// Add adds a given *Result to a Report.
+	Add(*Result)
 }
 
-// ReporterFunc is an adapter to allow the use of ordinary functions as
-// Reporters. If f is a function with the appropriate signature, ReporterFunc(f)
-// is a Reporter object that calls f.
-type ReporterFunc func(Results) ([]byte, error)
+// Closer wraps the optional Report Close method.
+type Closer interface {
+	// Close permantently closes a Report, running any necessary book keeping.
+	Close()
+}
 
-// Report implements the Reporter interface.
-func (f ReporterFunc) Report(r Results) ([]byte, error) { return f(r) }
+// A Reporter function writes out reports to the given io.Writer or returns an
+// error in case of failure.
+type Reporter func(io.Writer) error
 
-// HistogramReporter is a reporter that computes latency histograms with the
-// given buckets.
-type HistogramReporter []time.Duration
+// Report is a convenience method wrapping the Reporter function type.
+func (rep Reporter) Report(w io.Writer) error { return rep(w) }
 
-// Report implements the Reporter interface.
-func (h HistogramReporter) Report(r Results) ([]byte, error) {
-	var buf bytes.Buffer
-	w := tabwriter.NewWriter(&buf, 0, 8, 2, ' ', tabwriter.StripEscape)
-
-	bucket := func(i int) string {
-		if i+1 >= len(h) {
-			return fmt.Sprintf("[%s,\t+Inf]", h[i])
+// NewHistogramReporter returns a Reporter that writes out a Histogram as
+// aligned, formatted text.
+func NewHistogramReporter(h *Histogram) Reporter {
+	return func(w io.Writer) (err error) {
+		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+		if _, err = fmt.Fprintf(tw, "Bucket\t\t#\t%%\tHistogram\n"); err != nil {
+			return err
 		}
-		return fmt.Sprintf("[%s,\t%s]", h[i], h[i+1])
-	}
 
-	fmt.Fprintf(w, "Bucket\t\t#\t%%\tHistogram\n")
-	for i, count := range Histogram(h, r) {
-		ratio := float64(count) / float64(len(r))
-		fmt.Fprintf(w, "%s\t%d\t%.2f%%\t%s\n",
-			bucket(i),
-			count,
-			ratio*100,
-			strings.Repeat("#", int(ratio*75)),
-		)
-	}
+		for i, count := range h.Counts {
+			ratio := float64(count) / float64(h.Total)
+			lo, hi := h.Buckets.Nth(i)
+			pad := strings.Repeat("#", int(ratio*75))
+			_, err = fmt.Fprintf(tw, "[%s,\t%s]\t%d\t%.2f%%\t%s\n", lo, hi, count, ratio*100, pad)
+			if err != nil {
+				return nil
+			}
+		}
 
-	err := w.Flush()
-	return buf.Bytes(), err
+		return tw.Flush()
+	}
 }
 
-// Set implements the flag.Value interface.
-func (h *HistogramReporter) Set(value string) error {
-	if len(value) < 2 || value[0] != '[' || value[len(value)-1] != ']' {
-		return fmt.Errorf("bad buckets: %s", value)
+// NewTextReporter returns a Reporter that writes out Metrics as aligned,
+// formatted text.
+func NewTextReporter(m *Metrics) Reporter {
+	const fmtstr = "Requests\t[total, rate]\t%d, %.2f\n" +
+		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
+		"Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n" +
+		"Bytes In\t[total, mean]\t%d, %.2f\n" +
+		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
+		"Success\t[ratio]\t%.2f%%\n" +
+		"Status Codes\t[code:count]\t"
+
+	return func(w io.Writer) (err error) {
+		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+		if _, err = fmt.Fprintf(tw, fmtstr,
+			m.Requests, m.Rate,
+			m.Duration+m.Wait, m.Duration, m.Wait,
+			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
+			m.BytesIn.Total, m.BytesIn.Mean,
+			m.BytesOut.Total, m.BytesOut.Mean,
+			m.Success*100,
+		); err != nil {
+			return err
+		}
+
+		for code, count := range m.StatusCodes {
+			if _, err = fmt.Fprintf(tw, "%s:%d  ", code, count); err != nil {
+				return err
+			}
+		}
+
+		if _, err = fmt.Fprintln(tw, "\nError Set:"); err != nil {
+			return err
+		}
+
+		for _, e := range m.Errors {
+			if _, err = fmt.Fprintln(tw, e); err != nil {
+				return err
+			}
+		}
+
+		return tw.Flush()
 	}
-	for _, v := range strings.Split(value[1:len(value)-1], ",") {
-		d, err := time.ParseDuration(strings.TrimSpace(v))
+}
+
+// NewJSONReporter returns a Reporter that writes out Metrics as JSON.
+func NewJSONReporter(m *Metrics) Reporter {
+	return func(w io.Writer) error {
+		return json.NewEncoder(w).Encode(m)
+	}
+}
+
+// NewPlotReporter returns a Reporter that writes a self-contained
+// HTML page with an interactive plot of the latencies of Requests, built with
+// http://dygraphs.com/
+func NewPlotReporter(rs *Results) Reporter {
+	return func(w io.Writer) (err error) {
+		_, err = fmt.Fprintf(w, plotsTemplateHead, asset(dygraphs), asset(html2canvas))
 		if err != nil {
 			return err
 		}
-		*h = append(*h, d)
-	}
-	if len(*h) == 0 {
-		return fmt.Errorf("bad buckets: %s", value)
-	}
-	return nil
-}
 
-// String implements the fmt.Stringer interface.
-func (h HistogramReporter) String() string {
-	strs := make([]string, len(h))
-	for i := range strs {
-		strs[i] = strconv.FormatInt(int64(h[i]), 10)
-	}
-	return "[" + strings.Join(strs, ",") + "]"
-}
+		buf := make([]byte, 0, 128)
+		for i, result := range *rs {
+			buf = append(buf, '[')
+			buf = append(buf, strconv.FormatFloat(
+				result.Timestamp.Sub((*rs)[0].Timestamp).Seconds(), 'f', -1, 32)...)
+			buf = append(buf, ',')
 
-// ReportText returns a computed Metrics struct as aligned, formatted text.
-var ReportText ReporterFunc = func(r Results) ([]byte, error) {
-	m := NewMetrics(r)
-	out := &bytes.Buffer{}
+			latency := strconv.FormatFloat(result.Latency.Seconds()*1000, 'f', -1, 32)
+			if result.Error == "" {
+				buf = append(buf, "NaN,"...)
+				buf = append(buf, latency...)
+				buf = append(buf, ']', ',')
+			} else {
+				buf = append(buf, latency...)
+				buf = append(buf, ",NaN],"...)
+			}
 
-	w := tabwriter.NewWriter(out, 0, 8, 2, '\t', tabwriter.StripEscape)
-	fmt.Fprintf(w, "Requests\t[total, rate]\t%d, %.2f\n", m.Requests, m.Rate)
-	fmt.Fprintf(w, "Duration\t[total, attack, wait]\t%s, %s, %s\n", m.Duration+m.Wait, m.Duration, m.Wait)
-	fmt.Fprintf(w, "Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n",
-		m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max)
-	fmt.Fprintf(w, "Bytes In\t[total, mean]\t%d, %.2f\n", m.BytesIn.Total, m.BytesIn.Mean)
-	fmt.Fprintf(w, "Bytes Out\t[total, mean]\t%d, %.2f\n", m.BytesOut.Total, m.BytesOut.Mean)
-	fmt.Fprintf(w, "Success\t[ratio]\t%.2f%%\n", m.Success*100)
-	fmt.Fprintf(w, "Status Codes\t[code:count]\t")
-	for code, count := range m.StatusCodes {
-		fmt.Fprintf(w, "%s:%d  ", code, count)
-	}
-	fmt.Fprintln(w, "\nError Set:")
-	for _, err := range m.Errors {
-		fmt.Fprintln(w, err)
-	}
+			if i == len(*rs)-1 {
+				buf = buf[:len(buf)-1]
+			}
 
-	if err := w.Flush(); err != nil {
-		return []byte{}, err
-	}
-	return out.Bytes(), nil
-}
+			if _, err = w.Write(buf); err != nil {
+				return err
+			}
 
-// ReportJSON writes a computed Metrics struct to as JSON
-var ReportJSON ReporterFunc = func(r Results) ([]byte, error) {
-	return json.Marshal(NewMetrics(r))
-}
-
-// ReportPlot builds up a self contained HTML page with an interactive plot
-// of the latencies of the requests. Built with http://dygraphs.com/
-var ReportPlot ReporterFunc = func(r Results) ([]byte, error) {
-	var series []byte
-	for i := range r {
-		series = append(series, '[')
-		series = append(series, strconv.FormatFloat(
-			r[i].Timestamp.Sub(r[0].Timestamp).Seconds(), 'f', -1, 32)...)
-		series = append(series, ',')
-
-		latency := strconv.FormatFloat(r[i].Latency.Seconds()*1000, 'f', -1, 32)
-		if r[i].Error == "" {
-			series = append(series, "NaN,"...)
-			series = append(series, latency...)
-			series = append(series, ']', ',')
-		} else {
-			series = append(series, latency...)
-			series = append(series, ",NaN],"...)
+			buf = buf[:0]
 		}
+
+		_, err = w.Write([]byte(plotsTemplateTail))
+		return err
 	}
-	// Remove trailing commas
-	if len(series) > 0 {
-		series = series[:len(series)-1]
-	}
-	return []byte(fmt.Sprintf(plotsTemplate, asset(dygraphs), asset(html2canvas), series)), nil
 }
 
-const plotsTemplate = `<!doctype html>
+const (
+	plotsTemplateHead = `<!doctype html>
 <html>
 <head>
   <title>Vegeta Plots</title>
@@ -154,7 +159,8 @@ const plotsTemplate = `<!doctype html>
   <script>
   new Dygraph(
     document.getElementById("latencies"),
-    [%s],
+    [`
+	plotsTemplateTail = `],
     {
       title: 'Vegeta Plot',
       labels: ['Seconds', 'ERR', 'OK'],
@@ -179,3 +185,4 @@ const plotsTemplate = `<!doctype html>
   </script>
 </body>
 </html>`
+)

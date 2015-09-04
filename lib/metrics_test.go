@@ -6,46 +6,61 @@ import (
 	"time"
 )
 
-func TestNewMetrics(t *testing.T) {
+func TestMetrics_Add(t *testing.T) {
 	t.Parallel()
 
-	want := &Metrics{
-		Latencies: LatencyMetrics{
-			Mean: 112100000,
-			P50:  115000000,
-			P95:  200000000,
-			P99:  200000000,
-			Max:  200000000,
-		},
-		BytesIn:     ByteMetrics{Total: 170, Mean: 17.00},
-		BytesOut:    ByteMetrics{Total: 230, Mean: 23.00},
-		Duration:    9 * time.Second,
-		Wait:        190 * time.Millisecond,
-		Requests:    10,
-		Rate:        1.1111111111111112,
-		Success:     0.9,
-		StatusCodes: map[string]int{"500": 1, "200": 7, "302": 2},
-		Errors:      []string{"Internal server error"},
+	codes := []uint16{500, 200, 302}
+	errors := []string{"Internal server error", ""}
+
+	var got Metrics
+	for i := 1; i <= 10000; i++ {
+		got.Add(&Result{
+			Code:      codes[i%len(codes)],
+			Timestamp: time.Unix(int64(i-1), 0),
+			Latency:   time.Duration(i) * time.Microsecond,
+			BytesIn:   1024,
+			BytesOut:  512,
+			Error:     errors[i%len(errors)],
+		})
+	}
+	got.Close()
+
+	duration := func(s string) time.Duration {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			panic(err)
+		}
+		return d
 	}
 
-	got := NewMetrics(Results{
-		&Result{500, time.Unix(0, 0), 100 * time.Millisecond, 10, 30, "Internal server error"},
-		&Result{200, time.Unix(1, 0), 20 * time.Millisecond, 20, 20, ""},
-		&Result{302, time.Unix(2, 0), 10 * time.Millisecond, 20, 20, ""},
-		&Result{200, time.Unix(3, 0), 75 * time.Millisecond, 30, 10, ""},
-		&Result{200, time.Unix(4, 0), 200 * time.Millisecond, 20, 20, ""},
-		&Result{200, time.Unix(5, 0), 110 * time.Millisecond, 20, 20, ""},
-		&Result{302, time.Unix(6, 0), 120 * time.Millisecond, 20, 20, ""},
-		&Result{200, time.Unix(7, 0), 130 * time.Millisecond, 30, 10, ""},
-		&Result{200, time.Unix(8, 0), 166 * time.Millisecond, 30, 10, ""},
-		&Result{200, time.Unix(9, 0), 190 * time.Millisecond, 30, 10, ""},
-	})
+	want := Metrics{
+		Latencies: LatencyMetrics{
+			Total: duration("50.005s"),
+			Mean:  duration("5.0005ms"),
+			P50:   duration("4.991ms"),
+			P95:   duration("9.509ms"),
+			P99:   duration("9.898ms"),
+			Max:   duration("10ms"),
+		},
+		BytesIn:     ByteMetrics{Total: 10240000, Mean: 1024},
+		BytesOut:    ByteMetrics{Total: 5120000, Mean: 512},
+		Earliest:    time.Unix(0, 0),
+		Latest:      time.Unix(9999, 0),
+		End:         time.Unix(9999, 0).Add(10000 * time.Microsecond),
+		Duration:    duration("2h46m39s"),
+		Wait:        duration("10ms"),
+		Requests:    10000,
+		Rate:        1.000100010001,
+		Success:     0.6667,
+		StatusCodes: map[string]int{"500": 3333, "200": 3334, "302": 3333},
+		Errors:      []string{"Internal server error"},
+
+		errors:    got.errors,
+		success:   got.success,
+		latencies: got.latencies,
+	}
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("\ngot:  %+v\nwant: %+v", got, want)
 	}
-}
-
-func TestNewMetricsEmptyResults(t *testing.T) {
-	_ = NewMetrics(Results{}) // Must not panic
 }

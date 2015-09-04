@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -23,11 +21,6 @@ func dumpCmd() command {
 }
 
 func dump(dumper, inputs, output string) error {
-	dump, ok := dumpers[dumper]
-	if !ok {
-		return fmt.Errorf("unsupported dumper: %s", dumper)
-	}
-
 	files := strings.Split(inputs, ",")
 	srcs := make([]io.Reader, len(files))
 	for i, f := range files {
@@ -38,6 +31,7 @@ func dump(dumper, inputs, output string) error {
 		defer in.Close()
 		srcs[i] = in
 	}
+	dec := vegeta.NewDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
@@ -45,34 +39,27 @@ func dump(dumper, inputs, output string) error {
 	}
 	defer out.Close()
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
-	res, errs := vegeta.Collect(srcs...)
+	var enc vegeta.Encoder
+	switch dumper {
+	case "csv":
+		enc = vegeta.NewCSVEncoder(out)
+	case "json":
+		enc = vegeta.NewJSONEncoder(out)
+	default:
+		return fmt.Errorf("unsupported dumper: %s", dumper)
+	}
 
 	for {
-		select {
-		case _ = <-sig:
-			return nil
-		case r, ok := <-res:
-			if !ok {
-				return nil
+		var r vegeta.Result
+		if err = dec.Decode(&r); err != nil {
+			if err == io.EOF {
+				break
 			}
-			dmp, err := dump.Dump(r)
-			if err != nil {
-				return err
-			} else if _, err = out.Write(dmp); err != nil {
-				return err
-			}
-		case err, ok := <-errs:
-			if !ok {
-				return nil
-			}
+			return err
+		} else if err = enc.Encode(&r); err != nil {
 			return err
 		}
 	}
-}
 
-var dumpers = map[string]vegeta.Dumper{
-	"csv":  vegeta.DumpCSV,
-	"json": vegeta.DumpJSON,
+	return nil
 }

@@ -1,22 +1,28 @@
 package vegeta
 
 import (
-	"math"
-	"sort"
 	"strconv"
 	"time"
+
+	"github.com/streadway/quantile"
 )
 
 type (
 	// Metrics holds metrics computed out of a slice of Results which are used
 	// in some of the Reporters
 	Metrics struct {
-		// Latencies holds computed latency metrics.
+		// Latencies holds computed request latency metrics.
 		Latencies LatencyMetrics `json:"latencies"`
 		// BytesIn holds computed incoming byte metrics.
 		BytesIn ByteMetrics `json:"bytes_in"`
 		// BytesOut holds computed outgoing byte metrics.
 		BytesOut ByteMetrics `json:"bytes_out"`
+		// First is the earliest timestamp in a Result set.
+		Earliest time.Time `json:"earliest"`
+		// Latest is the latest timestamp in a Result set.
+		Latest time.Time `json:"latest"`
+		// End is the latest timestamp in a Result set plus its latency.
+		End time.Time `json:"end"`
 		// Duration is the duration of the attack.
 		Duration time.Duration `json:"duration"`
 		// Wait is the extra time waiting for responses from targets.
@@ -31,10 +37,16 @@ type (
 		StatusCodes map[string]int `json:"status_codes"`
 		// Errors is a set of unique errors returned by the targets during the attack.
 		Errors []string `json:"errors"`
+
+		errors    map[string]struct{}
+		success   uint64
+		latencies *quantile.Estimator
 	}
 
 	// LatencyMetrics holds computed request latency metrics.
 	LatencyMetrics struct {
+		// Total is the total latency sum of all requests in an attack.
+		Total time.Duration `json:"total"`
 		// Mean is the mean request latency.
 		Mean time.Duration `json:"mean"`
 		// P50 is the 50th percentile request latency.
@@ -56,96 +68,73 @@ type (
 	}
 )
 
-// NewMetrics computes and returns a Metrics struct out of a slice of Results
-// pre-sorted by timestamp.
-func NewMetrics(r Results) *Metrics {
-	m := &Metrics{StatusCodes: map[string]int{}}
-
-	if len(r) == 0 {
-		return m
+// Add implements the Add method of the Report interface by adding the given
+// Result to Metrics.
+func (m *Metrics) Add(r *Result) {
+	if m.StatusCodes == nil {
+		m.StatusCodes = map[string]int{}
 	}
 
-	var (
-		errorSet       = map[string]struct{}{}
-		latencies      = make([]float64, len(r))
-		totalSuccess   int
-		totalLatencies time.Duration
-		latest         time.Time
-	)
-
-	for i, result := range r {
-		latencies[i] = float64(result.Latency)
-		m.StatusCodes[strconv.Itoa(int(result.Code))]++
-		totalLatencies += result.Latency
-		m.BytesOut.Total += result.BytesOut
-		m.BytesIn.Total += result.BytesIn
-		if end := result.Timestamp.Add(result.Latency); end.After(latest) {
-			latest = end
-		}
-		if result.Code >= 200 && result.Code < 400 {
-			totalSuccess++
-		}
-		if result.Error != "" {
-			errorSet[result.Error] = struct{}{}
-		}
+	if m.errors == nil {
+		m.Errors = []string{}
+		m.errors = map[string]struct{}{}
 	}
 
-	m.Requests = uint64(len(r))
-	m.Duration = r[len(r)-1].Timestamp.Sub(r[0].Timestamp)
+	if m.latencies == nil {
+		m.latencies = quantile.New(
+			quantile.Known(0.50, 0.01),
+			quantile.Known(0.95, 0.001),
+			quantile.Known(0.99, 0.0005),
+		)
+	}
+
+	m.Requests++
+	m.StatusCodes[strconv.Itoa(int(r.Code))]++
+	m.Latencies.Total += r.Latency
+	m.BytesOut.Total += r.BytesOut
+	m.BytesIn.Total += r.BytesIn
+
+	m.latencies.Add(float64(r.Latency))
+
+	if m.Earliest.IsZero() || m.Earliest.After(r.Timestamp) {
+		m.Earliest = r.Timestamp
+	}
+
+	if r.Timestamp.After(m.Latest) {
+		m.Latest = r.Timestamp
+	}
+
+	if end := r.End(); end.After(m.End) {
+		m.End = end
+	}
+
+	if r.Latency > m.Latencies.Max {
+		m.Latencies.Max = r.Latency
+	}
+
+	if r.Code >= 200 && r.Code < 400 {
+		m.success++
+	}
+
+	if r.Error != "" {
+		if _, ok := m.errors[r.Error]; !ok {
+			m.errors[r.Error] = struct{}{}
+			m.Errors = append(m.Errors, r.Error)
+		}
+	}
+}
+
+// Close implements the Close method of the Report interface by computing
+// derived summary metrics which don't need to be run on every Add call.
+func (m *Metrics) Close() {
+	m.Duration = m.Latest.Sub(m.Earliest)
 	m.Rate = float64(m.Requests) / m.Duration.Seconds()
-	m.Wait = latest.Sub(r[len(r)-1].Timestamp)
-	m.Latencies.Mean = time.Duration(float64(totalLatencies) / float64(m.Requests))
+	m.Wait = m.End.Sub(m.Latest)
 	m.BytesIn.Mean = float64(m.BytesIn.Total) / float64(m.Requests)
 	m.BytesOut.Mean = float64(m.BytesOut.Total) / float64(m.Requests)
-	m.Success = float64(totalSuccess) / float64(m.Requests)
-
-	sort.Float64s(latencies)
-	m.Latencies.P50 = time.Duration(.5 + quantileR8(0.50, latencies))
-	m.Latencies.P95 = time.Duration(.5 + quantileR8(0.95, latencies))
-	m.Latencies.P99 = time.Duration(.5 + quantileR8(0.99, latencies))
-	m.Latencies.Max = time.Duration(latencies[len(latencies)-1])
-
-	m.Errors = make([]string, 0, len(errorSet))
-	for err := range errorSet {
-		m.Errors = append(m.Errors, err)
-	}
-
-	return m
-}
-
-// quantileR8 computes the quantile p with R's type 8 estimation method.
-// The resulting quantile estimates are approximately median-unbiased
-// regardless of the distribution of x.
-func quantileR8(p float64, x []float64) float64 {
-	return quantile(p, 1/3.0, 1/3.0, x)
-}
-
-// quantile computes empirical quantiles for a slice of sorted float64s.
-// The implementation is an adaptation of scipy.stats.mstats.mquantiles. See:
-// http://docs.scipy.org/doc/scipy-0.15.1/reference/generated/scipy.stats.mstats.mquantiles.html
-func quantile(p, alphap, betap float64, x []float64) float64 {
-	switch len(x) {
-	case 0:
-		return 0
-	case 1:
-		return x[0]
-	}
-	m := alphap + p*(1-alphap-betap)
-	n := float64(len(x))
-	aleph := n*p + m
-	k := math.Floor(clip(aleph, 1, n-1))
-	gamma := clip(aleph-k, 0, 1)
-	return (1-gamma)*x[int(k)-1] + gamma*x[int(k)]
-}
-
-// clip clips a number n to the range [lo, hi]
-func clip(n, lo, hi float64) float64 {
-	switch {
-	case n < lo:
-		return lo
-	case n > hi:
-		return hi
-	default:
-		return n
-	}
+	m.Success = float64(m.success) / float64(m.Requests)
+	m.Latencies.Mean = time.Duration(float64(m.Latencies.Total) / float64(m.Requests))
+	m.Latencies.P50 = time.Duration(m.latencies.Get(0.50))
+	m.Latencies.P95 = time.Duration(m.latencies.Get(0.95))
+	m.Latencies.P99 = time.Duration(m.latencies.Get(0.99))
 }

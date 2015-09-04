@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -29,24 +28,6 @@ func report(reporter, inputs, output string) error {
 	if len(reporter) < 4 {
 		return fmt.Errorf("bad reporter: %s", reporter)
 	}
-	var rep vegeta.Reporter
-	switch reporter[:4] {
-	case "text":
-		rep = vegeta.ReportText
-	case "json":
-		rep = vegeta.ReportJSON
-	case "plot":
-		rep = vegeta.ReportPlot
-	case "hist":
-		if len(reporter) < 6 {
-			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
-		}
-		var hist vegeta.HistogramReporter
-		if err := hist.Set(reporter[4:]); err != nil {
-			return err
-		}
-		rep = hist
-	}
 
 	files := strings.Split(inputs, ",")
 	srcs := make([]io.Reader, len(files))
@@ -58,6 +39,7 @@ func report(reporter, inputs, output string) error {
 		defer in.Close()
 		srcs[i] = in
 	}
+	dec := vegeta.NewDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
@@ -65,34 +47,57 @@ func report(reporter, inputs, output string) error {
 	}
 	defer out.Close()
 
-	var results vegeta.Results
-	res, errs := vegeta.Collect(srcs...)
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	var (
+		rep    vegeta.Reporter
+		report vegeta.Report
+	)
 
-outer:
+	switch reporter[:4] {
+	case "text":
+		var m vegeta.Metrics
+		rep, report = vegeta.NewTextReporter(&m), &m
+	case "json":
+		var m vegeta.Metrics
+		rep, report = vegeta.NewJSONReporter(&m), &m
+	case "plot":
+		var rs vegeta.Results
+		rep, report = vegeta.NewPlotReporter(&rs), &rs
+	case "hist":
+		if len(reporter) < 6 {
+			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
+		}
+		var hist vegeta.Histogram
+		if err := hist.Buckets.UnmarshalText([]byte(reporter[4:])); err != nil {
+			return err
+		}
+		rep, report = vegeta.NewHistogramReporter(&hist), &hist
+	default:
+		return fmt.Errorf("unknown reporter: %q", reporter)
+	}
+
+	sigch := make(chan os.Signal, 1)
+	signal.Notify(sigch, os.Interrupt)
+
+decode:
 	for {
 		select {
-		case _ = <-sig:
-			break outer
-		case r, ok := <-res:
-			if !ok {
-				break outer
+		case <-sigch:
+			break decode
+		default:
+			var r vegeta.Result
+			if err = dec.Decode(&r); err != nil {
+				if err == io.EOF {
+					break decode
+				}
+				return err
 			}
-			results = append(results, r)
-		case err, ok := <-errs:
-			if !ok {
-				break outer
-			}
-			return err
+			report.Add(&r)
 		}
 	}
 
-	sort.Sort(results)
-	data, err := rep.Report(results)
-	if err != nil {
-		return err
+	if c, ok := report.(vegeta.Closer); ok {
+		c.Close()
 	}
-	_, err = out.Write(data)
-	return err
+
+	return rep.Report(out)
 }
