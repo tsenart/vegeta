@@ -157,6 +157,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		if err = sc.Err(); err != nil {
 			return ErrNoTargets
 		}
+		_ = sc.Peek()
 		return nil
 	}
 }

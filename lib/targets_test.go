@@ -134,6 +134,11 @@ func TestNewLazyTargeter(t *testing.T) {
 		POST http://foobar.org/fnord
 		Authorization: x12345
 		@`, bodyf.Name(),
+		`
+
+		POST http://foobar.org/fnord/2
+		Authorization: x67890
+		@`, bodyf.Name(),
 	)
 
 	src := bytes.NewBufferString(strings.TrimSpace(targets))
@@ -166,6 +171,15 @@ func TestNewLazyTargeter(t *testing.T) {
 			Body:   []byte("Hello world!"),
 			Header: http.Header{
 				"Authorization": []string{"x12345"},
+				"Content-Type":  []string{"text/plain"},
+			},
+		},
+		{
+			Method: "POST",
+			URL:    "http://foobar.org/fnord/2",
+			Body:   []byte("Hello world!"),
+			Header: http.Header{
+				"Authorization": []string{"x67890"},
 				"Content-Type":  []string{"text/plain"},
 			},
 		},
