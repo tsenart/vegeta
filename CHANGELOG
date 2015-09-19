@@ -1,3 +1,6 @@
+2015-09-19: v5.9.0
+  Bounded memory streaming reporters (#136)
+
 2015-09-04: v5.8.1
   Fix support for DELETE methods in targets
 
