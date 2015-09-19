@@ -226,32 +226,33 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```json
 {
   "latencies": {
-    "mean": 9093653647,
-    "50th": 2401223400,
-    "95th": 12553709381,
-    "99th": 12604629125,
-    "max": 12604629125
+    "total": 237119463,
+    "mean": 2371194,
+    "50th": 2854306,
+    "95th": 3478629,
+    "99th": 3530000,
+    "max": 3660505
   },
   "bytes_in": {
-    "total": 782040,
-    "mean": 651.7
+    "total": 606700,
+    "mean": 6067
   },
   "bytes_out": {
     "total": 0,
     "mean": 0
   },
-  "duration": 9949883921,
-  "wait": 145082066,
-  "requests": 1200,
-  "rate": 1200.0,
-  "success": 0.11666666666666667,
+  "earliest": "2015-09-19T14:45:50.645818631+02:00",
+  "latest": "2015-09-19T14:45:51.635818575+02:00",
+  "end": "2015-09-19T14:45:51.639325797+02:00",
+  "duration": 989999944,
+  "wait": 3507222,
+  "requests": 100,
+  "rate": 101.01010672380401,
+  "success": 1,
   "status_codes": {
-    "0": 1060,
-    "200": 140
+    "200": 100
   },
-  "errors": [
-    "Get http://localhost:6060: dial tcp 127.0.0.1:6060: operation timed out"
-  ]
+  "errors": []
 }
 ```
 ##### plot
