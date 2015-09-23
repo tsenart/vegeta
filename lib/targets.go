@@ -106,8 +106,15 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			return ErrNilTarget
 		}
 
-		if !sc.Scan() {
-			return ErrNoTargets
+		var line string
+		for {
+			if !sc.Scan() {
+				return ErrNoTargets
+			}
+			line = strings.TrimSpace(sc.Text())
+			if len(line) != 0 {
+				break
+			}
 		}
 
 		tgt.Body = body
@@ -115,7 +122,7 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		for k, vs := range hdr {
 			tgt.Header[k] = vs
 		}
-		line := strings.TrimSpace(sc.Text())
+
 		tokens := strings.SplitN(line, " ", 2)
 		if len(tokens) < 2 {
 			return fmt.Errorf("bad target: %s", line)
