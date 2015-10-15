@@ -352,28 +352,27 @@ Error Set:
 package main
 
 import (
-  "time"
   "fmt"
+  "time"
 
   vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func main() {
-
   rate := uint64(100) // per second
   duration := 4 * time.Second
-  targeter := vegeta.NewStaticTargeter(&vegeta.Target{
+  targeter := vegeta.NewStaticTargeter(vegeta.Target{
     Method: "GET",
     URL:    "http://localhost:9100/",
   })
   attacker := vegeta.NewAttacker()
 
-  var results vegeta.Results
+  var metrics vegeta.Metrics
   for res := range attacker.Attack(targeter, rate, duration) {
-    results = append(results, res)
+    metrics.Add(res)
   }
+  metrics.Close()
 
-  metrics := vegeta.NewMetrics(results)
   fmt.Printf("99th percentile: %s\n", metrics.Latencies.P99)
 }
 ```
