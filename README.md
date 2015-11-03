@@ -17,7 +17,7 @@ $ brew update && brew install vegeta
 ```
 
 ### Source
-You need go installed and `GOBIN` in your `PATH`. Once that is done, run the
+You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 ```shell
 $ go get github.com/tsenart/vegeta
