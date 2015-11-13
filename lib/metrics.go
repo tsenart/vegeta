@@ -71,22 +71,7 @@ type (
 // Add implements the Add method of the Report interface by adding the given
 // Result to Metrics.
 func (m *Metrics) Add(r *Result) {
-	if m.StatusCodes == nil {
-		m.StatusCodes = map[string]int{}
-	}
-
-	if m.errors == nil {
-		m.Errors = []string{}
-		m.errors = map[string]struct{}{}
-	}
-
-	if m.latencies == nil {
-		m.latencies = quantile.New(
-			quantile.Known(0.50, 0.01),
-			quantile.Known(0.95, 0.001),
-			quantile.Known(0.99, 0.0005),
-		)
-	}
+	m.init()
 
 	m.Requests++
 	m.StatusCodes[strconv.Itoa(int(r.Code))]++
@@ -127,6 +112,7 @@ func (m *Metrics) Add(r *Result) {
 // Close implements the Close method of the Report interface by computing
 // derived summary metrics which don't need to be run on every Add call.
 func (m *Metrics) Close() {
+	m.init()
 	m.Duration = m.Latest.Sub(m.Earliest)
 	m.Rate = float64(m.Requests) / m.Duration.Seconds()
 	m.Wait = m.End.Sub(m.Latest)
@@ -137,4 +123,22 @@ func (m *Metrics) Close() {
 	m.Latencies.P50 = time.Duration(m.latencies.Get(0.50))
 	m.Latencies.P95 = time.Duration(m.latencies.Get(0.95))
 	m.Latencies.P99 = time.Duration(m.latencies.Get(0.99))
+}
+
+func (m *Metrics) init() {
+	if m.StatusCodes == nil {
+		m.StatusCodes = map[string]int{}
+	}
+
+	if m.errors == nil {
+		m.errors = map[string]struct{}{}
+	}
+
+	if m.latencies == nil {
+		m.latencies = quantile.New(
+			quantile.Known(0.50, 0.01),
+			quantile.Known(0.95, 0.001),
+			quantile.Known(0.99, 0.0005),
+		)
+	}
 }
