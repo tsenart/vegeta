@@ -1,18 +1,16 @@
 package main
 
 import (
-	"bytes"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -28,7 +26,9 @@ func attackCmd() command {
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
-	fs.StringVar(&opts.certf, "cert", "", "x509 Certificate file")
+	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
+	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
+	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
@@ -57,6 +57,8 @@ type attackOpts struct {
 	outputf     string
 	bodyf       string
 	certf       string
+	keyf        string
+	rootCerts   csl
 	lazy        bool
 	duration    time.Duration
 	timeout     time.Duration
@@ -77,7 +79,7 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	files := map[string]io.Reader{}
-	for _, filename := range []string{opts.targetsf, opts.bodyf, opts.certf} {
+	for _, filename := range []string{opts.targetsf, opts.bodyf} {
 		if filename == "" {
 			continue
 		}
@@ -113,24 +115,16 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
-	var cert []byte
-	if certf, ok := files[opts.certf]; ok {
-		if cert, err = ioutil.ReadAll(certf); err != nil {
-			return fmt.Errorf("error reading %s: %s", opts.certf, err)
-		}
-	}
-	tlsc := *vegeta.DefaultTLSConfig
-	if opts.certf != "" {
-		if tlsc.RootCAs, err = certPool(cert); err != nil {
-			return err
-		}
+	tlsc, err := tlsConfig(opts.certf, opts.keyf, opts.rootCerts)
+	if err != nil {
+		return err
 	}
 
 	atk := vegeta.NewAttacker(
 		vegeta.Redirects(opts.redirects),
 		vegeta.Timeout(opts.timeout),
 		vegeta.LocalAddr(*opts.laddr.IPAddr),
-		vegeta.TLSConfig(&tlsc),
+		vegeta.TLSConfig(tlsc),
 		vegeta.Workers(opts.workers),
 		vegeta.KeepAlive(opts.keepalive),
 		vegeta.Connections(opts.connections),
@@ -157,51 +151,43 @@ func attack(opts *attackOpts) (err error) {
 	}
 }
 
-// headers is the http.Header used in each target request
-// it is defined here to implement the flag.Value interface
-// in order to support multiple identical flags for request header
-// specification
-type headers struct{ http.Header }
-
-func (h headers) String() string {
-	buf := &bytes.Buffer{}
-	if err := h.Write(buf); err != nil {
-		return ""
+// tlsConfig builds a *tls.Config from the given options.
+func tlsConfig(certf, keyf string, rootCerts []string) (*tls.Config, error) {
+	var err error
+	files := map[string][]byte{}
+	filenames := append([]string{certf, keyf}, rootCerts...)
+	for _, f := range filenames {
+		if f != "" {
+			if files[f], err = ioutil.ReadFile(f); err != nil {
+				return nil, err
+			}
+		}
 	}
-	return buf.String()
-}
 
-// Set implements the flag.Value interface for a map of HTTP Headers.
-func (h headers) Set(value string) error {
-	parts := strings.SplitN(value, ":", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("header '%s' has a wrong format", value)
+	var c tls.Config
+	if cert, ok := files[certf]; ok {
+		key, ok := files[keyf]
+		if !ok {
+			key = cert
+		}
+
+		certificate, err := tls.X509KeyPair(cert, key)
+		if err != nil {
+			return nil, err
+		}
+
+		c.Certificates = append(c.Certificates, certificate)
+		c.BuildNameToCertificate()
 	}
-	key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	if key == "" || val == "" {
-		return fmt.Errorf("header '%s' has a wrong format", value)
+
+	if len(rootCerts) > 0 {
+		c.RootCAs = x509.NewCertPool()
+		for _, f := range rootCerts {
+			if !c.RootCAs.AppendCertsFromPEM(files[f]) {
+				return nil, errBadCert
+			}
+		}
 	}
-	// Add key/value directly to the http.Header (map[string][]string).
-	// http.Header.Add() cannonicalizes keys but vegeta is used
-	// to test systems that require case-sensitive headers.
-	h.Header[key] = append(h.Header[key], val)
-	return nil
-}
 
-// localAddr implements the Flag interface for parsing net.IPAddr
-type localAddr struct{ *net.IPAddr }
-
-func (ip *localAddr) Set(value string) (err error) {
-	ip.IPAddr, err = net.ResolveIPAddr("ip", value)
-	return
-}
-
-// certPool returns a new *x509.CertPool with the passed cert included.
-// An error is returned if the cert is invalid.
-func certPool(cert []byte) (*x509.CertPool, error) {
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(cert) {
-		return nil, errBadCert
-	}
-	return pool, nil
+	return &c, nil
 }
