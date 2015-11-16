@@ -26,7 +26,7 @@ type Target struct {
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) Request() (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewBuffer(t.Body))
+	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
 	if err != nil {
 		return nil, err
 	}
