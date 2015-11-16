@@ -181,7 +181,14 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 }
 
 // Stop stops the current attack.
-func (a *Attacker) Stop() { close(a.stopch) }
+func (a *Attacker) Stop() {
+	select {
+	case <-a.stopch:
+		return
+	default:
+		close(a.stopch)
+	}
+}
 
 func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
 	workers.Add(1)
@@ -206,6 +213,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}()
 
 	if err = tr(&tgt); err != nil {
+		a.Stop()
 		return &res
 	}
 
