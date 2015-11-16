@@ -143,8 +143,9 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at
-// the rate specified for duration time. Results are put into the returned channel
-// as soon as they arrive.
+// the rate specified for duration time. When the duration is zero the attack
+// runs until Stop is called. Results are put into the returned channel as soon
+// as they arrive.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
 	workers := &sync.WaitGroup{}
 	results := make(chan *Result)
@@ -159,16 +160,19 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 		defer close(ticks)
 		interval := 1e9 / rate
 		hits := rate * uint64(du.Seconds())
-		for began, done := time.Now(), uint64(0); done < hits; done++ {
+		began, done := time.Now(), uint64(0)
+		for {
 			now, next := time.Now(), began.Add(time.Duration(done*interval))
 			time.Sleep(next.Sub(now))
 			select {
 			case ticks <- max(next, now):
+				if done++; done == hits {
+					return
+				}
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
 				go a.attack(tr, workers, ticks, results)
-				done--
 			}
 		}
 	}()
