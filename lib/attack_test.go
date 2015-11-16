@@ -25,7 +25,28 @@ func TestAttackRate(t *testing.T) {
 		hits++
 	}
 	if got, want := hits, rate; got != want {
-		t.Fatalf("got: %v, want: %v", rate, hits)
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestAttackDuration(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+	)
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	atk := NewAttacker()
+	time.AfterFunc(2*time.Second, func() { t.Fatal("Timed out") })
+
+	rate, hits := uint64(100), uint64(0)
+	for range atk.Attack(tr, rate, 0) {
+		if hits++; hits == 100 {
+			atk.Stop()
+			break
+		}
+	}
+
+	if got, want := hits, rate; got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
 

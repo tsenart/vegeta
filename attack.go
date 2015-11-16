@@ -30,7 +30,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "x509 Certificate file")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
-	fs.DurationVar(&opts.duration, "duration", 10*time.Second, "Duration of the test")
+	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
@@ -47,9 +47,8 @@ func attackCmd() command {
 }
 
 var (
-	errZeroDuration = errors.New("duration must be bigger than zero")
-	errZeroRate     = errors.New("rate must be bigger than zero")
-	errBadCert      = errors.New("bad certificate")
+	errZeroRate = errors.New("rate must be bigger than zero")
+	errBadCert  = errors.New("bad certificate")
 )
 
 // attackOpts aggregates the attack function command options
@@ -75,10 +74,6 @@ type attackOpts struct {
 func attack(opts *attackOpts) (err error) {
 	if opts.rate == 0 {
 		return errZeroRate
-	}
-
-	if opts.duration == 0 {
-		return errZeroDuration
 	}
 
 	files := map[string]io.Reader{}
