@@ -147,11 +147,11 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // runs until Stop is called. Results are put into the returned channel as soon
 // as they arrive.
 func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
-	workers := &sync.WaitGroup{}
+	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
 	for i := uint64(0); i < a.workers; i++ {
-		go a.attack(tr, workers, ticks, results)
+		go a.attack(tr, &workers, ticks, results)
 	}
 
 	go func() {
@@ -172,7 +172,7 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
-				go a.attack(tr, workers, ticks, results)
+				go a.attack(tr, &workers, ticks, results)
 			}
 		}
 	}()
