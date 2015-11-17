@@ -1,4 +1,5 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.png)](http://travis-ci.org/tsenart/vegeta)
+# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.png)](http://travis-ci.org/tsenart/vegeta) [![Circle CI](https://circleci.com/gh/tsenart/vegeta.svg?style=svg)](https://circleci.com/gh/tsenart/vegeta) [![Coverage Status](https://coveralls.io/repos/tsenart/vegeta/badge.svg?branch=master&service=github)](https://coveralls.io/github/tsenart/vegeta?branch=master) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
