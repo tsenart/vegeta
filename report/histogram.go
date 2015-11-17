@@ -1,9 +1,11 @@
-package vegeta
+package report
 
 import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/tsenart/vegeta/attack"
 )
 
 // Buckets represents an Histogram's latency buckets.
@@ -19,7 +21,7 @@ type Histogram struct {
 // Add implements the Add method of the Report interface by finding the right
 // Bucket for the given Result latency and increasing its count by one as well
 // as the total count.
-func (h *Histogram) Add(r *Result) {
+func (h *Histogram) Add(r *attack.Result) {
 	if len(h.Counts) != len(h.Buckets) {
 		h.Counts = make([]uint64, len(h.Buckets))
 	}

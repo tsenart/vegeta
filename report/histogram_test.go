@@ -1,9 +1,11 @@
-package vegeta
+package report
 
 import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/tsenart/vegeta/attack"
 )
 
 func TestHistogram_Add(t *testing.T) {
@@ -26,7 +28,7 @@ func TestHistogram_Add(t *testing.T) {
 		200 * time.Millisecond,
 		2000 * time.Millisecond,
 	} {
-		hist.Add(&Result{Latency: d})
+		hist.Add(&attack.Result{Latency: d})
 	}
 
 	if got, want := hist.Counts, []uint64{1, 1, 1, 1, 1, 1}; !reflect.DeepEqual(got, want) {

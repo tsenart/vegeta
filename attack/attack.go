@@ -1,4 +1,4 @@
-package vegeta
+package attack
 
 import (
 	"crypto/tls"
@@ -112,10 +112,10 @@ func Timeout(d time.Duration) func(*Attacker) {
 
 // LocalAddr returns a functional option which sets the local address
 // an Attacker will use with its requests.
-func LocalAddr(addr net.IPAddr) func(*Attacker) {
+func LocalAddr(addr net.IP) func(*Attacker) {
 	return func(a *Attacker) {
 		tr := a.client.Transport.(*http.Transport)
-		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
+		a.dialer.LocalAddr = &net.TCPAddr{IP: addr}
 		tr.Dial = a.dialer.Dial
 	}
 }

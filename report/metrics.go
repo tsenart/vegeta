@@ -1,10 +1,11 @@
-package vegeta
+package report
 
 import (
 	"strconv"
 	"time"
 
 	"github.com/streadway/quantile"
+	"github.com/tsenart/vegeta/attack"
 )
 
 type (
@@ -70,7 +71,7 @@ type (
 
 // Add implements the Add method of the Report interface by adding the given
 // Result to Metrics.
-func (m *Metrics) Add(r *Result) {
+func (m *Metrics) Add(r *attack.Result) {
 	m.init()
 
 	m.Requests++

@@ -1,4 +1,4 @@
-package vegeta
+package report
 
 import (
 	"encoding/json"
@@ -7,12 +7,14 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/tsenart/vegeta/attack"
 )
 
 // A Report represents the state a Reporter uses to write out its reports.
 type Report interface {
-	// Add adds a given *Result to a Report.
-	Add(*Result)
+	// Add adds a given *attack.Result to a Report.
+	Add(*attack.Result)
 }
 
 // Closer wraps the optional Report Close method.
@@ -105,7 +107,7 @@ func NewJSONReporter(m *Metrics) Reporter {
 // NewPlotReporter returns a Reporter that writes a self-contained
 // HTML page with an interactive plot of the latencies of Requests, built with
 // http://dygraphs.com/
-func NewPlotReporter(rs *Results) Reporter {
+func NewPlotReporter(rs *attack.Results) Reporter {
 	return func(w io.Writer) (err error) {
 		_, err = fmt.Fprintf(w, plotsTemplateHead, asset(dygraphs), asset(html2canvas))
 		if err != nil {

@@ -1,9 +1,11 @@
-package vegeta
+package report
 
 import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/tsenart/vegeta/attack"
 )
 
 func TestMetrics_Add(t *testing.T) {
@@ -14,7 +16,7 @@ func TestMetrics_Add(t *testing.T) {
 
 	var got Metrics
 	for i := 1; i <= 10000; i++ {
-		got.Add(&Result{
+		got.Add(&attack.Result{
 			Code:      codes[i%len(codes)],
 			Timestamp: time.Unix(int64(i-1), 0),
 			Latency:   time.Duration(i) * time.Microsecond,

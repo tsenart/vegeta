@@ -1,4 +1,4 @@
-package vegeta
+package attack
 
 import (
 	"bufio"
