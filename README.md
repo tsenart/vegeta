@@ -25,39 +25,66 @@ $ go install github.com/tsenart/vegeta
 ```
 
 ## Usage manual
-```shell
+```console
 Usage: vegeta [global flags] <command> [command flags]
 
 global flags:
-  -cpus=8: Number of CPUs to use
-  -profile="": Enable profiling of [cpu, heap]
-  -version=false: Print version and exit
+  -cpus int
+      Number of CPUs to use (default 8)
+  -profile string
+      Enable profiling of [cpu, heap]
+  -version
+      Print version and exit
 
 attack command:
-  -body="": Requests body file
-  -cert="": x509 Certificate file
-  -connections=10000: Max open idle connections per target host
-  -duration=10s: Duration of the test
-  -header=: Request header
-  -keepalive=true: Use persistent connections
-  -laddr=0.0.0.0: Local IP address
-  -lazy=false: Read targets lazily
-  -output="stdout": Output file
-  -rate=50: Requests per second
-  -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
-  -targets="stdin": Targets file
-  -timeout=30s: Requests timeout
-  -workers=10: Initial number of workers
+  -body string
+      Requests body file
+  -cert string
+      TLS client PEM encoded certificate file
+  -connections int
+      Max open idle connections per target host (default 10000)
+  -duration duration
+      Duration of the test [0 = forever]
+  -header value
+      Request header
+  -keepalive
+      Use persistent connections (default true)
+  -key string
+      TLS client PEM encoded private key file
+  -laddr value
+      Local IP address (default 0.0.0.0)
+  -lazy
+      Read targets lazily
+  -output string
+      Output file (default "stdout")
+  -rate uint
+      Requests per second (default 50)
+  -redirects int
+      Number of redirects to follow. -1 will not follow but marks as success (default 10)
+  -root-certs value
+      TLS root certificate files (comma separated list)
+  -targets string
+      Targets file (default "stdin")
+  -timeout duration
+      Requests timeout (default 30s)
+  -workers uint
+      Initial number of workers (default 10)
 
 report command:
-  -inputs="stdin": Input files (comma separated)
-  -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot, hist[buckets]]
+  -inputs string
+      Input files (comma separated) (default "stdin")
+  -output string
+      Output file (default "stdout")
+  -reporter string
+      Reporter [text, json, plot, hist[buckets]] (default "text")
 
 dump command:
-  -dumper="json": Dumper [json, csv]
-  -inputs="stdin": Input files (comma separated)
-  -output="stdout": Output file
+  -dumper string
+      Dumper [json, csv] (default "json")
+  -inputs string
+      Input files (comma separated) (default "stdin")
+  -output string
+      Output file (default "stdout")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -67,76 +94,111 @@ examples:
   cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
 ```
 
-#### -cpus
+#### `-cpus`
 Specifies the number of CPUs to be used internally.
 It defaults to the amount of CPUs available in the system.
 
-### attack
-```shell
+#### `-profile`
+Specifies which profiler to enable during execution. Both *cpu* and
+*heap* profiles are supported. It defaults to none.
+
+#### `-version`
+Prints the version and exits.
+
+### `attack`
+```console
+$ vegeta attack -h
 Usage of vegeta attack:
-  -body="": Requests body file
-  -cert="": x509 Certificate file
-  -connections=10000: Max open idle connections per target host
-  -duration=10s: Duration of the test
-  -header=: Request header
-  -keepalive=true: Use persistent connections
-  -laddr=0.0.0.0: Local IP address
-  -lazy=false: Read targets lazily
-  -output="stdout": Output file
-  -rate=50: Requests per second
-  -redirects=10: Number of redirects to follow. -1 will not follow but marks as success
-  -targets="stdin": Targets file
-  -timeout=30s: Requests timeout
-  -workers=10: Initial number of workers
+  -body string
+      Requests body file
+  -cert string
+      TLS client PEM encoded certificate file
+  -connections int
+      Max open idle connections per target host (default 10000)
+  -duration duration
+      Duration of the test [0 = forever]
+  -header value
+      Request header
+  -keepalive
+      Use persistent connections (default true)
+  -key string
+      TLS client PEM encoded private key file
+  -laddr value
+      Local IP address (default 0.0.0.0)
+  -lazy
+      Read targets lazily
+  -output string
+      Output file (default "stdout")
+  -rate uint
+      Requests per second (default 50)
+  -redirects int
+      Number of redirects to follow. -1 will not follow but marks as success (default 10)
+  -root-certs value
+      TLS root certificate files (comma separated list)
+  -targets string
+      Targets file (default "stdin")
+  -timeout duration
+      Requests timeout (default 30s)
+  -workers uint
+      Initial number of workers (default 10)
 ```
 
-#### -body
+#### `-body`
 Specifies the file whose content will be set as the body of every
 request unless overridden per attack target, see `-targets`.
 
-#### -cert
-Specifies the x509 TLS certificate to be used with HTTPS requests.
+#### `-cert`
+Specifies the PEM encoded TLS client certificate file to be used with HTTPS requests.
+If `-key` isn't specified, it will be set to the value of this flag.
 
-### -connections
+#### `-connections`
 Specifies the maximum number of idle open connections per target host.
 
-#### -duration
+#### `-duration`
 Specifies the amount of time to issue request to the targets.
 The internal concurrency structure's setup has this value as a variable.
 The actual run time of the test can be longer than specified due to the
-responses delay.
+responses delay. Use 0 for an infinite attack.
 
-#### -header
+#### `-header`
 Specifies a request header to be used in all targets defined, see `-targets`.
 You can specify as many as needed by repeating the flag.
 
-#### -keepalive
+#### `-keepalive`
 Specifies whether to reuse TCP connections between HTTP requests.
 
-#### -laddr
+#### `-key`
+Specifies the PEM encoded TLS client certificate private key file to be
+used with HTTPS requests.
+
+#### `-laddr`
 Specifies the local IP address to be used.
 
-#### -lazy
+#### `-lazy`
 Specifies whether to read the input targets lazily instead of eagerly.
 This allows streaming targets into the attack command and reduces memory
 footprint.
 The trade-off is one of added latency in each hit against the targets.
 
-#### -output
+#### `-output`
 Specifies the output file to which the binary results will be written
 to. Made to be piped to the report command input. Defaults to stdout.
 
-####  -rate
+####  `-rate`
 Specifies the requests per second rate to issue against
 the targets. The actual request rate can vary slightly due to things like
 garbage collection, but overall it should stay very close to the specified.
 
-#### -redirects
+#### `-redirects`
 Specifies the max number of redirects followed on each request. The
 default is 10. When the value is -1, redirects are not followed but
 the response is marked as successful.
 
-#### -targets
+#### `-root-certs`
+Specifies the trusted TLS root CAs certificate files as a comma separated
+list. If unspecified, the default system CAs certificates will be used.
+
+#### `-targets`
 Specifies the attack targets in a line separated file, defaulting to stdin.
 The format should be as follows, combining any or all of the following:
 
@@ -173,39 +235,41 @@ X-Account-ID: 99
 @/path/to/newthing.json
 ```
 
-
-#### -timeout
+#### `-timeout`
 Specifies the timeout for each request. The default is 0 which disables
 timeouts.
 
-#### -workers
+#### `-workers`
 Specifies the initial number of workers used in the attack. The actual
 number of workers will increase if necessary in order to sustain the
 requested rate.
 
 ### report
-```
+```console
 $ vegeta report -h
 Usage of vegeta report:
-  -inputs="stdin": Input files (comma separated)
-  -output="stdout": Output file
-  -reporter="text": Reporter [text, json, plot, hist[buckets]]
+  -inputs string
+      Input files (comma separated) (default "stdin")
+  -output string
+      Output file (default "stdout")
+  -reporter string
+      Reporter [text, json, plot, hist[buckets]] (default "text")
 ```
 
-#### -inputs
+#### `-inputs`
 Specifies the input files to generate the report of, defaulting to stdin.
 These are the output of vegeta attack. You can specify more than one (comma
 separated) and they will be merged and sorted before being used by the
 reports.
 
-#### -output
+#### `-output`
 Specifies the output file to which the report will be written to.
 
-#### -reporter
+#### `-reporter`
 Specifies the kind of report to be generated. It defaults to text.
 
-##### text
-```
+##### `text`
+```console
 Requests      [total, rate]             1200, 120.00
 Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
 Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
@@ -222,7 +286,7 @@ Get http://localhost:6060: net/http: transport closed before response was receiv
 Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```
 
-##### json
+##### `json`
 ```json
 {
   "latencies": {
@@ -255,7 +319,7 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
   "errors": []
 }
 ```
-##### plot
+##### `plot`
 Generates an HTML5 page with an interactive plot based on
 [Dygraphs](http://dygraphs.com).
 Click and drag to select a region to zoom into. Double click to zoom
@@ -269,10 +333,10 @@ to complete that request.
 
 ![Plot](http://i.imgur.com/oi0cgGq.png)
 
-##### hist
+##### `hist`
 Computes and prints a text based histogram for the given buckets.
 Each bucket upper bound is non-inclusive.
-```
+```console
 cat results.bin | vegeta report -reporter='hist[0,2ms,4ms,6ms]'
 Bucket         #     %       Histogram
 [0,     2ms]   6007  32.65%  ########################
@@ -281,28 +345,31 @@ Bucket         #     %       Histogram
 [6ms,   +Inf]  4771  25.93%  ###################
 ```
 
-### dump
-```
+### `dump`
+```console
 $ vegeta dump -h
 Usage of vegeta dump:
-  -dumper="": Dumper [json, csv]
-  -inputs="stdin": Input files (comma separated)
-  -output="stdout": Output file
+  -dumper string
+      Dumper [json, csv] (default "json")
+  -inputs string
+      Input files (comma separated) (default "stdin")
+  -output string
+      Output file (default "stdout")
 ```
 
-#### -inputs
+#### `-inputs`
 Specifies the input files containing attack results to be dumped. You can specify more than one (comma separated).
 
-#### -output
+#### `-output`
 Specifies the output file to which the dump will be written to.
 
-#### -dumper
+#### `-dumper`
 Specifies the dump format.
 
-##### json
+##### `json`
 Dumps attack results as JSON objects.
 
-##### csv
+##### `csv`
 Dumps attack results as CSV records with six columns.
 The columns are: unix timestamp in ns since epoch, http status code,
 request latency in ns, bytes out, bytes in, and lastly the error.
@@ -336,7 +403,7 @@ $ for machine in "10.0.1.1 10.0.2.1 10.0.3.1"; do
 The `report` command accepts multiple result files in a comma separated list.
 It'll read and sort them by timestamp before generating reports.
 
-```shell
+```console
 $ vegeta report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
 Requests      [total, rate]         3600000, 60000.00
 Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
