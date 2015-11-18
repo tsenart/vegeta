@@ -24,6 +24,7 @@ command:
 $ go get github.com/tsenart/vegeta
 $ go install github.com/tsenart/vegeta
 ```
+*Go >= 1.5 is required. Check your version using `go version`*
 
 ## Usage manual
 ```console
