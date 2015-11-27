@@ -1,3 +1,9 @@
+2015-11-27: v6.0.0
+  Insecure attack flag (#160)
+  Client certificates (#156)
+  Infinite attacks (#155)
+  Allow empty lines between targets (#147)
+
 2015-09-19: v5.9.0
   Bounded memory streaming reporters (#136)
 
