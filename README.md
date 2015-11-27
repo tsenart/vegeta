@@ -25,6 +25,9 @@ $ go get github.com/tsenart/vegeta
 $ go install github.com/tsenart/vegeta
 ```
 
+## Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Usage manual
 ```console
 Usage: vegeta [global flags] <command> [command flags]
