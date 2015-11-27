@@ -51,6 +51,8 @@ attack command:
       Duration of the test [0 = forever]
   -header value
       Request header
+  -insecure
+      Ignore invalid server TLS certificates
   -keepalive
       Use persistent connections (default true)
   -key string
@@ -123,6 +125,8 @@ Usage of vegeta attack:
       Duration of the test [0 = forever]
   -header value
       Request header
+  -insecure
+      Ignore invalid server TLS certificates
   -keepalive
       Use persistent connections (default true)
   -key string
@@ -167,6 +171,9 @@ responses delay. Use 0 for an infinite attack.
 #### `-header`
 Specifies a request header to be used in all targets defined, see `-targets`.
 You can specify as many as needed by repeating the flag.
+
+#### `-insecure`
+Specifies whether to ignore invalid server TLS certificates.
 
 #### `-keepalive`
 Specifies whether to reuse TCP connections between HTTP requests.

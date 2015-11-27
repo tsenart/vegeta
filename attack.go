@@ -29,6 +29,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
 	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
+	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
@@ -59,6 +60,7 @@ type attackOpts struct {
 	certf       string
 	keyf        string
 	rootCerts   csl
+	insecure    bool
 	lazy        bool
 	duration    time.Duration
 	timeout     time.Duration
@@ -115,7 +117,7 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
-	tlsc, err := tlsConfig(opts.certf, opts.keyf, opts.rootCerts)
+	tlsc, err := tlsConfig(opts.insecure, opts.certf, opts.keyf, opts.rootCerts)
 	if err != nil {
 		return err
 	}
@@ -152,7 +154,7 @@ func attack(opts *attackOpts) (err error) {
 }
 
 // tlsConfig builds a *tls.Config from the given options.
-func tlsConfig(certf, keyf string, rootCerts []string) (*tls.Config, error) {
+func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Config, error) {
 	var err error
 	files := map[string][]byte{}
 	filenames := append([]string{certf, keyf}, rootCerts...)
@@ -164,7 +166,7 @@ func tlsConfig(certf, keyf string, rootCerts []string) (*tls.Config, error) {
 		}
 	}
 
-	var c tls.Config
+	c := tls.Config{InsecureSkipVerify: insecure}
 	if cert, ok := files[certf]; ok {
 		key, ok := files[keyf]
 		if !ok {
