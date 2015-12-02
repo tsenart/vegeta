@@ -1,5 +1,4 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.png)](http://travis-ci.org/tsenart/vegeta) [![Circle CI](https://circleci.com/gh/tsenart/vegeta.svg?style=svg)](https://circleci.com/gh/tsenart/vegeta) [![Coverage Status](https://coveralls.io/repos/tsenart/vegeta/badge.svg?branch=master&service=github)](https://coveralls.io/github/tsenart/vegeta?branch=master) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-
+# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.png)](http://travis-ci.org/tsenart/vegeta) [![Circle CI](https://circleci.com/gh/tsenart/vegeta.svg?style=svg)](https://circleci.com/gh/tsenart/vegeta) [![Coverage Status](https://coveralls.io/repos/tsenart/vegeta/badge.svg?branch=master&service=github)](https://coveralls.io/github/tsenart/vegeta?branch=master) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
@@ -494,3 +493,11 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## Donate
+
+If you use and love Vegeta, please consider sending some Satoshi to
+`1MDmKC51ve7Upxt75KoNM6x1qdXHFK6iW2`. In case you want to be mentioned as a
+sponsor, let me know!
+
+[![Donate Bitcoin](https://i.imgur.com/W9Vc51d.png)](#donate)
