@@ -2,7 +2,6 @@ language: go
 sudo: false
 go:
   - 1.5.2
-  - tip
 install:
   - go get golang.org/x/tools/cmd/vet
   - go get -v github.com/golang/lint/golint
