@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
+
+	vegeta "github.com/tsenart/vegeta/lib"
 )
 
 // headers is the http.Header used in each target request
@@ -56,3 +60,31 @@ func (l *csl) Set(v string) error {
 }
 
 func (l csl) String() string { return strings.Join(l, ",") }
+
+// phases implements the flag.Value interface for vegeta.Pla
+type phases []vegeta.Phase
+
+func (ps *phases) Set(v string) error {
+	for _, phase := range strings.Fields(v) {
+		if ts := strings.Split(phase, "@"); len(ts) != 2 {
+			return fmt.Errorf("missing @ in %q from plan: %q", phase, v)
+		} else if rate, err := strconv.ParseUint(ts[0], 10, 64); err != nil {
+			return fmt.Errorf("bad rate %q in %q from plan %q", ts[0], phase, v)
+		} else if at, err := time.ParseDuration(ts[1]); err != nil {
+			return fmt.Errorf("bad time %q in %q from plan %q", ts[1], phase, v)
+		} else if len(*ps) > 0 && at <= (*ps)[len(*ps)-1].At {
+			return fmt.Errorf("bad timing order in plan %q", v)
+		} else {
+			*ps = append(*ps, vegeta.Phase{Rate: rate, At: at})
+		}
+	}
+	return nil
+}
+
+func (ps phases) String() string {
+	ss := make([]string, len(ps))
+	for i := range ps {
+		ss[i] = ps[i].String()
+	}
+	return strings.Join(ss, " ")
+}
