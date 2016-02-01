@@ -142,13 +142,45 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 	}
 }
 
-// Attack reads its Targets from the passed Targeter and attacks them at
-// the rate specified for duration time. When the duration is zero the attack
-// runs until Stop is called. Results are put into the returned channel as soon
-// as they arrive.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
-	var workers sync.WaitGroup
+// A Phase represents a distinct attack phase with its own rate and beginning.
+type Phase struct {
+	Rate uint64
+	At   time.Duration
+}
+
+// String implements the fmt.Stringer interface.
+func (p Phase) String() string { return fmt.Sprintf("%d@%s", p.Rate, p.At) }
+
+// Phases is an ordered list of Phases where each succeeding Phase occurs after
+// the previous one.
+type Phases []Phase
+
+// Hits returns the number of requests to be sent on each Phase.
+func (ps Phases) Hits() []uint64 {
+	switch len(ps) {
+	case 0:
+		return []uint64{}
+	case 1:
+		return []uint64{0}
+	default:
+		hits := make([]uint64, 0, len(ps)-1)
+		for i := 0; i < len(ps)-1; i++ {
+			hits = append(hits, ps[i].Rate*uint64((ps[i+1].At-ps[i].At).Seconds()))
+		}
+		return hits
+	}
+}
+
+// Attack reads its Targets from the passed Targeter and attacks them in the
+// given Phases. Results are put into the returned channel as soon as they arrive.
+func (a *Attacker) Attack(tr Targeter, ps ...Phase) <-chan *Result {
 	results := make(chan *Result)
+	if len(ps) == 0 {
+		close(results)
+		return results
+	}
+
+	var workers sync.WaitGroup
 	ticks := make(chan time.Time)
 	for i := uint64(0); i < a.workers; i++ {
 		go a.attack(tr, &workers, ticks, results)
@@ -158,16 +190,23 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 		defer close(results)
 		defer workers.Wait()
 		defer close(ticks)
-		interval := 1e9 / rate
-		hits := rate * uint64(du.Seconds())
-		began, done := time.Now(), uint64(0)
-		for {
-			now, next := time.Now(), began.Add(time.Duration(done*interval))
+		hits, phase, hz := Phases(ps).Hits(), 0, time.Duration(0)
+		if ps[phase].Rate > 0 {
+			hz = time.Duration(1e9 / ps[phase].Rate)
+		}
+		began, count := time.Now(), uint64(0)
+		next, now := began, began
+		for phase < len(hits) {
+			now, next = time.Now(), next.Add(hz)
 			time.Sleep(next.Sub(now))
 			select {
 			case ticks <- max(next, now):
-				if done++; done == hits {
-					return
+				if count++; hits[phase] == 0 || count < hits[phase] {
+					continue
+				} else if phase++; ps[phase].Rate > 0 {
+					hz = time.Duration(1e9 / ps[phase].Rate)
+				} else if phase < len(ps)-1 {
+					hz = ps[phase+1].At - time.Since(next)
 				}
 			case <-a.stopch:
 				return

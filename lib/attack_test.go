@@ -14,22 +14,31 @@ import (
 )
 
 func TestAttackRate(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
-	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	rate := uint64(100)
 	atk := NewAttacker()
-	var hits uint64
-	for range atk.Attack(tr, rate, 1*time.Second) {
-		hits++
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	ps := Phases{{Rate: 100}, {At: time.Second}}
+
+	var got uint64
+	for range atk.Attack(tr, ps...) {
+		got++
 	}
-	if got, want := hits, rate; got != want {
+
+	var want uint64
+	for _, hits := range ps.Hits() {
+		want += hits
+	}
+
+	if got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
 
-func TestAttackDuration(t *testing.T) {
+func TestAttackDuration_Infinity(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
@@ -37,20 +46,21 @@ func TestAttackDuration(t *testing.T) {
 	atk := NewAttacker()
 	time.AfterFunc(2*time.Second, func() { t.Fatal("Timed out") })
 
-	rate, hits := uint64(100), uint64(0)
-	for range atk.Attack(tr, rate, 0) {
-		if hits++; hits == 100 {
+	ps, hits := Phases{{Rate: 100}}, uint64(0)
+	for range atk.Attack(tr, ps...) {
+		if hits++; hits == 150 { // 1.5s
 			atk.Stop()
 			break
 		}
 	}
 
-	if got, want := hits, rate; got != want {
-		t.Fatalf("got: %v, want: %v", got, want)
+	if got, want := hits, uint64(150); got != want {
+		t.Fatalf("got: %+v, want: %+v", got, want)
 	}
 }
 
 func TestTLSConfig(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker()
 	got := atk.client.Transport.(*http.Transport).TLSClientConfig
 	if want := (&tls.Config{InsecureSkipVerify: true}); !reflect.DeepEqual(got, want) {
@@ -59,6 +69,7 @@ func TestTLSConfig(t *testing.T) {
 }
 
 func TestRedirects(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/redirect", 302)
@@ -75,6 +86,7 @@ func TestRedirects(t *testing.T) {
 }
 
 func TestNoFollow(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/redirect-here", 302)
@@ -88,6 +100,7 @@ func TestNoFollow(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			<-time.After(20 * time.Millisecond)
@@ -103,6 +116,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestLocalAddr(t *testing.T) {
+	t.Parallel()
 	addr, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +136,7 @@ func TestLocalAddr(t *testing.T) {
 }
 
 func TestKeepAlive(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker(KeepAlive(false))
 	if got, want := atk.dialer.KeepAlive, time.Duration(0); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
@@ -133,6 +148,7 @@ func TestKeepAlive(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker(Connections(23))
 	got := atk.client.Transport.(*http.Transport).MaxIdleConnsPerHost
 	if want := 23; got != want {
@@ -141,6 +157,7 @@ func TestConnections(t *testing.T) {
 }
 
 func TestStatusCodeErrors(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -155,10 +172,31 @@ func TestStatusCodeErrors(t *testing.T) {
 }
 
 func TestBadTargeterError(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker()
 	tr := func(*Target) error { return io.EOF }
 	res := atk.hit(tr, time.Now())
 	if got, want := res.Error, io.EOF.Error(); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestPhases_Hits(t *testing.T) {
+	t.Parallel()
+	for i, tc := range []struct {
+		Phases
+		hits []uint64
+	}{
+		{nil, []uint64{}},
+		{Phases{}, []uint64{}},
+		{Phases{{50, 0}}, []uint64{0}},
+		{Phases{{50, 0}, {50, 0}}, []uint64{0}},
+		{Phases{{50, 0}, {50, 1e9}}, []uint64{50}},
+		{Phases{{50, 0}, {50, 1e9}, {100, 2e9}}, []uint64{50, 50}},
+		{Phases{{50, 0}, {50, 1e9}, {100, 2e9}, {100, 4e9}}, []uint64{50, 50, 200}},
+	} {
+		if got, want := tc.Hits(), tc.hits; !reflect.DeepEqual(got, want) {
+			t.Errorf("test #%d: %+v.Hits(): got %v, want %v", i, tc.Phases, got, want)
+		}
 	}
 }

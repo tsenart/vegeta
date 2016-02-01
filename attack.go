@@ -19,6 +19,7 @@ import (
 func attackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
 	opts := &attackOpts{
+		phases:  phases{},
 		headers: headers{http.Header{}},
 		laddr:   localAddr{&vegeta.DefaultLocalAddr},
 	}
@@ -28,12 +29,13 @@ func attackCmd() command {
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
 	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
+	fs.Var(&opts.phases, "phases", "Attack phases mapping elapsed time to rate")
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
-	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
+	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second [0 = as fast as possible]")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
@@ -47,10 +49,7 @@ func attackCmd() command {
 	}}
 }
 
-var (
-	errZeroRate = errors.New("rate must be bigger than zero")
-	errBadCert  = errors.New("bad certificate")
-)
+var errBadCert = errors.New("bad certificate")
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
@@ -59,6 +58,7 @@ type attackOpts struct {
 	bodyf       string
 	certf       string
 	keyf        string
+	phases      phases
 	rootCerts   csl
 	insecure    bool
 	lazy        bool
@@ -76,8 +76,12 @@ type attackOpts struct {
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(opts *attackOpts) (err error) {
-	if opts.rate == 0 {
-		return errZeroRate
+	if len(opts.phases) > 0 {
+		if opts.phases[len(opts.phases)-1].At >= opts.duration {
+			return fmt.Errorf("phases %q don't fit in given duration %s", opts.phases, opts.duration)
+		} else if opts.phases[0].At == 0 {
+			return fmt.Errorf("phases %q must begin after %s", opts.phases, opts.phases[0].At)
+		}
 	}
 
 	files := map[string]io.Reader{}
@@ -105,6 +109,7 @@ func attack(opts *attackOpts) (err error) {
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
+
 	if opts.lazy {
 		tr = vegeta.NewLazyTargeter(src, body, hdr)
 	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
@@ -132,7 +137,12 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.Connections(opts.connections),
 	)
 
-	res := atk.Attack(tr, opts.rate, opts.duration)
+	ps := make(vegeta.Phases, 0, len(opts.phases)+2)
+	ps = append(ps, vegeta.Phase{Rate: opts.rate})
+	ps = append(ps, opts.phases...)
+	ps = append(ps, vegeta.Phase{At: opts.duration})
+
+	res := atk.Attack(tr, ps...)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
