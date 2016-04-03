@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 // Attacker is an attack executor which wraps an http.Client
@@ -63,9 +65,11 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			MaxIdleConnsPerHost:   DefaultConnections,
 		},
 	}
+
 	for _, opt := range opts {
 		opt(a)
 	}
+
 	return a
 }
 
@@ -139,6 +143,18 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		tr.TLSClientConfig = c
+	}
+}
+
+// HTTP2 returns a functional option which enables or disables HTTP/2 support
+// on requests performed by an Attacker.
+func HTTP2(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if tr := a.client.Transport.(*http.Transport); enabled {
+			http2.ConfigureTransport(tr)
+		} else {
+			tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		}
 	}
 }
 
