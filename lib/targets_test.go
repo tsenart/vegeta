@@ -90,6 +90,8 @@ func TestNewEagerTargeter(t *testing.T) {
 }
 
 func TestNewLazyTargeter(t *testing.T) {
+	t.Parallel()
+
 	for want, def := range map[error]string{
 		errors.New("bad target"): "GET",
 		errors.New("bad method"): "SET http://:6060",
@@ -201,6 +203,8 @@ func TestNewLazyTargeter(t *testing.T) {
 }
 
 func TestErrNilTarget(t *testing.T) {
+	t.Parallel()
+
 	eager, err := NewEagerTargeter(strings.NewReader("GET http://foo.bar"), nil, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 )
 
 func TestHistogram_Add(t *testing.T) {
+	t.Parallel()
 	hist := Histogram{
 		Buckets: []time.Duration{
 			0,
@@ -39,6 +40,7 @@ func TestHistogram_Add(t *testing.T) {
 }
 
 func TestBuckets_UnmarshalText(t *testing.T) {
+	t.Parallel()
 	for value, want := range map[string]string{
 		"":       "bad buckets: ",
 		" ":      "bad buckets:  ",

@@ -14,9 +14,11 @@ import (
 )
 
 func TestAttackRate(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
+	defer server.Close()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	rate := uint64(100)
 	atk := NewAttacker()
@@ -30,9 +32,11 @@ func TestAttackRate(t *testing.T) {
 }
 
 func TestAttackDuration(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
+	defer server.Close()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	atk := NewAttacker()
 	time.AfterFunc(2*time.Second, func() { t.Fatal("Timed out") })
@@ -51,6 +55,7 @@ func TestAttackDuration(t *testing.T) {
 }
 
 func TestTLSConfig(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker()
 	got := atk.client.Transport.(*http.Transport).TLSClientConfig
 	if want := (&tls.Config{InsecureSkipVerify: true}); !reflect.DeepEqual(got, want) {
@@ -59,11 +64,13 @@ func TestTLSConfig(t *testing.T) {
 }
 
 func TestRedirects(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/redirect", 302)
 		}),
 	)
+	defer server.Close()
 	redirects := 2
 	atk := NewAttacker(Redirects(redirects))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
@@ -75,11 +82,13 @@ func TestRedirects(t *testing.T) {
 }
 
 func TestNoFollow(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/redirect-here", 302)
 		}),
 	)
+	defer server.Close()
 	atk := NewAttacker(Redirects(NoFollow))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	if res := atk.hit(tr, time.Now()); res.Error != "" {
@@ -88,11 +97,13 @@ func TestNoFollow(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			<-time.After(20 * time.Millisecond)
 		}),
 	)
+	defer server.Close()
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
@@ -103,6 +114,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestLocalAddr(t *testing.T) {
+	t.Parallel()
 	addr, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
@@ -116,12 +128,14 @@ func TestLocalAddr(t *testing.T) {
 			}
 		}),
 	)
+	defer server.Close()
 	atk := NewAttacker(LocalAddr(*addr))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	atk.hit(tr, time.Now())
 }
 
 func TestKeepAlive(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker(KeepAlive(false))
 	if got, want := atk.dialer.KeepAlive, time.Duration(0); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
@@ -133,6 +147,7 @@ func TestKeepAlive(t *testing.T) {
 }
 
 func TestConnections(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker(Connections(23))
 	got := atk.client.Transport.(*http.Transport).MaxIdleConnsPerHost
 	if want := 23; got != want {
@@ -141,11 +156,13 @@ func TestConnections(t *testing.T) {
 }
 
 func TestStatusCodeErrors(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 		}),
 	)
+	defer server.Close()
 	atk := NewAttacker()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, time.Now())
@@ -155,6 +172,7 @@ func TestStatusCodeErrors(t *testing.T) {
 }
 
 func TestBadTargeterError(t *testing.T) {
+	t.Parallel()
 	atk := NewAttacker()
 	tr := func(*Target) error { return io.EOF }
 	res := atk.hit(tr, time.Now())

@@ -10,6 +10,8 @@ import (
 )
 
 func TestDecoding(t *testing.T) {
+	t.Parallel()
+
 	var b1, b2 bytes.Buffer
 	enc := []Encoder{NewEncoder(&b1), NewEncoder(&b2)}
 
@@ -41,6 +43,8 @@ func TestDecoding(t *testing.T) {
 }
 
 func TestEncoding(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	enc := NewEncoder(&buf)
 	dec := NewDecoder(&buf)
