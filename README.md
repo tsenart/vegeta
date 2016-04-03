@@ -50,6 +50,8 @@ attack command:
       Duration of the test [0 = forever]
   -header value
       Request header
+  -http2
+      Send HTTP/2 requests when supported by the server (default true)
   -insecure
       Ignore invalid server TLS certificates
   -keepalive
@@ -124,6 +126,8 @@ Usage of vegeta attack:
       Duration of the test [0 = forever]
   -header value
       Request header
+  -http2
+      Send HTTP/2 requests when supported by the server (default true)
   -insecure
       Ignore invalid server TLS certificates
   -keepalive
@@ -170,6 +174,9 @@ responses delay. Use 0 for an infinite attack.
 #### `-header`
 Specifies a request header to be used in all targets defined, see `-targets`.
 You can specify as many as needed by repeating the flag.
+
+#### `-http2`
+Specifies whether to enable HTTP/2 requests to servers which support it.
 
 #### `-insecure`
 Specifies whether to ignore invalid server TLS certificates.
