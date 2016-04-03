@@ -33,7 +33,7 @@ func (h headers) Set(value string) error {
 		return fmt.Errorf("header '%s' has a wrong format", value)
 	}
 	// Add key/value directly to the http.Header (map[string][]string).
-	// http.Header.Add() cannonicalizes keys but vegeta is used
+	// http.Header.Add() canonicalizes keys but vegeta is used
 	// to test systems that require case-sensitive headers.
 	h.Header[key] = append(h.Header[key], val)
 	return nil
