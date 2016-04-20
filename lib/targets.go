@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/tsenart/vegeta/lib/internal/discreterand"
 )
 
 // Target is an HTTP request blueprint.
@@ -164,6 +167,36 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		if err = sc.Err(); err != nil {
 			return ErrNoTargets
 		}
+		return nil
+	}
+}
+
+// WeightedTarget has a Weight multiplier affecting its probability of being
+// Targetted
+type WeightedTarget struct {
+	Target Target
+	Weight int
+}
+
+// NewWeightedTargeter will return a Targeter which randomly selects a Target
+// with probability Weight / sum(tgts.Weight)
+func NewWeightedTargeter(tgts ...WeightedTarget) Targeter {
+	var sum float64
+	for i := range tgts {
+		sum += float64(tgts[i].Weight)
+	}
+	probs := make([]float64, len(tgts))
+	for i := range tgts {
+		probs[i] = float64(tgts[i].Weight) / sum
+	}
+	// We want a rand.Source that is safe for concurrent
+	// access. rand.NewSource is.
+	r := discreterand.NewAlias(probs, rand.NewSource(rand.Int63()))
+	return func(tgt *Target) error {
+		if tgt == nil {
+			return ErrNilTarget
+		}
+		*tgt = tgts[r.Next()].Target
 		return nil
 	}
 }
