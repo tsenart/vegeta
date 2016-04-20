@@ -243,9 +243,8 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		// ignore redirect errors when the user set --redirects=NoFollow
 		if a.redirects == NoFollow && strings.Contains(err.Error(), "stopped after") {
 			err = nil
-		} else {
-			return &res
-        	}
+		}
+		return &res
 	}
 	defer r.Body.Close()
 
