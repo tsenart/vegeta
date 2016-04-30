@@ -477,7 +477,7 @@ $ ulimit -u # processes / threads
 Just pass a new number as the argument to change it.
 
 ## License
-See [LICENSE](LICENSE.md).
+See [LICENSE](LICENSE).
 
 ## Donate
 
