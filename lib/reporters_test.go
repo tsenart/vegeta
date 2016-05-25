@@ -20,7 +20,7 @@ func BenchmarkPlotReporter(b *testing.B) {
 			rs[i].Error = "Error"
 		}
 	}
-	rep := NewPlotReporter(&rs)
+	rep := NewPlotReporter("Vegeta Plot", &rs)
 	// Start benchmark
 	b.ReportAllocs()
 	b.StartTimer()

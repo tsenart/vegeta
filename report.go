@@ -61,7 +61,7 @@ func report(reporter, inputs, output string) error {
 		rep, report = vegeta.NewJSONReporter(&m), &m
 	case "plot":
 		var rs vegeta.Results
-		rep, report = vegeta.NewPlotReporter(&rs), &rs
+		rep, report = vegeta.NewPlotReporter("Vegeta Plot", &rs), &rs
 	case "hist":
 		if len(reporter) < 6 {
 			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
