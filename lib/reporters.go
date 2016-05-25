@@ -105,9 +105,9 @@ func NewJSONReporter(m *Metrics) Reporter {
 // NewPlotReporter returns a Reporter that writes a self-contained
 // HTML page with an interactive plot of the latencies of Requests, built with
 // http://dygraphs.com/
-func NewPlotReporter(rs *Results) Reporter {
+func NewPlotReporter(title string, rs *Results) Reporter {
 	return func(w io.Writer) (err error) {
-		_, err = fmt.Fprintf(w, plotsTemplateHead, asset(dygraphs), asset(html2canvas))
+		_, err = fmt.Fprintf(w, plotsTemplateHead, title, asset(dygraphs), asset(html2canvas))
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func NewPlotReporter(rs *Results) Reporter {
 			buf = buf[:0]
 		}
 
-		_, err = w.Write([]byte(plotsTemplateTail))
+		_, err = fmt.Fprintf(w, plotsTemplateTail, title)
 		return err
 	}
 }
@@ -149,7 +149,7 @@ const (
 	plotsTemplateHead = `<!doctype html>
 <html>
 <head>
-  <title>Vegeta Plots</title>
+  <title>%s</title>
 </head>
 <body>
   <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
@@ -162,7 +162,7 @@ const (
     [`
 	plotsTemplateTail = `],
     {
-      title: 'Vegeta Plot',
+      title: '%s',
       labels: ['Seconds', 'ERR', 'OK'],
       ylabel: 'Latency (ms)',
       xlabel: 'Seconds elapsed',
