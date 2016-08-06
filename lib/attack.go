@@ -167,6 +167,7 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 	results := make(chan *Result)
 	ticks := make(chan time.Time)
 	for i := uint64(0); i < a.workers; i++ {
+		workers.Add(1)
 		go a.attack(tr, &workers, ticks, results)
 	}
 
@@ -188,6 +189,7 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
+				workers.Add(1)
 				go a.attack(tr, &workers, ticks, results)
 			}
 		}
@@ -207,7 +209,6 @@ func (a *Attacker) Stop() {
 }
 
 func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
-	workers.Add(1)
 	defer workers.Done()
 	for tm := range ticks {
 		results <- a.hit(tr, tm)
