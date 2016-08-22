@@ -159,7 +159,10 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 					return fmt.Errorf("bad header: %s", line)
 				}
 			}
-			tgt.Header.Add(tokens[0], tokens[1])
+			// Add key/value directly to the http.Header (map[string][]string).
+			// http.Header.Add() canonicalizes keys but vegeta is used
+			// to test systems that require case-sensitive headers.
+			tgt.Header[tokens[0]] = append(tgt.Header[tokens[0]], tokens[1])
 		}
 		if err = sc.Err(); err != nil {
 			return ErrNoTargets
