@@ -1,3 +1,6 @@
+2016-08-26: v6.1.1
+  Respect case sensitivity in target file header names (#195, #191)
+
 2016-04-03: v6.1.0
   Add HTTP2 support
 
