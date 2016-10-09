@@ -27,7 +27,7 @@ type Result struct {
 // End returns the time at which a Result ended.
 func (r *Result) End() time.Time { return r.Timestamp.Add(r.Latency) }
 
-// Results is a slice of Results.
+// Results is a slice of Result type elements.
 type Results []Result
 
 // Add implements the Add method of the Report interface by appending the given
