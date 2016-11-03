@@ -485,4 +485,4 @@ If you use and love Vegeta, please consider sending some Satoshi to
 `1EXgyXSCeXrQ4X2FdYP7Y1HuBigUQxnDY4`. In case you want to be mentioned as a
 sponsor, let me know!
 
-[![Donate Bitcoin](https://i.imgur.com/W9Vc51d.png)](#donate)
+[![Donate Bitcoin](https://blockchain.info/qr?data=1EXgyXSCeXrQ4X2FdYP7Y1HuBigUQxnDY4&size=200)](#donate)
