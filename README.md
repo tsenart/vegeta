@@ -482,7 +482,7 @@ See [LICENSE](LICENSE).
 ## Donate
 
 If you use and love Vegeta, please consider sending some Satoshi to
-`1EXgyXSCeXrQ4X2FdYP7Y1HuBigUQxnDY4`. In case you want to be mentioned as a
+`1MDmKC51ve7Upxt75KoNM6x1qdXHFK6iW2`. In case you want to be mentioned as a
 sponsor, let me know!
 
-[![Donate Bitcoin](https://i.imgur.com/oRiwq6n.png)](#donate)
+[![Donate Bitcoin](https://i.imgur.com/W9Vc51d.png)](#donate)
