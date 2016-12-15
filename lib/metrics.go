@@ -113,8 +113,11 @@ func (m *Metrics) Add(r *Result) {
 // derived summary metrics which don't need to be run on every Add call.
 func (m *Metrics) Close() {
 	m.init()
+	m.Rate = float64(m.Requests)
 	m.Duration = m.Latest.Sub(m.Earliest)
-	m.Rate = float64(m.Requests) / m.Duration.Seconds()
+	if secs := m.Duration.Seconds(); secs > 0 {
+		m.Rate /= secs
+	}
 	m.Wait = m.End.Sub(m.Latest)
 	m.BytesIn.Mean = float64(m.BytesIn.Total) / float64(m.Requests)
 	m.BytesOut.Mean = float64(m.BytesOut.Total) / float64(m.Requests)

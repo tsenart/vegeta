@@ -64,3 +64,15 @@ func TestMetrics_Add(t *testing.T) {
 		t.Errorf("\ngot:  %+v\nwant: %+v", got, want)
 	}
 }
+
+// https://github.com/tsenart/vegeta/issues/208
+func TestMetrics_NoInfiniteRate(t *testing.T) {
+	t.Parallel()
+
+	m := Metrics{Requests: 1, Duration: time.Microsecond}
+	m.Close()
+
+	if got, want := m.Rate, 1.0; got != want {
+		t.Errorf("got rate %f, want %f", got, want)
+	}
+}
