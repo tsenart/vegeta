@@ -145,10 +145,24 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			if line = strings.TrimSpace(sc.Text()); line == "" {
 				break
 			} else if strings.HasPrefix(line, "@") {
-				if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
-					return fmt.Errorf("bad body: %s", err)
+				if strings.HasPrefix(line, "@<<") {
+					tag := line[3:]
+					buf := bytes.Buffer{}
+					for sc.Scan() {
+						line = sc.Text()
+						if line == tag {
+							break
+						}
+						buf.WriteString(line + "\n")
+					}
+					tgt.Body = buf.Bytes()
+					break
+				} else {
+					if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
+						return fmt.Errorf("bad body: %s", err)
+					}
+					break
 				}
-				break
 			}
 			tokens = strings.SplitN(line, ":", 2)
 			if len(tokens) < 2 {
