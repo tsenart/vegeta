@@ -69,9 +69,9 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
+func NewEagerTargeter(src io.Reader, body []byte, header http.Header, baseURI string) (Targeter, error) {
 	var (
-		sc   = NewLazyTargeter(src, body, header)
+		sc   = NewLazyTargeter(src, body, header, baseURI)
 		tgts []Target
 		tgt  Target
 		err  error
@@ -95,7 +95,7 @@ func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter,
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header, baseURI string) Targeter {
 	var mu sync.Mutex
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {
@@ -133,10 +133,16 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		default:
 			return fmt.Errorf("bad method: %s", tokens[0])
 		}
-		if _, err = url.ParseRequestURI(tokens[1]); err != nil {
-			return fmt.Errorf("bad URL: %s", tokens[1])
+
+		var targetURL = tokens[1]
+		if !strings.Contains(targetURL, "://") {
+			targetURL = baseURI + targetURL
 		}
-		tgt.URL = tokens[1]
+		if _, err = url.ParseRequestURI(targetURL); err != nil {
+			return fmt.Errorf("bad URL: %s", targetURL)
+		}
+		tgt.URL = targetURL
+
 		line = strings.TrimSpace(sc.Peek())
 		if line == "" || startsWithHTTPMethod(line) {
 			return nil

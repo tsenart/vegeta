@@ -32,6 +32,7 @@ func attackCmd() command {
 	fs.BoolVar(&opts.http2, "http2", true, "Send HTTP/2 requests when supported by the server")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
+	fs.StringVar(&opts.baseURI, "baseUri", "", "Base URI for the target URL")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
@@ -64,6 +65,7 @@ type attackOpts struct {
 	http2       bool
 	insecure    bool
 	lazy        bool
+	baseURI     string
 	duration    time.Duration
 	timeout     time.Duration
 	rate        uint64
@@ -108,8 +110,8 @@ func attack(opts *attackOpts) (err error) {
 		hdr = opts.headers.Header
 	)
 	if opts.lazy {
-		tr = vegeta.NewLazyTargeter(src, body, hdr)
-	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
+		tr = vegeta.NewLazyTargeter(src, body, hdr, opts.baseURI)
+	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr, opts.baseURI); err != nil {
 		return err
 	}
 
