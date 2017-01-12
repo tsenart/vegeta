@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/quipo/statsd"
 	"golang.org/x/net/http2"
+	"os"
 )
 
 // Attacker is an attack executor which wraps an http.Client
@@ -21,6 +23,7 @@ type Attacker struct {
 	stopch    chan struct{}
 	workers   uint64
 	redirects int
+	statsd    *statsd.StatsdClient
 }
 
 const (
@@ -49,7 +52,7 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers}
+	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers, statsd: newStatsdClient()}
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
@@ -227,6 +230,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		if err != nil {
 			res.Error = err.Error()
 		}
+		a.sendToStatsd(res)
 	}()
 
 	if err = tr(&tgt); err != nil {
@@ -264,6 +268,25 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 
 	return &res
+}
+
+func (a *Attacker) sendToStatsd(result *Result) {
+	a.statsd.Incr("code" + result.Code)
+	a.statsd.Gauge("byteIn", result.BytesIn)
+	a.statsd.Gauge("byteOut", result.BytesOut)
+	a.statsd.Gauge("latency", result.Latency)
+}
+
+func newStatsdClient() *statsd.StatsdClient {
+	statsdPrefix := os.Getenv("STATSD_PREFIX")
+	if statsdPrefix == "" {
+		statsdPrefix = "vegeta"
+	}
+	statsdAddr := os.Getenv("STATSD_ADDR")
+	if statsdAddr == "" {
+		statsdAddr = "localhost:8125"
+	}
+	return statsd.NewStatsdClient(statsdAddr, statsdPrefix)
 }
 
 func max(a, b time.Time) time.Time {
