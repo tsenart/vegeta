@@ -13,7 +13,7 @@ import (
 	"os/signal"
 	"time"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/globocom/vegeta/lib"
 )
 
 func attackCmd() command {
@@ -21,6 +21,7 @@ func attackCmd() command {
 	opts := &attackOpts{
 		headers: headers{http.Header{}},
 		laddr:   localAddr{&vegeta.DefaultLocalAddr},
+		statsd:  &statsdOpts{},
 	}
 
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -41,6 +42,10 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
+	fs.BoolVar(&opts.statsd.enable, "statsd.enable", false, "Send to statsd")
+	fs.StringVar(&opts.statsd.host, "statsd.host", "127.0.0.1", "Statsd host")
+	fs.Uint64Var(&opts.statsd.port, "statsd.port", 8125, "Statsd port")
+	fs.StringVar(&opts.statsd.prefix, "statsd.prefix", "vegeta", "Statsd prefix")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -52,6 +57,13 @@ var (
 	errZeroRate = errors.New("rate must be bigger than zero")
 	errBadCert  = errors.New("bad certificate")
 )
+
+type statsdOpts struct {
+	enable bool
+	host   string
+	port   uint64
+	prefix string
+}
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
@@ -73,6 +85,7 @@ type attackOpts struct {
 	headers     headers
 	laddr       localAddr
 	keepalive   bool
+	statsd      *statsdOpts
 }
 
 // attack validates the attack arguments, sets up the
@@ -133,6 +146,10 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.KeepAlive(opts.keepalive),
 		vegeta.Connections(opts.connections),
 		vegeta.HTTP2(opts.http2),
+		vegeta.StatsdEnabled(opts.statsd.enable),
+		vegeta.StatsdHost(opts.statsd.host),
+		vegeta.StatsdPort(opts.statsd.port),
+		vegeta.StatsdPrefix(opts.statsd.prefix),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration)

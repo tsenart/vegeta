@@ -23,7 +23,15 @@ type Attacker struct {
 	stopch    chan struct{}
 	workers   uint64
 	redirects int
-	statsd    *statsd.StatsdClient
+	statsd    *statsdOpts
+}
+
+type statsdOpts struct {
+	enabled bool
+	host    string
+	port    uint64
+	prefix  string
+	client  *statsd.StatsdClient
 }
 
 const (
@@ -52,7 +60,7 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers, statsd: newStatsdClient()}
+	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers, statsd: &statsdOpts{}}
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
@@ -72,6 +80,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	for _, opt := range opts {
 		opt(a)
 	}
+
+	a.statsd.client = a.newStatsdClient()
 
 	return a
 }
@@ -161,6 +171,26 @@ func HTTP2(enabled bool) func(*Attacker) {
 	}
 }
 
+// Enable Statsd
+func StatsdEnabled(enabled bool) func(*Attacker) {
+	return func(a *Attacker) { a.statsd.enabled = enabled }
+}
+
+// Define statsd host
+func StatsdHost(host string) func(*Attacker) {
+	return func(a *Attacker) { a.statsd.host = host }
+}
+
+// Define statsd port
+func StatsdPort(port uint64) func(*Attacker) {
+	return func(a *Attacker) { a.statsd.port = port }
+}
+
+// Define statsd prefix
+func StatsdPrefix(prefix string) func(*Attacker) {
+	return func(a *Attacker) { a.statsd.prefix = prefix }
+}
+
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for duration time. When the duration is zero the attack
 // runs until Stop is called. Results are put into the returned channel as soon
@@ -207,6 +237,7 @@ func (a *Attacker) Stop() {
 	case <-a.stopch:
 		return
 	default:
+		a.statsd.client.Close()
 		close(a.stopch)
 	}
 }
@@ -230,7 +261,9 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		if err != nil {
 			res.Error = err.Error()
 		}
-		a.sendToStatsd(res)
+		if err := a.sendToStatsd(&res); err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		}
 	}()
 
 	if err = tr(&tgt); err != nil {
@@ -270,23 +303,37 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	return &res
 }
 
-func (a *Attacker) sendToStatsd(result *Result) {
-	a.statsd.Incr("code" + result.Code)
-	a.statsd.Gauge("byteIn", result.BytesIn)
-	a.statsd.Gauge("byteOut", result.BytesOut)
-	a.statsd.Gauge("latency", result.Latency)
+func (a *Attacker) sendToStatsd(result *Result) error {
+	statsdClient := a.statsd.client
+	if statsdClient != nil {
+		if err := statsdClient.Incr(fmt.Sprintf(".code%d", result.Code), 1); err != nil {
+			return err
+		}
+		if err := statsdClient.Incr(".byteIn", int64(result.BytesIn)); err != nil {
+			return err
+		}
+		if err := statsdClient.Incr(".byteOut", int64(result.BytesOut)); err != nil {
+			return err
+		}
+		if err := statsdClient.FGauge(".latency", float64(result.Latency / time.Millisecond)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func newStatsdClient() *statsd.StatsdClient {
-	statsdPrefix := os.Getenv("STATSD_PREFIX")
-	if statsdPrefix == "" {
-		statsdPrefix = "vegeta"
+func (a *Attacker) newStatsdClient() *statsd.StatsdClient {
+	if a.statsd.enabled {
+		statsdAddr := fmt.Sprintf("%s:%d", a.statsd.host, a.statsd.port)
+		statsdclient := statsd.NewStatsdClient(statsdAddr, a.statsd.prefix)
+		if err := statsdclient.CreateSocket(); err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			statsdclient.Close()
+			return nil
+		}
+		return statsdclient
 	}
-	statsdAddr := os.Getenv("STATSD_ADDR")
-	if statsdAddr == "" {
-		statsdAddr = "localhost:8125"
-	}
-	return statsd.NewStatsdClient(statsdAddr, statsdPrefix)
+	return nil
 }
 
 func max(a, b time.Time) time.Time {
