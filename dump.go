@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/globocom/vegeta/lib"
 )
 
 func dumpCmd() command {
