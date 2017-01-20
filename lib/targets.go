@@ -69,9 +69,9 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
+func NewEagerTargeter(src io.Reader, body []byte, header http.Header, allowedMethods []string) (Targeter, error) {
 	var (
-		sc   = NewLazyTargeter(src, body, header)
+		sc   = NewLazyTargeter(src, body, header, allowedMethods)
 		tgts []Target
 		tgt  Target
 		err  error
@@ -95,7 +95,7 @@ func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter,
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header, allowedMethods []string) Targeter {
 	var mu sync.Mutex
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {
@@ -131,14 +131,24 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		case "HEAD", "GET", "PUT", "POST", "PATCH", "OPTIONS", "DELETE":
 			tgt.Method = tokens[0]
 		default:
-			return fmt.Errorf("bad method: %s", tokens[0])
+			var allowed bool
+			for _, method := range allowedMethods {
+				if method == tokens[0] {
+					allowed = true
+				}
+			}
+			if allowed == true {
+				tgt.Method = tokens[0]
+			} else {
+				return fmt.Errorf("bad method: %s", tokens[0])
+			}
 		}
 		if _, err = url.ParseRequestURI(tokens[1]); err != nil {
 			return fmt.Errorf("bad URL: %s", tokens[1])
 		}
 		tgt.URL = tokens[1]
 		line = strings.TrimSpace(sc.Peek())
-		if line == "" || startsWithHTTPMethod(line) {
+		if line == "" || startsWithHTTPMethod(line) || startsWithAllowedMethods(line, allowedMethods) {
 			return nil
 		}
 		for sc.Scan() {
@@ -175,6 +185,15 @@ var httpMethodChecker = regexp.MustCompile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS|DE
 
 func startsWithHTTPMethod(t string) bool {
 	return httpMethodChecker.MatchString(t)
+}
+
+func startsWithAllowedMethods(t string, ms []string) bool {
+	for _, m := range ms {
+		if strings.Index(t, m) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // Wrap a Scanner so we can cheat and look at the next value and react accordingly,

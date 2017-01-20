@@ -11,9 +11,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/pusher/vegeta/lib"
 )
 
 func attackCmd() command {
@@ -41,6 +42,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
+	fs.StringVar(&opts.allowedMethods, "allowed-methods", "", "Custom http methods allowed")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -55,24 +57,25 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	targetsf    string
-	outputf     string
-	bodyf       string
-	certf       string
-	keyf        string
-	rootCerts   csl
-	http2       bool
-	insecure    bool
-	lazy        bool
-	duration    time.Duration
-	timeout     time.Duration
-	rate        uint64
-	workers     uint64
-	connections int
-	redirects   int
-	headers     headers
-	laddr       localAddr
-	keepalive   bool
+	targetsf       string
+	outputf        string
+	bodyf          string
+	certf          string
+	keyf           string
+	rootCerts      csl
+	http2          bool
+	insecure       bool
+	lazy           bool
+	duration       time.Duration
+	timeout        time.Duration
+	rate           uint64
+	workers        uint64
+	connections    int
+	redirects      int
+	headers        headers
+	laddr          localAddr
+	keepalive      bool
+	allowedMethods string
 }
 
 // attack validates the attack arguments, sets up the
@@ -102,14 +105,19 @@ func attack(opts *attackOpts) (err error) {
 		}
 	}
 
+	var allowedMethods []string
+	if opts.allowedMethods != "" {
+		allowedMethods = strings.Split(opts.allowedMethods, ",")
+	}
+
 	var (
 		tr  vegeta.Targeter
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
 	if opts.lazy {
-		tr = vegeta.NewLazyTargeter(src, body, hdr)
-	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
+		tr = vegeta.NewLazyTargeter(src, body, hdr, allowedMethods)
+	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr, allowedMethods); err != nil {
 		return err
 	}
 
