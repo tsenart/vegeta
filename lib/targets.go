@@ -127,12 +127,10 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		if len(tokens) < 2 {
 			return fmt.Errorf("bad target: %s", line)
 		}
-		switch tokens[0] {
-		case "HEAD", "GET", "PUT", "POST", "PATCH", "OPTIONS", "DELETE":
-			tgt.Method = tokens[0]
-		default:
+		if !isHttpMethod(tokens[0]) {
 			return fmt.Errorf("bad method: %s", tokens[0])
 		}
+		tgt.Method = tokens[0]
 		if _, err = url.ParseRequestURI(tokens[1]); err != nil {
 			return fmt.Errorf("bad URL: %s", tokens[1])
 		}
@@ -171,10 +169,16 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	}
 }
 
-var httpMethodChecker = regexp.MustCompile("^(HEAD|GET|PUT|POST|PATCH|OPTIONS|DELETE) ")
+var httpMethodChecker = regexp.MustCompile("^[A-Z]*$")
 
-func startsWithHTTPMethod(t string) bool {
+func isHttpMethod(t string) bool {
 	return httpMethodChecker.MatchString(t)
+}
+
+// a line starts with an http method when the first word is uppercase ascii followed by an url
+func startsWithHTTPMethod(t string) bool {
+	parts := strings.Split(t, " ")
+	return len(parts) == 2 && isHttpMethod(parts[0])
 }
 
 // Wrap a Scanner so we can cheat and look at the next value and react accordingly,

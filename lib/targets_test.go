@@ -93,8 +93,9 @@ func TestNewLazyTargeter(t *testing.T) {
 	t.Parallel()
 
 	for want, def := range map[error]string{
+		errors.New("bad method"): "DO_WORK http://:6000",
+		errors.New("bad method"): "DOwork http://:6000",
 		errors.New("bad target"): "GET",
-		errors.New("bad method"): "SET http://:6060",
 		errors.New("bad URL"):    "GET foobar",
 		errors.New("bad body"): `
 			GET http://:6060
@@ -142,6 +143,9 @@ func TestNewLazyTargeter(t *testing.T) {
 		POST http://foobar.org/fnord/2
 		Authorization: x67890
 		@`, bodyf.Name(),
+		`
+
+		SUBSCRIBE http://foobar.org/sub`,
 	)
 
 	src := bytes.NewBufferString(strings.TrimSpace(targets))
@@ -185,6 +189,12 @@ func TestNewLazyTargeter(t *testing.T) {
 				"Authorization": []string{"x67890"},
 				"Content-Type":  []string{"text/plain"},
 			},
+		},
+		{
+			Method: "SUBSCRIBE",
+			URL:    "http://foobar.org/sub",
+ 			Body:   []byte{},
+ 			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
 	} {
 		var got Target
