@@ -171,7 +171,8 @@ func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 
 var httpMethodChecker = regexp.MustCompile("^[A-Z]+\\s")
 
-// a line starts with an http method when the first word is uppercase ascii followed by an url
+// A line starts with an http method when the first word is uppercase ascii
+// followed by a space.
 func startsWithHTTPMethod(t string) bool {
 	return httpMethodChecker.MatchString(t)
 }
