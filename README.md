@@ -4,7 +4,7 @@ Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
 It can be used both as a command line utility and a library.
 
-![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
+![Vegeta](http://68.media.tumblr.com/59d5d81eba0dee97f9c26e7023d69ad8/tumblr_mi6cezpixk1s56vouo1_500.gif)
 
 ## Install
 ### Pre-compiled executables
