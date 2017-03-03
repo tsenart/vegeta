@@ -91,8 +91,12 @@ func TestNoFollow(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(Redirects(NoFollow))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	if res := atk.hit(tr, time.Now()); res.Error != "" {
+	res := atk.hit(tr, time.Now())
+	if res.Error != "" {
 		t.Fatalf("got err: %v", res.Error)
+	}
+	if res.Code != 302 {
+		t.Fatalf("res.Code => %d, want %d", res.Code, 302)
 	}
 }
 
