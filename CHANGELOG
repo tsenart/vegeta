@@ -1,3 +1,7 @@
+2017-03-04: v6.2.0
+  Allow any upper-case ASCII word to be an HTTP method (#217)
+  Correctly compute Metrics.Rate with sub-second duration results (#208)
+
 2016-08-26: v6.1.1
   Respect case sensitivity in target file header names (#195, #191)
 
