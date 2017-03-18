@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -95,10 +94,14 @@ func Redirects(n int) func(*Attacker) {
 	return func(a *Attacker) {
 		a.redirects = n
 		a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-			if len(via) > n {
+			switch {
+			case n == NoFollow:
+				return http.ErrUseLastResponse
+			case n < len(via):
 				return fmt.Errorf("stopped after %d redirects", n)
+			default:
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -241,10 +244,6 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 
 	r, err := a.client.Do(req)
 	if err != nil {
-		// ignore redirect errors when the user set --redirects=NoFollow
-		if a.redirects == NoFollow && strings.Contains(err.Error(), "stopped after") {
-			err = nil
-		}
 		return &res
 	}
 	defer r.Body.Close()
