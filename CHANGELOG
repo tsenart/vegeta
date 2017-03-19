@@ -1,3 +1,6 @@
+2017-03-19: v6.3.0
+  Mark responses as success in no redirect following mode (#222)
+
 2017-03-04: v6.2.0
   Allow any upper-case ASCII word to be an HTTP method (#217)
   Correctly compute Metrics.Rate with sub-second duration results (#208)
