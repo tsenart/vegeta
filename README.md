@@ -22,6 +22,7 @@ command:
 ```shell
 $ go get -u github.com/tsenart/vegeta
 ```
+*Go >= 1.5 is required. Check your version using `go version`*
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
