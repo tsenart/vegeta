@@ -81,6 +81,7 @@ var Version = "???"
 const examples = `
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
+  echo GET http://localhost/ | vegeta attack -duration=5s | vegeta report # on Windows
   vegeta attack -targets=targets.txt > results.bin
   vegeta report -inputs=results.bin -reporter=json > metrics.json
   cat results.bin | vegeta report -reporter=plot > plot.html
