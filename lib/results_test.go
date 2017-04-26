@@ -67,7 +67,7 @@ func TestEncoding(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		return got == want
+		return reflect.DeepEqual(want, got)
 	}, nil)
 
 	if err != nil {
