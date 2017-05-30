@@ -129,6 +129,7 @@ func TestNewLazyTargeter(t *testing.T) {
 		GET http://:6060/
 		X-Header: 1
 		X-Header: 2
+		`, "%", `60
 
 		PUT https://:6060/123
 
@@ -159,6 +160,8 @@ func TestNewLazyTargeter(t *testing.T) {
 				"X-Header":     []string{"1", "2"},
 				"Content-Type": []string{"text/plain"},
 			},
+			Percentage: 60,
+			PercentageFlag: true,
 		},
 		{
 			Method: "PUT",
