@@ -54,7 +54,7 @@ func TestTargetRequest(t *testing.T) {
 		t.Fatalf("Target Header wasn't copied correctly. Want: %s, Got: %s", want, got)
 	}
 	if req.Host != want {
-		t.Fatalf("Target Host wasnt copied correctly. Want: %s, Got: %s", want, req.Host)
+		t.Fatalf("Target Host wasn't copied correctly. Want: %s, Got: %s", want, req.Host)
 	}
 }
 
