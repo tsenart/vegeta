@@ -145,6 +145,11 @@ func TestNewLazyTargeter(t *testing.T) {
 		@`, bodyf.Name(),
 		`
 
+		POST http://foobar.org/herebody
+		@<<BODY
+{"hello": "world"}
+BODY
+
 		SUBSCRIBE http://foobar.org/sub`,
 	)
 
@@ -191,10 +196,16 @@ func TestNewLazyTargeter(t *testing.T) {
 			},
 		},
 		{
+			Method: "POST",
+			URL:    "http://foobar.org/herebody",
+			Body:   []byte("{\"hello\": \"world\"}\n"),
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
+		},
+		{
 			Method: "SUBSCRIBE",
 			URL:    "http://foobar.org/sub",
- 			Body:   []byte{},
- 			Header: http.Header{"Content-Type": []string{"text/plain"}},
+			Body:   []byte{},
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
 	} {
 		var got Target

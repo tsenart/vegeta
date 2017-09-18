@@ -162,7 +162,18 @@ func (r *reader) load(tgt *Target) (err error) {
 		if line = strings.TrimSpace(r.sc.Text()); line == "" {
 			break
 		} else if strings.HasPrefix(line, "@") {
-			if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
+			if strings.HasPrefix(line, "@<<") {
+				tag := line[3:]
+				buf := bytes.Buffer{}
+				for r.sc.Scan() {
+					line = r.sc.Text()
+					if line == tag {
+						break
+					}
+					buf.WriteString(line + "\n")
+				}
+				tgt.Body = buf.Bytes()
+			} else if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
 				return fmt.Errorf("bad body: %s", err)
 			}
 			break
