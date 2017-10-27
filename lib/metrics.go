@@ -119,7 +119,7 @@ type LatencyMetrics struct {
 	Mean time.Duration `json:"mean"`
 	// P50 is the 50th percentile request latency.
 	P50 time.Duration `json:"50th"`
-	// P90 is the 95th percentile request latency.
+	// P90 is the 90th percentile request latency.
 	P90 time.Duration `json:"90th"`
 	// P95 is the 95th percentile request latency.
 	P95 time.Duration `json:"95th"`
