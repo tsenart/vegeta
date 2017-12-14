@@ -123,6 +123,8 @@ Usage of vegeta attack:
       Max open idle connections per target host (default 10000)
   -duration duration
       Duration of the test [0 = forever]
+  -gzip
+      Gzip request payload
   -header value
       Request header
   -http2
