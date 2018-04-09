@@ -21,6 +21,9 @@ type Target struct {
 	URL    string
 	Body   []byte
 	Header http.Header
+
+	// Additional context about the target.
+	Context map[string]interface{}
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
