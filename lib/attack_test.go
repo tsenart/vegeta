@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -115,6 +117,36 @@ func TestTimeout(t *testing.T) {
 	if got := res.Error; !strings.HasSuffix(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
 	}
+}
+
+func TestDialContext(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		}),
+	)
+	defer server.Close()
+
+	dialCalled := make(chan struct{})
+	dialContext := func(ctx context.Context, network string, addr string) (net.Conn, error) {
+		dialCalled <- struct{}{}
+		close(dialCalled)
+
+		dialer := &net.Dialer{}
+		return dialer.DialContext(ctx, network, addr)
+	}
+
+	atk := NewAttacker(DialContext(dialContext))
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range dialCalled {
+		}
+	}()
+	atk.hit(tr, time.Now())
+	wg.Wait()
 }
 
 func TestLocalAddr(t *testing.T) {
