@@ -161,6 +161,21 @@ func HTTP2(enabled bool) func(*Attacker) {
 	}
 }
 
+// H2C returns a functional option which enables H2C support on requests
+// performed by an Attacker
+func H2C(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if tr := a.client.Transport.(*http.Transport); enabled {
+			a.client.Transport = &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return tr.Dial(network, addr)
+				},
+			}
+		}
+	}
+}
+
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for duration time. When the duration is zero the attack
 // runs until Stop is called. Results are put into the returned channel as soon
