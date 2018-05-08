@@ -431,7 +431,7 @@ Error Set:
 ```
 
 ## Usage: Real-time Analysis
-If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://github.com/rs/jplot) using [jaggr](https://github.com/rs/jaggr) to plot a vegeta report in real-time in the confort of you terminal:
+If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://github.com/rs/jplot) using [jaggr](https://github.com/rs/jaggr) to plot a vegeta report in real-time in the comfort of you terminal:
 
 ```
 echo 'GET http://localhost:8080' | \
