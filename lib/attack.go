@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -137,6 +138,18 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 			a.dialer.KeepAlive = 0
 			tr.Dial = a.dialer.Dial
 		}
+	}
+}
+
+// DialContext returns a function to set a custom DialContext on the http
+// client's Transport. This is useful for use cases like sending HTTP requests
+// to a unix socket.
+// NOTE: this is not compatible with LocalAddr(), KeepAlive(), Timeout(), or
+// any function that touches the dialer.
+func DialContext(dialContext func(ctx context.Context, network, addr string) (net.Conn, error)) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.DialContext = dialContext
 	}
 }
 
