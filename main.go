@@ -36,7 +36,7 @@ func main() {
 	fs.Parse(os.Args[1:])
 
 	if *version {
-		fmt.Printf("Version: %s\nCommit: %s\nGo version: %s\nDate: %s\n", version, commit, goversion, date)
+		fmt.Printf("Version: %s\nCommit: %s\nGo version: %s\nDate: %s\n", Version, Commit, runtime.Version(), Date)
 		return
 	}
 
@@ -75,7 +75,8 @@ func main() {
 	}
 }
 
-var version, commit, date, goversion string
+// Set at linking time
+var Version, Commit, Date string
 
 const examples = `
 examples:
