@@ -1,0 +1,26 @@
+builds:
+- goos:
+  - freebsd
+  - linux
+  - darwin
+  - windows
+  goarch:
+  - amd64
+  - arm64
+  env:
+  - CGO_ENABLED=0
+  flags:
+  - -a
+  - -tags="netgo"
+  ldflags: >
+    "-s -w -extldflags '-static' -X main.version='{{.Version}}' -X main.commit='{{.Commit}}' -X main.date='{{.Date}}' -X main.goversion='{{.Env.GOVERSION}}'"
+
+archive:
+  name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}"
+  format: tar.gz
+  format_overrides:
+  - goos: windows
+    format: zip
+
+checksum:
+  name_template: "{{ .ProjectName }}-checksums.txt"
