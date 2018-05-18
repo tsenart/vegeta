@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -33,6 +35,7 @@ func attackCmd() command {
 	fs.BoolVar(&opts.h2c, "h2c", false, "Send HTTP/2 requests without TLS encryption")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
+	fs.BoolVar(&opts.gzip, "gzip", false, "Gunzip request payload")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
@@ -66,6 +69,7 @@ type attackOpts struct {
 	h2c         bool
 	insecure    bool
 	lazy        bool
+	gzip        bool
 	duration    time.Duration
 	timeout     time.Duration
 	rate        uint64
@@ -109,6 +113,17 @@ func attack(opts *attackOpts) (err error) {
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
+	if opts.gzip {
+		buffer := new(bytes.Buffer)
+		w := gzip.NewWriter(buffer)
+
+		hdr.Set("Content-Type", "application/gzip")
+
+		w.Write(body)
+		w.Close()
+
+		body = buffer.Bytes()
+	}
 	if opts.lazy {
 		tr = vegeta.NewLazyTargeter(src, body, hdr)
 	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
