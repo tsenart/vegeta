@@ -144,4 +144,8 @@ func (m *Metrics) init() {
 			quantile.Known(0.99, 0.0005),
 		)
 	}
+
+	if m.Errors == nil {
+		m.Errors = make([]string, 0)
+	}
 }
