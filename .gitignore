@@ -25,3 +25,5 @@ vegeta
 vegeta.test
 vegeta-*.tar.gz
 lib/lib.test
+dist
+vendor
