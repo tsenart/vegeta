@@ -46,13 +46,9 @@ func (rs Results) Swap(i, j int)      { rs[i], rs[j] = rs[j], rs[i] }
 // A Decoder decodes a Result and returns an error in case of failure.
 type Decoder func(*Result) error
 
-// NewDecoder returns a new Result decoder closure for the given io.Readers.
-// It round robins across the io.Readers on every invocation and decoding error.
-func NewDecoder(readers ...io.Reader) Decoder {
-	dec := make([]*gob.Decoder, len(readers))
-	for i := range readers {
-		dec[i] = gob.NewDecoder(readers[i])
-	}
+// NewRoundRobinDecoder returns a new Decoder that round robins across the
+// given Decoders on every invocation or decoding error.
+func NewRoundRobinDecoder(dec ...Decoder) Decoder {
 	var seq uint64
 	return func(r *Result) (err error) {
 		for range dec {
@@ -67,6 +63,12 @@ func NewDecoder(readers ...io.Reader) Decoder {
 	}
 }
 
+// NewDecoder returns a new gob Decoder for the given io.Reader.
+func NewDecoder(rd io.Reader) Decoder {
+	dec := gob.NewDecoder(rd)
+	return func(r *Result) error { return dec.Decode(r) }
+}
+
 // Decode is an an adapter method calling the Decoder function itself with the
 // given parameters.
 func (dec Decoder) Decode(r *Result) error { return dec(r) }
@@ -77,9 +79,7 @@ type Encoder func(*Result) error
 // NewEncoder returns a new Result encoder closure for the given io.Writer
 func NewEncoder(r io.Writer) Encoder {
 	enc := gob.NewEncoder(r)
-	return func(r *Result) error {
-		return enc.Encode(r)
-	}
+	return func(r *Result) error { return enc.Encode(r) }
 }
 
 // Encode is an an adapter method calling the Encoder function itself with the
