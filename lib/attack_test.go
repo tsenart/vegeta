@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -201,5 +202,36 @@ func TestResponseBodyCapture(t *testing.T) {
 	res := atk.hit(tr, time.Now())
 	if got := res.Body; !bytes.Equal(got, want) {
 		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestProxyOption(t *testing.T) {
+	t.Parallel()
+
+	body := []byte("PROXIED!")
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(body)
+		}),
+	)
+	defer server.Close()
+
+	proxyURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	atk := NewAttacker(Proxy(func(r *http.Request) (*url.URL, error) {
+		return proxyURL, nil
+	}))
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://127.0.0.2"})
+	res := atk.hit(tr, time.Now())
+	if got, want := res.Error, ""; got != want {
+		t.Errorf("got error: %q, want %q", got, want)
+	}
+
+	if got, want := res.Body, body; !bytes.Equal(got, want) {
+		t.Errorf("got body: %q, want: %q", got, want)
 	}
 }
