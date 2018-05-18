@@ -78,7 +78,7 @@ func TestMetrics_NoInfiniteRate(t *testing.T) {
 }
 
 // https://github.com/tsenart/vegeta/pull/277
-func TestMetrics_NilErrorOnClose(t *testing.T) {
+func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
 	t.Parallel()
 
 	m := Metrics{Errors: nil}
