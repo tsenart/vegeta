@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -181,6 +182,24 @@ func TestBadTargeterError(t *testing.T) {
 	tr := func(*Target) error { return io.EOF }
 	res := atk.hit(tr, time.Now())
 	if got, want := res.Error, io.EOF.Error(); got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestResponseBodyCapture(t *testing.T) {
+	t.Parallel()
+
+	want := []byte("VEGETA")
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(want)
+		}),
+	)
+	defer server.Close()
+	atk := NewAttacker()
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	res := atk.hit(tr, time.Now())
+	if got := res.Body; !bytes.Equal(got, want) {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }

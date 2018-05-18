@@ -3,7 +3,6 @@ package vegeta
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -263,11 +262,10 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 	defer r.Body.Close()
 
-	in, err := io.Copy(ioutil.Discard, r.Body)
-	if err != nil {
+	if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
 		return &res
 	}
-	res.BytesIn = uint64(in)
+	res.BytesIn = uint64(len(res.Body))
 
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)

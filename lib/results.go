@@ -1,6 +1,8 @@
 package vegeta
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
 	"encoding/json"
@@ -22,6 +24,7 @@ type Result struct {
 	BytesOut  uint64        `json:"bytes_out"`
 	BytesIn   uint64        `json:"bytes_in"`
 	Error     string        `json:"error"`
+	Body      []byte        `json:"body"`
 }
 
 // End returns the time at which a Result ended.
@@ -34,7 +37,8 @@ func (r Result) Equal(other Result) bool {
 		r.Latency == other.Latency &&
 		r.BytesIn == other.BytesIn &&
 		r.BytesOut == other.BytesOut &&
-		r.Error == other.Error
+		r.Error == other.Error &&
+		bytes.Equal(r.Body, other.Body)
 }
 
 // Results is a slice of Result type elements.
@@ -110,6 +114,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.BytesOut, 10),
 			strconv.FormatUint(r.BytesIn, 10),
 			r.Error,
+			base64.StdEncoding.EncodeToString(r.Body),
 		})
 
 		if err != nil {
@@ -158,6 +163,7 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 		}
 
 		r.Error = rec[5]
+		r.Body, err = base64.StdEncoding.DecodeString(rec[6])
 
 		return err
 	}
