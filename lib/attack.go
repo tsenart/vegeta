@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -102,6 +103,15 @@ func Redirects(n int) func(*Attacker) {
 				return nil
 			}
 		}
+	}
+}
+
+// Proxy returns a functional option which sets the `Proxy` field on
+// the http.Client's Transport
+func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.Proxy = proxy
 	}
 }
 
