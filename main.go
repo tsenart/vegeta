@@ -36,7 +36,7 @@ func main() {
 	fs.Parse(os.Args[1:])
 
 	if *version {
-		fmt.Println(Version)
+		fmt.Printf("Version: %s\nCommit: %s\nGo version: %s\nDate: %s\n", version, commit, goversion, date)
 		return
 	}
 
@@ -75,8 +75,7 @@ func main() {
 	}
 }
 
-// Version is set at compile time.
-var Version = "???"
+var version, commit, date, goversion string
 
 const examples = `
 examples:
