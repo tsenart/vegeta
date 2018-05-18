@@ -22,7 +22,12 @@ func TestDecoding(t *testing.T) {
 	}
 
 	got := make([]uint16, 10)
-	dec := NewDecoder(&b2, &bytes.Reader{}, &b1)
+	dec := NewRoundRobinDecoder(
+		NewDecoder(&b2),
+		NewDecoder(&bytes.Reader{}),
+		NewDecoder(&b1),
+	)
+
 	for i := range got {
 		var r Result
 		if err := dec(&r); err != nil {
