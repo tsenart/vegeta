@@ -50,32 +50,50 @@ func TestDecoding(t *testing.T) {
 func TestEncoding(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-	enc := NewEncoder(&buf)
-	dec := NewDecoder(&buf)
-	err := quick.Check(func(code uint16, ts uint32, latency time.Duration, bsIn, bsOut uint64, e string) bool {
-		want := Result{
-			Code:      code,
-			Timestamp: time.Unix(int64(ts), 0),
-			Latency:   latency,
-			BytesIn:   bsIn,
-			BytesOut:  bsOut,
-			Error:     e,
-		}
+	for _, tc := range []struct {
+		encoding string
+		enc      func(io.Writer) Encoder
+		dec      func(io.Reader) Decoder
+	}{
+		{"gob", NewEncoder, NewDecoder},
+		{"csv", NewCSVEncoder, NewCSVDecoder},
+		{"json", NewJSONEncoder, NewJSONDecoder},
+	} {
+		t.Run(tc.encoding, func(t *testing.T) {
+			var buf bytes.Buffer
+			enc := tc.enc(&buf)
+			dec := tc.dec(&buf)
+			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, bsIn, bsOut uint64, e string) bool {
+				want := Result{
+					Code:      code,
+					Timestamp: time.Unix(int64(ts), 0),
+					Latency:   latency,
+					BytesIn:   bsIn,
+					BytesOut:  bsOut,
+					Error:     e,
+				}
 
-		if err := enc(&want); err != nil {
-			t.Fatal(err)
-		}
+				if err := enc(&want); err != nil {
+					t.Fatal(err)
+				}
 
-		var got Result
-		if err := dec(&got); err != nil {
-			t.Fatal(err)
-		}
+				var got Result
+				if err := dec(&got); err != nil {
+					t.Fatalf("err: %q buffer: %s", err, buf.String())
+				}
 
-		return got == want
-	}, nil)
+				if !got.Equal(want) {
+					t.Logf("\ngot:  %#v\nwant: %#v\n", got, want)
+					return false
+				}
 
-	if err != nil {
-		t.Fatal(err)
+				return true
+			}, nil)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
+
 }
