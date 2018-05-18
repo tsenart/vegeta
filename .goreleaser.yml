@@ -12,8 +12,8 @@ builds:
   flags:
   - -a
   - -tags="netgo"
-  ldflags: >
-    "-s -w -extldflags '-static' -X main.Version={{.Version}} -X main.Commit={{.Commit}} -X main.Date={{.Date}}"
+  ldflags:
+    - -s -w -extldflags "-static" -X main.Version={{.Version}} -X main.Commit={{.Commit}} -X main.Date={{.Date}}"
 
 archive:
   name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}"
