@@ -36,7 +36,14 @@ func main() {
 	fs.Parse(os.Args[1:])
 
 	if *version {
-		fmt.Printf("Version: %s\nCommit: %s\nGo version: %s\nDate: %s\n", Version, Commit, runtime.Version(), Date)
+		fmt.Printf("Version: %s\nCommit: %s\nRuntime: %s %s/%s\nDate: %s\n",
+			Version,
+			Commit,
+			runtime.Version(),
+			runtime.GOOS,
+			runtime.GOARCH,
+			Date,
+		)
 		return
 	}
 
