@@ -8,3 +8,6 @@ vegeta: vendor
 
 vendor:
 	dep ensure -v
+
+dist:
+	goreleaser release
