@@ -244,13 +244,12 @@ func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan tim
 
 func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	var (
-		res = Result{Timestamp: tm}
+		res Result
 		tgt Target
 		err error
 	)
 
 	defer func() {
-		res.Latency = time.Since(tm)
 		if err != nil {
 			res.Error = err.Error()
 		}
@@ -266,6 +265,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		return &res
 	}
 
+	res.Timestamp = time.Now()
 	r, err := a.client.Do(req)
 	if err != nil {
 		return &res
@@ -275,6 +275,7 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
 		return &res
 	}
+	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(res.Body))
 
 	if req.ContentLength != -1 {
