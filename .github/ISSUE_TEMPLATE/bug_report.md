@@ -5,7 +5,7 @@ about: Report a bug to help Vegeta improve.
 
 <!-- ⚠️ If you do not respect this template your bug report issue will be closed. -->
 
-### Version and Runtime
+#### Version and Runtime
 
 ```
 Paste the output of `vegeta -version` here.
@@ -22,7 +22,7 @@ If you are not running the latest version of Vegeta, please try upgrading becaus
 
 #### Steps to Reproduce
 
-<!-- Please list the full steps required to reproduce the bug -->
+<!-- Please list the full steps required to reproduce the bug. -->
 
 1. Step 1
 1. Step N
