@@ -186,16 +186,16 @@ func H2C(enabled bool) func(*Attacker) {
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at
-// the rate specified for duration time. When the duration is zero the attack
-// runs until Stop is called. Results are put into the returned channel as soon
-// as they arrive.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
+// the rate specified for the given duration. When the duration is zero the attack
+// runs until Stop is called. Results are sent to the returned channel as soon
+// as they arrive and will have their Attack field set to the given name.
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, name string) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
-	ticks := make(chan time.Time)
+	ticks := make(chan uint64)
 	for i := uint64(0); i < a.workers; i++ {
 		workers.Add(1)
-		go a.attack(tr, &workers, ticks, results)
+		go a.attack(tr, name, &workers, ticks, results)
 	}
 
 	go func() {
@@ -204,20 +204,20 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 		defer close(ticks)
 		interval := 1e9 / rate
 		hits := rate * uint64(du.Seconds())
-		began, done := time.Now(), uint64(0)
+		began, seq := time.Now(), uint64(0)
 		for {
-			now, next := time.Now(), began.Add(time.Duration(done*interval))
+			now, next := time.Now(), began.Add(time.Duration(seq*interval))
 			time.Sleep(next.Sub(now))
 			select {
-			case ticks <- max(next, now):
-				if done++; done == hits {
+			case ticks <- seq:
+				if seq++; seq == hits {
 					return
 				}
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
 				workers.Add(1)
-				go a.attack(tr, &workers, ticks, results)
+				go a.attack(tr, name, &workers, ticks, results)
 			}
 		}
 	}()
@@ -235,16 +235,16 @@ func (a *Attacker) Stop() {
 	}
 }
 
-func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
+func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, ticks <-chan uint64, results chan<- *Result) {
 	defer workers.Done()
-	for tm := range ticks {
-		results <- a.hit(tr, tm)
+	for seq := range ticks {
+		results <- a.hit(tr, name, seq)
 	}
 }
 
-func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
+func (a *Attacker) hit(tr Targeter, name string, seq uint64) *Result {
 	var (
-		res Result
+		res = Result{Attack: name, Seq: seq}
 		tgt Target
 		err error
 	)
@@ -287,11 +287,4 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 
 	return &res
-}
-
-func max(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
 }

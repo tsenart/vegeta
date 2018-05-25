@@ -23,6 +23,7 @@ func attackCmd() command {
 		laddr:   localAddr{&vegeta.DefaultLocalAddr},
 	}
 
+	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
@@ -56,6 +57,7 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
+	name        string
 	targetsf    string
 	outputf     string
 	bodyf       string
@@ -138,7 +140,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.H2C(opts.h2c),
 	)
 
-	res := atk.Attack(tr, opts.rate, opts.duration)
+	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)

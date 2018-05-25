@@ -18,6 +18,8 @@ func init() {
 
 // Result contains the results of a single Target hit.
 type Result struct {
+	Attack    string        `json:"attack"`
+	Seq       uint64        `json:"seq"`
 	Code      uint16        `json:"code"`
 	Timestamp time.Time     `json:"timestamp"`
 	Latency   time.Duration `json:"latency"`
@@ -32,7 +34,9 @@ func (r *Result) End() time.Time { return r.Timestamp.Add(r.Latency) }
 
 // Equal returns true if the given Result is equal to the receiver.
 func (r Result) Equal(other Result) bool {
-	return r.Code == other.Code &&
+	return r.Attack == other.Attack &&
+		r.Seq == other.Seq &&
+		r.Code == other.Code &&
 		r.Timestamp.Equal(other.Timestamp) &&
 		r.Latency == other.Latency &&
 		r.BytesIn == other.BytesIn &&
@@ -115,6 +119,8 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.BytesIn, 10),
 			r.Error,
 			base64.StdEncoding.EncodeToString(r.Body),
+			r.Attack,
+			strconv.FormatUint(r.Seq, 10),
 		})
 
 		if err != nil {
@@ -164,6 +170,11 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 
 		r.Error = rec[5]
 		r.Body, err = base64.StdEncoding.DecodeString(rec[6])
+
+		r.Attack = rec[7]
+		if r.Seq, err = strconv.ParseUint(rec[8], 10, 64); err != nil {
+			return err
+		}
 
 		return err
 	}

@@ -63,8 +63,10 @@ func TestEncoding(t *testing.T) {
 			var buf bytes.Buffer
 			enc := tc.enc(&buf)
 			dec := tc.dec(&buf)
-			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, bsIn, bsOut uint64, body []byte, e string) bool {
+			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, body []byte, attack, e string) bool {
 				want := Result{
+					Attack:    attack,
+					Seq:       seq,
 					Code:      code,
 					Timestamp: time.Unix(int64(ts), 0),
 					Latency:   latency,

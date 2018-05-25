@@ -61,6 +61,8 @@ attack command:
       Local IP address (default 0.0.0.0)
   -lazy
       Read targets lazily
+  -name string
+      Attack name
   -output string
       Output file (default "stdout")
   -rate uint

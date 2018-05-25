@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/lucasb-eyer/go-colorful"
+  packages = ["."]
+  revision = "8abd3beca3a7f5039809449d6013a0254ac22bb1"
+
+[[projects]]
+  branch = "master"
   name = "github.com/streadway/quantile"
   packages = ["."]
   revision = "b0c588724d25ae13f5afb3d90efec0edc636432b"
@@ -42,6 +48,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c957d6ac3ee0ed808b914f6663f2708f84e6beecec632d236215a35de1c36d5f"
+  inputs-digest = "c4733e995a7d5a7521b2b14b7b4a275f0ff10f65871f452e21c3cd1f0bd8a948"
   solver-name = "gps-cdcl"
   solver-version = 1
