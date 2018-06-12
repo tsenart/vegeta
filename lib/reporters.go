@@ -186,6 +186,7 @@ const (
 <html>
 <head>
   <title>%s</title>
+  <meta charset="utf-8">
 </head>
 <body>
   <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
