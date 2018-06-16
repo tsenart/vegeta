@@ -193,8 +193,8 @@ func TestNewLazyTargeter(t *testing.T) {
 		{
 			Method: "SUBSCRIBE",
 			URL:    "http://foobar.org/sub",
- 			Body:   []byte{},
- 			Header: http.Header{"Content-Type": []string{"text/plain"}},
+			Body:   []byte{},
+			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
 	} {
 		var got Target
