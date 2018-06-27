@@ -76,3 +76,17 @@ func TestMetrics_NoInfiniteRate(t *testing.T) {
 		t.Errorf("got rate %f, want %f", got, want)
 	}
 }
+
+// https://github.com/tsenart/vegeta/pull/277
+func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
+	t.Parallel()
+
+	m := Metrics{Errors: nil}
+	m.Close()
+
+	got, want := m.Errors, []string{}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("\ngot:  %+v\nwant: %+v", got, want)
+	}
+}

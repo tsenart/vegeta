@@ -36,7 +36,14 @@ func main() {
 	fs.Parse(os.Args[1:])
 
 	if *version {
-		fmt.Println(Version)
+		fmt.Printf("Version: %s\nCommit: %s\nRuntime: %s %s/%s\nDate: %s\n",
+			Version,
+			Commit,
+			runtime.Version(),
+			runtime.GOOS,
+			runtime.GOARCH,
+			Date,
+		)
 		return
 	}
 
@@ -75,8 +82,8 @@ func main() {
 	}
 }
 
-// Version is set at compile time.
-var Version = "???"
+// Set at linking time
+var Version, Commit, Date string
 
 const examples = `
 examples:

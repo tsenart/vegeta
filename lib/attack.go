@@ -3,10 +3,10 @@ package vegeta
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -106,6 +106,15 @@ func Redirects(n int) func(*Attacker) {
 	}
 }
 
+// Proxy returns a functional option which sets the `Proxy` field on
+// the http.Client's Transport
+func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.Proxy = proxy
+	}
+}
+
 // Timeout returns a functional option which sets the maximum amount of time
 // an Attacker will wait for a request to be responded to.
 func Timeout(d time.Duration) func(*Attacker) {
@@ -161,17 +170,32 @@ func HTTP2(enabled bool) func(*Attacker) {
 	}
 }
 
+// H2C returns a functional option which enables H2C support on requests
+// performed by an Attacker
+func H2C(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if tr := a.client.Transport.(*http.Transport); enabled {
+			a.client.Transport = &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return tr.Dial(network, addr)
+				},
+			}
+		}
+	}
+}
+
 // Attack reads its Targets from the passed Targeter and attacks them at
-// the rate specified for duration time. When the duration is zero the attack
-// runs until Stop is called. Results are put into the returned channel as soon
-// as they arrive.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Result {
+// the rate specified for the given duration. When the duration is zero the attack
+// runs until Stop is called. Results are sent to the returned channel as soon
+// as they arrive and will have their Attack field set to the given name.
+func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, name string) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
-	ticks := make(chan time.Time)
+	ticks := make(chan uint64)
 	for i := uint64(0); i < a.workers; i++ {
 		workers.Add(1)
-		go a.attack(tr, &workers, ticks, results)
+		go a.attack(tr, name, &workers, ticks, results)
 	}
 
 	go func() {
@@ -180,20 +204,20 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration) <-chan *Re
 		defer close(ticks)
 		interval := 1e9 / rate
 		hits := rate * uint64(du.Seconds())
-		began, done := time.Now(), uint64(0)
+		began, seq := time.Now(), uint64(0)
 		for {
-			now, next := time.Now(), began.Add(time.Duration(done*interval))
+			now, next := time.Now(), began.Add(time.Duration(seq*interval))
 			time.Sleep(next.Sub(now))
 			select {
-			case ticks <- max(next, now):
-				if done++; done == hits {
+			case ticks <- seq:
+				if seq++; seq == hits {
 					return
 				}
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
 				workers.Add(1)
-				go a.attack(tr, &workers, ticks, results)
+				go a.attack(tr, name, &workers, ticks, results)
 			}
 		}
 	}()
@@ -211,22 +235,21 @@ func (a *Attacker) Stop() {
 	}
 }
 
-func (a *Attacker) attack(tr Targeter, workers *sync.WaitGroup, ticks <-chan time.Time, results chan<- *Result) {
+func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, ticks <-chan uint64, results chan<- *Result) {
 	defer workers.Done()
-	for tm := range ticks {
-		results <- a.hit(tr, tm)
+	for seq := range ticks {
+		results <- a.hit(tr, name, seq)
 	}
 }
 
-func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
+func (a *Attacker) hit(tr Targeter, name string, seq uint64) *Result {
 	var (
-		res = Result{Timestamp: tm}
+		res = Result{Attack: name, Seq: seq}
 		tgt Target
 		err error
 	)
 
 	defer func() {
-		res.Latency = time.Since(tm)
 		if err != nil {
 			res.Error = err.Error()
 		}
@@ -242,17 +265,18 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 		return &res
 	}
 
+	res.Timestamp = time.Now()
 	r, err := a.client.Do(req)
 	if err != nil {
 		return &res
 	}
 	defer r.Body.Close()
 
-	in, err := io.Copy(ioutil.Discard, r.Body)
-	if err != nil {
+	if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
 		return &res
 	}
-	res.BytesIn = uint64(in)
+	res.Latency = time.Since(res.Timestamp)
+	res.BytesIn = uint64(len(res.Body))
 
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)
@@ -263,11 +287,4 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 
 	return &res
-}
-
-func max(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
 }

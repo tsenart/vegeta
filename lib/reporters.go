@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 // A Report represents the state a Reporter uses to write out its reports.
@@ -112,35 +114,69 @@ func NewPlotReporter(title string, rs *Results) Reporter {
 			return err
 		}
 
-		buf := make([]byte, 0, 128)
-		for i, result := range *rs {
-			buf = append(buf, '[')
-			buf = append(buf, strconv.FormatFloat(
-				result.Timestamp.Sub((*rs)[0].Timestamp).Seconds(), 'f', -1, 32)...)
-			buf = append(buf, ',')
-
-			latency := strconv.FormatFloat(result.Latency.Seconds()*1000, 'f', -1, 32)
-			if result.Error == "" {
-				buf = append(buf, "NaN,"...)
-				buf = append(buf, latency...)
-				buf = append(buf, ']', ',')
-			} else {
-				buf = append(buf, latency...)
-				buf = append(buf, ",NaN],"...)
-			}
-
-			if i == len(*rs)-1 {
-				buf = buf[:len(buf)-1]
-			}
-
-			if _, err = w.Write(buf); err != nil {
-				return err
-			}
-
-			buf = buf[:0]
+		attacks := make(map[string]Results, len(*rs))
+		for _, r := range *rs {
+			attacks[r.Attack] = append(attacks[r.Attack], r)
 		}
 
-		_, err = fmt.Fprintf(w, plotsTemplateTail, title)
+		const series = 2 // OK and Errors
+		i, offsets := 0, make(map[string]int, len(attacks))
+		for attack := range attacks {
+			offsets[attack] = 1 + i*series
+			i++
+		}
+
+		const nan = "NaN"
+
+		data := make([]string, 1+len(attacks)*series)
+		for attack, results := range attacks {
+			for i, r := range results {
+				for j := range data {
+					data[j] = nan
+				}
+
+				offset := offsets[attack]
+				if r.Error == "" {
+					offset++
+				}
+
+				ts := r.Timestamp.Sub(results[0].Timestamp).Seconds()
+				data[0] = strconv.FormatFloat(ts, 'f', -1, 32)
+
+				latency := r.Latency.Seconds() * 1000
+				data[offset] = strconv.FormatFloat(latency, 'f', -1, 32)
+
+				s := "[" + strings.Join(data, ",") + "]"
+
+				if i < len(*rs)-1 {
+					s += ","
+				}
+
+				if _, err = io.WriteString(w, s); err != nil {
+					return err
+				}
+			}
+		}
+
+		labels := make([]string, len(data))
+		labels[0] = strconv.Quote("Seconds")
+
+		for attack, offset := range offsets {
+			labels[offset] = strconv.Quote(attack + " - ERR")
+			labels[offset+1] = strconv.Quote(attack + " - OK")
+		}
+
+		colors := make([]string, 0, len(labels)-1)
+		palette, err := colorful.HappyPalette(cap(colors))
+		if err != nil {
+			return err
+		}
+
+		for _, color := range palette {
+			colors = append(colors, strconv.Quote(color.Hex()))
+		}
+
+		_, err = fmt.Fprintf(w, plotsTemplateTail, title, strings.Join(labels, ","), strings.Join(colors, ","))
 		return err
 	}
 }
@@ -150,6 +186,7 @@ const (
 <html>
 <head>
   <title>%s</title>
+  <meta charset="utf-8">
 </head>
 <body>
   <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
@@ -163,11 +200,11 @@ const (
 	plotsTemplateTail = `],
     {
       title: '%s',
-      labels: ['Seconds', 'ERR', 'OK'],
+      labels: [%s],
       ylabel: 'Latency (ms)',
       xlabel: 'Seconds elapsed',
+      colors: [%s],
       showRoller: true,
-      colors: ['#FA7878', '#8AE234'],
       legend: 'always',
       logscale: true,
       strokeWidth: 1.3

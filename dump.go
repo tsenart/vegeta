@@ -22,16 +22,16 @@ func dumpCmd() command {
 
 func dump(dumper, inputs, output string) error {
 	files := strings.Split(inputs, ",")
-	srcs := make([]io.Reader, len(files))
+	srcs := make([]vegeta.Decoder, len(files))
 	for i, f := range files {
 		in, err := file(f, false)
 		if err != nil {
 			return err
 		}
 		defer in.Close()
-		srcs[i] = in
+		srcs[i] = vegeta.NewDecoder(in)
 	}
-	dec := vegeta.NewDecoder(srcs...)
+	dec := vegeta.NewRoundRobinDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {

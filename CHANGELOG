@@ -1,3 +1,9 @@
+2018-05-18: v7.0.0
+  Include response body in hit results (#279)
+  Added support for h2c requests (HTTP/2 without TLS) (#261)
+  Prevent "null" Metrics.Errors JSON encoding (#277)
+  Add option to override HTTP Proxy on Attacker (#234)
+
 2017-03-19: v6.3.0
   Mark responses as success in no redirect following mode (#222)
 
