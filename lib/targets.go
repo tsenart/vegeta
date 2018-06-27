@@ -71,16 +71,15 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 // header will be merged with the each Target's headers.
 func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
 	var (
+		sc   = NewLazyTargeter(src, body, header)
 		tgts []Target
 		tgt  Target
+		err  error
 	)
-	reader := newReader(src, body, header)
 	for {
-		err := reader.load(&tgt)
-		if err == ErrNoTargets {
+		if err = sc(&tgt); err == ErrNoTargets {
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, err
 		}
 		tgts = append(tgts, tgt)
