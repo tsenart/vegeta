@@ -413,7 +413,7 @@ $ pdsh -b -w '10.0.1.1,10.0.2.1,10.0.3.1' \
 After the previous command finishes, we can gather the result files to use on our report.
 
 ```shell
-$ for machine in "10.0.1.1 10.0.2.1 10.0.3.1"; do
+$ for machine in 10.0.1.1 10.0.2.1 10.0.3.1; do
     scp $machine:~/result.bin $machine.bin &
   done
 ```
