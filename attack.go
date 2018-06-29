@@ -25,6 +25,7 @@ func attackCmd() command {
 
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
+	fs.StringVar(&opts.format, "format", "legacy", "Targets format [legacy]")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
@@ -59,6 +60,7 @@ var (
 type attackOpts struct {
 	name        string
 	targetsf    string
+	format      string
 	outputf     string
 	bodyf       string
 	certf       string
@@ -111,10 +113,16 @@ func attack(opts *attackOpts) (err error) {
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
-	if opts.lazy {
-		tr = vegeta.NewLazyTargeter(src, body, hdr)
-	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
-		return err
+
+	switch opts.format {
+	case "legacy":
+		tr = vegeta.NewLegacyTargeter(src, body, hdr)
+	}
+
+	if !opts.lazy {
+		if tr, err = vegeta.NewEagerTargeter(tr); err != nil {
+			return err
+		}
 	}
 
 	out, err := file(opts.outputf, true)

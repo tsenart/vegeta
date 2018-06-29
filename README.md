@@ -47,6 +47,10 @@ attack command:
       Max open idle connections per target host (default 10000)
   -duration duration
       Duration of the test [0 = forever]
+  -format string
+      Targets format [legacy] (default "legacy")
+  -h2c
+      Send HTTP/2 requests without TLS encryption
   -header value
       Request header
   -http2
@@ -113,47 +117,7 @@ Specifies which profiler to enable during execution. Both *cpu* and
 #### `-version`
 Prints the version and exits.
 
-### `attack`
-```console
-$ vegeta attack -h
-Usage of vegeta attack:
-  -body string
-      Requests body file
-  -cert string
-      TLS client PEM encoded certificate file
-  -connections int
-      Max open idle connections per target host (default 10000)
-  -duration duration
-      Duration of the test [0 = forever]
-  -header value
-      Request header
-  -http2
-      Send HTTP/2 requests when supported by the server (default true)
-  -insecure
-      Ignore invalid server TLS certificates
-  -keepalive
-      Use persistent connections (default true)
-  -key string
-      TLS client PEM encoded private key file
-  -laddr value
-      Local IP address (default 0.0.0.0)
-  -lazy
-      Read targets lazily
-  -output string
-      Output file (default "stdout")
-  -rate uint
-      Requests per second (default 50)
-  -redirects int
-      Number of redirects to follow. -1 will not follow but marks as success (default 10)
-  -root-certs value
-      TLS root certificate files (comma separated list)
-  -targets string
-      Targets file (default "stdin")
-  -timeout duration
-      Requests timeout (default 30s)
-  -workers uint
-      Initial number of workers (default 10)
-```
+### `attack` command
 
 #### `-body`
 Specifies the file whose content will be set as the body of every
@@ -171,6 +135,56 @@ Specifies the amount of time to issue request to the targets.
 The internal concurrency structure's setup has this value as a variable.
 The actual run time of the test can be longer than specified due to the
 responses delay. Use 0 for an infinite attack.
+
+#### `-format`
+Specifies the targets format to decode.
+
+##### `legacy` format
+
+The ill-defined legacy format almost resembles the plain-text HTTP message format but
+doesn't support in-line HTTP bodies, only references to files that are loaded and used
+as request bodies (as exemplified below).
+
+Although targets in this format can be produced by other programs, it was originally
+meant to be used by people writing targets by hand for simple use cases.
+
+Here are a few examples of valid targets files in the legacy format:
+
+Simple targets
+```
+GET http://goku:9090/path/to/dragon?item=ball
+GET http://user:password@goku:9090/path/to
+HEAD http://goku:9090/path/to/success
+```
+
+Targets with custom headers
+```
+GET http://user:password@goku:9090/path/to
+X-Account-ID: 8675309
+
+DELETE http://goku:9090/path/to/remove
+Confirmation-Token: 90215
+Authorization: Token DEADBEEF
+```
+
+Targets with custom bodies
+```
+POST http://goku:9090/things
+@/path/to/newthing.json
+
+PATCH http://goku:9090/thing/71988591
+@/path/to/thing-71988591.json
+```
+
+Targets with custom bodies and headers
+```
+POST http://goku:9090/things
+X-Account-ID: 99
+@/path/to/newthing.json
+```
+
+#### `-h2c`
+Specifies that HTTP2 requests are to be sent over TCP without TLS encryption.
 
 #### `-header`
 Specifies a request header to be used in all targets defined, see `-targets`.
@@ -220,39 +234,6 @@ list. If unspecified, the default system CAs certificates will be used.
 Specifies the attack targets in a line separated file, defaulting to stdin.
 The format should be as follows, combining any or all of the following:
 
-Simple targets
-```
-GET http://goku:9090/path/to/dragon?item=balls
-GET http://user:password@goku:9090/path/to
-HEAD http://goku:9090/path/to/success
-```
-
-Targets with custom headers
-```
-GET http://user:password@goku:9090/path/to
-X-Account-ID: 8675309
-
-DELETE http://goku:9090/path/to/remove
-Confirmation-Token: 90215
-Authorization: Token DEADBEEF
-```
-
-Targets with custom bodies
-```
-POST http://goku:9090/things
-@/path/to/newthing.json
-
-PATCH http://goku:9090/thing/71988591
-@/path/to/thing-71988591.json
-```
-
-Targets with custom bodies and headers
-```
-POST http://goku:9090/things
-X-Account-ID: 99
-@/path/to/newthing.json
-```
-
 #### `-timeout`
 Specifies the timeout for each request. The default is 0 which disables
 timeouts.
@@ -262,17 +243,7 @@ Specifies the initial number of workers used in the attack. The actual
 number of workers will increase if necessary in order to sustain the
 requested rate.
 
-### report
-```console
-$ vegeta report -h
-Usage of vegeta report:
-  -inputs string
-      Input files (comma separated) (default "stdin")
-  -output string
-      Output file (default "stdout")
-  -reporter string
-      Reporter [text, json, plot, hist[buckets]] (default "text")
-```
+### report command
 
 #### `-inputs`
 Specifies the input files to generate the report of, defaulting to stdin.
@@ -363,17 +334,7 @@ Bucket         #     %       Histogram
 [6ms,   +Inf]  4771  25.93%  ###################
 ```
 
-### `dump`
-```console
-$ vegeta dump -h
-Usage of vegeta dump:
-  -dumper string
-      Dumper [json, csv] (default "json")
-  -inputs string
-      Input files (comma separated) (default "stdin")
-  -output string
-      Output file (default "stdout")
-```
+### `dump` command
 
 #### `-inputs`
 Specifies the input files containing attack results to be dumped. You can specify more than one (comma separated).
