@@ -64,38 +64,45 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 	}
 }
 
-// NewEagerTargeter eagerly reads all Targets out of the provided io.Reader and
+// NewEagerTargeter eagerly reads all Targets out of the provided Targeter and
 // returns a NewStaticTargeter with them.
-//
-// body will be set as the Target's body if no body is provided.
-// hdr will be merged with the each Target's headers.
-func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
+func NewEagerTargeter(t Targeter) (Targeter, error) {
 	var (
-		sc   = NewLazyTargeter(src, body, header)
 		tgts []Target
 		tgt  Target
 		err  error
 	)
+
 	for {
-		if err = sc(&tgt); err == ErrNoTargets {
+		if err = t(&tgt); err == ErrNoTargets {
 			break
 		} else if err != nil {
 			return nil, err
 		}
 		tgts = append(tgts, tgt)
 	}
+
 	if len(tgts) == 0 {
 		return nil, ErrNoTargets
 	}
+
 	return NewStaticTargeter(tgts...), nil
 }
 
-// NewLazyTargeter returns a new Targeter that lazily scans Targets from the
-// provided io.Reader on every invocation.
+// NewLegacyTargeter returns a new Targeter that decodes one Target from the
+// given io.Reader on every invocation. The format is as follows:
+//
+//    GET https://foo.bar/a/b/c
+//    Header-X: 123
+//    Header-Y: 321
+//    @/path/to/body/file
+//
+//    POST https://foo.bar/b/c/a
+//    Header-X: 123
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+func NewLegacyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	var mu sync.Mutex
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {

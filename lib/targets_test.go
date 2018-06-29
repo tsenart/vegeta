@@ -62,7 +62,7 @@ func TestNewEagerTargeter(t *testing.T) {
 	t.Parallel()
 
 	src := []byte("GET http://:6060/\nHEAD http://:6606/")
-	read, err := NewEagerTargeter(bytes.NewReader(src), []byte("body"), nil)
+	read, err := NewEagerTargeter(NewLegacyTargeter(bytes.NewReader(src), []byte("body"), nil))
 	if err != nil {
 		t.Fatalf("Couldn't parse valid source: %s", err)
 	}
@@ -89,7 +89,7 @@ func TestNewEagerTargeter(t *testing.T) {
 	}
 }
 
-func TestNewLazyTargeter(t *testing.T) {
+func TestNewLegacyTargeter(t *testing.T) {
 	t.Parallel()
 
 	for want, def := range map[error]string{
@@ -111,7 +111,7 @@ func TestNewLazyTargeter(t *testing.T) {
 			: 1234`,
 	} {
 		src := bytes.NewBufferString(strings.TrimSpace(def))
-		read := NewLazyTargeter(src, []byte{}, http.Header{})
+		read := NewLegacyTargeter(src, []byte{}, http.Header{})
 		if got := read(&Target{}); got == nil || !strings.HasPrefix(got.Error(), want.Error()) {
 			t.Errorf("got: %s, want: %s\n%s", got, want, def)
 		}
@@ -149,7 +149,7 @@ func TestNewLazyTargeter(t *testing.T) {
 	)
 
 	src := bytes.NewBufferString(strings.TrimSpace(targets))
-	read := NewLazyTargeter(src, []byte{}, http.Header{"Content-Type": []string{"text/plain"}})
+	read := NewLegacyTargeter(src, []byte{}, http.Header{"Content-Type": []string{"text/plain"}})
 	for _, want := range []Target{
 		{
 			Method: "GET",
@@ -215,13 +215,13 @@ func TestNewLazyTargeter(t *testing.T) {
 func TestErrNilTarget(t *testing.T) {
 	t.Parallel()
 
-	eager, err := NewEagerTargeter(strings.NewReader("GET http://foo.bar"), nil, nil)
+	eager, err := NewEagerTargeter(NewLegacyTargeter(strings.NewReader("GET http://foo.bar"), nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i, tr := range []Targeter{
 		NewStaticTargeter(Target{Method: "GET", URL: "http://foo.bar"}),
-		NewLazyTargeter(strings.NewReader("GET http://foo.bar"), nil, nil),
+		NewLegacyTargeter(strings.NewReader("GET http://foo.bar"), nil, nil),
 		eager,
 	} {
 		if got, want := tr(nil), ErrNilTarget; got != want {
