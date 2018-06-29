@@ -48,7 +48,7 @@ attack command:
   -duration duration
       Duration of the test [0 = forever]
   -format string
-      Targets format [legacy] (default "legacy")
+      Targets format [legacy, json] (default "legacy")
   -h2c
       Send HTTP/2 requests without TLS encryption
   -header value
@@ -138,6 +138,16 @@ responses delay. Use 0 for an infinite attack.
 
 #### `-format`
 Specifies the targets format to decode.
+
+##### `json` format
+
+The JSON format makes integration with programs that produce targets dynamically easier.
+Each target is one JSON object in its own line. If present, the body field must be base64 encoded.
+
+```bash
+jq -ncM '{method: "GET", url: "http://goku", body: "Punch!" | @base64, header: {"Content-Type": ["text/plain"]}}' |
+  vegeta attack -format=json -rate=100 | vegeta dump
+```
 
 ##### `legacy` format
 

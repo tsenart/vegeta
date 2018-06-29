@@ -25,7 +25,7 @@ func attackCmd() command {
 
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
-	fs.StringVar(&opts.format, "format", "legacy", "Targets format [legacy]")
+	fs.StringVar(&opts.format, "format", "legacy", "Targets format [legacy, json]")
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
@@ -115,7 +115,11 @@ func attack(opts *attackOpts) (err error) {
 	)
 
 	switch opts.format {
+	case "json":
+		tr = vegeta.NewJSONTargeter(src, body, hdr)
 	case "legacy":
+		fallthrough
+	default:
 		tr = vegeta.NewLegacyTargeter(src, body, hdr)
 	}
 
