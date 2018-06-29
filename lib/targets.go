@@ -3,6 +3,7 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,10 +18,10 @@ import (
 
 // Target is an HTTP request blueprint.
 type Target struct {
-	Method string
-	URL    string
-	Body   []byte
-	Header http.Header
+	Method string      `json:"method"`
+	URL    string      `json:"url"`
+	Body   []byte      `json:"body"`
+	Header http.Header `json:"header"`
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -50,6 +51,44 @@ var (
 // A Targeter decodes a Target or returns an error in case of failure.
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
+
+// NewJSONTargeter returns a new targeter that decodes one Target from the
+// given io.Reader on every invocation. Each target is one JSON object in its own line.
+// The body field of each target must be base64 encoded.
+//
+//    {"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
+//    {"method":"GET",  "url":"https://goku/2"}
+//
+// body will be set as the Target's body if no body is provided in each target definiton.
+// hdr will be merged with the each Target's headers.
+//
+func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
+	type decoder struct {
+		*json.Decoder
+		sync.Mutex
+	}
+	dec := decoder{Decoder: json.NewDecoder(src)}
+
+	return func(tgt *Target) (err error) {
+		if tgt == nil {
+			return ErrNilTarget
+		}
+
+		dec.Lock()
+		defer dec.Unlock()
+
+		if err = dec.Decode(tgt); err == nil {
+			return nil
+		}
+
+		switch err {
+		case io.EOF:
+			return ErrNoTargets
+		default:
+			return err
+		}
+	}
+}
 
 // NewStaticTargeter returns a Targeter which round-robins over the passed
 // Targets.
