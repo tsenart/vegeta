@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/streadway/quantile"
+	"github.com/influxdata/tdigest"
 )
 
 // Metrics holds metrics computed out of a slice of Results which are used
@@ -136,11 +136,7 @@ func (m *Metrics) init() {
 	}
 
 	if m.latencies == nil {
-		m.latencies = quantile.New(
-			quantile.Known(0.50, 0.01),
-			quantile.Known(0.95, 0.001),
-			quantile.Known(0.99, 0.0005),
-		)
+		m.latencies = newTdigestEstimator(100)
 	}
 
 	if m.Errors == nil {
@@ -149,6 +145,17 @@ func (m *Metrics) init() {
 }
 
 type estimator interface {
-	Add(s float64)
-	Get(q float64) float64
+	Add(sample float64)
+	Get(quantile float64) float64
+}
+
+type tdigestEstimator struct{ *tdigest.TDigest }
+
+func newTdigestEstimator(compression float64) *tdigestEstimator {
+	return &tdigestEstimator{tdigest.NewWithCompression(compression)}
+}
+
+func (e *tdigestEstimator) Add(s float64) { e.TDigest.Add(s, 1) }
+func (e *tdigestEstimator) Get(q float64) float64 {
+	return e.TDigest.Quantile(q)
 }
