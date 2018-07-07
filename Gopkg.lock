@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/alecthomas/jsonschema"
+  packages = ["."]
+  revision = "f2c93856175a7dd6abe88c5c3900b67ad054adcc"
+
+[[projects]]
+  branch = "master"
   name = "github.com/lucasb-eyer/go-colorful"
   packages = ["."]
   revision = "8abd3beca3a7f5039809449d6013a0254ac22bb1"
@@ -48,6 +54,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c4733e995a7d5a7521b2b14b7b4a275f0ff10f65871f452e21c3cd1f0bd8a948"
+  inputs-digest = "b7241bb8cec207e1b751be687240fd7f6af51a3a9e37a70c4d62c33a96c1391e"
   solver-name = "gps-cdcl"
   solver-version = 1
