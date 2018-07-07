@@ -9,6 +9,24 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/bmizerany/perks"
+  packages = ["quantile"]
+  revision = "d9a9656a3a4b1c2864fdb44db2ef8619772d92aa"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/dgryski/go-gk"
+  packages = ["."]
+  revision = "201884a44051d8544b65e6b1c05ae71c0c45b9e0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/influxdata/tdigest"
+  packages = ["."]
+  revision = "617b83f940fd9acd207f712561a8a0590277fb38"
+
+[[projects]]
+  branch = "master"
   name = "github.com/lucasb-eyer/go-colorful"
   packages = ["."]
   revision = "8abd3beca3a7f5039809449d6013a0254ac22bb1"
@@ -54,6 +72,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b7241bb8cec207e1b751be687240fd7f6af51a3a9e37a70c4d62c33a96c1391e"
+  inputs-digest = "3f57915bac2b6a24d1d9bd8e2eda4e30f5b8ccd57e54192bac724c4368892009"
   solver-name = "gps-cdcl"
   solver-version = 1
