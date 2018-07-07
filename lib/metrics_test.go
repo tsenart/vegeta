@@ -8,8 +8,7 @@ import (
 
 	bmizerany "github.com/bmizerany/perks/quantile"
 	gk "github.com/dgryski/go-gk"
-	"github.com/influxdata/tdigest"
-	"github.com/streadway/quantile"
+	streadway "github.com/streadway/quantile"
 )
 
 func TestMetrics_Add(t *testing.T) {
@@ -43,9 +42,9 @@ func TestMetrics_Add(t *testing.T) {
 		Latencies: LatencyMetrics{
 			Total: duration("50.005s"),
 			Mean:  duration("5.0005ms"),
-			P50:   duration("4.991ms"),
-			P95:   duration("9.509ms"),
-			P99:   duration("9.898ms"),
+			P50:   duration("5.0005ms"),
+			P95:   duration("9.5005ms"),
+			P99:   duration("9.9005ms"),
 			Max:   duration("10ms"),
 		},
 		BytesIn:     ByteMetrics{Total: 10240000, Mean: 1024},
@@ -112,10 +111,10 @@ func BenchmarkMetrics(b *testing.B) {
 		name string
 		estimator
 	}{
-		{"streadway/quantile", quantile.New(
-			quantile.Known(0.50, 0.01),
-			quantile.Known(0.95, 0.001),
-			quantile.Known(0.99, 0.0005),
+		{"streadway/quantile", streadway.New(
+			streadway.Known(0.50, 0.01),
+			streadway.Known(0.95, 0.001),
+			streadway.Known(0.99, 0.0005),
 		)},
 		{"bmizerany/perks/quantile", newBmizeranyEstimator(
 			0.50,
@@ -172,17 +171,4 @@ func newDgriskyEstimator(epsilon float64) *dgryskiEstimator {
 func (e *dgryskiEstimator) Add(s float64) { e.Insert(s) }
 func (e *dgryskiEstimator) Get(q float64) float64 {
 	return e.Query(q)
-}
-
-type tdigestEstimator struct {
-	*tdigest.TDigest
-}
-
-func newTdigestEstimator(compression float64) *tdigestEstimator {
-	return &tdigestEstimator{tdigest.NewWithCompression(compression)}
-}
-
-func (e *tdigestEstimator) Add(s float64) { e.TDigest.Add(s, 1) }
-func (e *tdigestEstimator) Get(q float64) float64 {
-	return e.TDigest.Quantile(q)
 }
