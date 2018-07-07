@@ -40,7 +40,7 @@ type (
 
 		errors    map[string]struct{}
 		success   uint64
-		latencies *quantile.Estimator
+		latencies estimator
 	}
 
 	// LatencyMetrics holds computed request latency metrics.
@@ -148,4 +148,9 @@ func (m *Metrics) init() {
 	if m.Errors == nil {
 		m.Errors = make([]string, 0)
 	}
+}
+
+type estimator interface {
+	Add(s float64)
+	Get(q float64) float64
 }
