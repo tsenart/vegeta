@@ -48,6 +48,13 @@ var (
 	ErrNilTarget = errors.New("nil target")
 )
 
+const (
+	// HTTPTargetFormat is the human readable identifier for the HTTP target format.
+	HTTPTargetFormat = "http"
+	// JSONTargetFormat is the human readable identifier for the JSON target format.
+	JSONTargetFormat = "json"
+)
+
 // A Targeter decodes a Target or returns an error in case of failure.
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
