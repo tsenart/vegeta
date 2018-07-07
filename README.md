@@ -48,7 +48,7 @@ attack command:
   -duration duration
       Duration of the test [0 = forever]
   -format string
-      Targets format [legacy, json] (default "legacy")
+      Targets format [http, json] (default "http")
   -h2c
       Send HTTP/2 requests without TLS encryption
   -header value
@@ -149,25 +149,26 @@ jq -ncM '{method: "GET", url: "http://goku", body: "Punch!" | @base64, header: {
   vegeta attack -format=json -rate=100 | vegeta dump
 ```
 
-##### `legacy` format
+##### `http` format
 
-The ill-defined legacy format almost resembles the plain-text HTTP message format but
+The http format almost resembles the plain-text HTTP message format defined in
+[RFC 2616](https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html) but it
 doesn't support in-line HTTP bodies, only references to files that are loaded and used
 as request bodies (as exemplified below).
 
 Although targets in this format can be produced by other programs, it was originally
 meant to be used by people writing targets by hand for simple use cases.
 
-Here are a few examples of valid targets files in the legacy format:
+Here are a few examples of valid targets files in the http format:
 
-Simple targets
+###### Simple targets
 ```
 GET http://goku:9090/path/to/dragon?item=ball
 GET http://user:password@goku:9090/path/to
 HEAD http://goku:9090/path/to/success
 ```
 
-Targets with custom headers
+###### Targets with custom headers
 ```
 GET http://user:password@goku:9090/path/to
 X-Account-ID: 8675309
@@ -177,7 +178,7 @@ Confirmation-Token: 90215
 Authorization: Token DEADBEEF
 ```
 
-Targets with custom bodies
+###### Targets with custom bodies
 ```
 POST http://goku:9090/things
 @/path/to/newthing.json
@@ -186,7 +187,7 @@ PATCH http://goku:9090/thing/71988591
 @/path/to/thing-71988591.json
 ```
 
-Targets with custom bodies and headers
+###### Targets with custom bodies and headers
 ```
 POST http://goku:9090/things
 X-Account-ID: 99
