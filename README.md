@@ -142,7 +142,9 @@ Specifies the targets format to decode.
 ##### `json` format
 
 The JSON format makes integration with programs that produce targets dynamically easier.
-Each target is one JSON object in its own line. If present, the body field must be base64 encoded.
+Each target is one JSON object in its own line. The method and url fields are required.
+If present, the body field must be base64 encoded. The generated [JSON Schema](lib/target.schema.json)
+defines the format in detail.
 
 ```bash
 jq -ncM '{method: "GET", url: "http://goku", body: "Punch!" | @base64, header: {"Content-Type": ["text/plain"]}}' |

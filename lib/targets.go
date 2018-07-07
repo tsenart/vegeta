@@ -17,11 +17,13 @@ import (
 )
 
 // Target is an HTTP request blueprint.
+//
+//go:generate jsonschema -type=Target -output=target.schema.json
 type Target struct {
 	Method string      `json:"method"`
 	URL    string      `json:"url"`
-	Body   []byte      `json:"body"`
-	Header http.Header `json:"header"`
+	Body   []byte      `json:"body,omitempty"`
+	Header http.Header `json:"header,omitempty"`
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -64,7 +66,9 @@ type Targeter func(*Target) error
 
 // NewJSONTargeter returns a new targeter that decodes one Target from the
 // given io.Reader on every invocation. Each target is one JSON object in its own line.
-// The body field of each target must be base64 encoded.
+//
+// The method and url fields are required. If present, the body field must be base64 encoded.
+// The generated [JSON Schema](lib/target.schema.json) defines the format in detail.
 //
 //    {"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
 //    {"method":"GET",  "url":"https://goku/2"}
