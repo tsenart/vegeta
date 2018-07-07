@@ -58,6 +58,96 @@ func TestTargetRequest(t *testing.T) {
 	}
 }
 
+func TestJSONTargeter(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		src  io.Reader
+		body []byte
+		hdr  http.Header
+		in   *Target
+		out  *Target
+		err  error
+	}{
+		{
+			name: "nil target",
+			src:  &bytes.Buffer{},
+			in:   nil,
+			out:  nil,
+			err:  ErrNilTarget,
+		},
+		{
+			name: "empty buffer",
+			src:  &bytes.Buffer{},
+			in:   &Target{},
+			out:  &Target{},
+			err:  ErrNoMethod,
+		},
+		{
+			name: "empty object",
+			src:  strings.NewReader(`{}`),
+			in:   &Target{},
+			out:  &Target{},
+			err:  ErrNoMethod,
+		},
+		{
+			name: "empty method",
+			src:  strings.NewReader(`{"method": ""}`),
+			in:   &Target{},
+			out:  &Target{},
+			err:  ErrNoMethod,
+		},
+		{
+			name: "empty url",
+			src:  strings.NewReader(`{"method": "GET"}`),
+			in:   &Target{},
+			out:  &Target{},
+			err:  ErrNoURL,
+		},
+		{
+			name: "bad body encoding",
+			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "body": "NOT BASE64"}`),
+			in:   &Target{},
+			out:  &Target{},
+			err:  errors.New("illegal base64 data at input byte 3"),
+		},
+		{
+			name: "default body",
+			src:  strings.NewReader(`{"method": "GET", "url": "http://goku"}`),
+			body: []byte(`ATTACK!`),
+			in:   &Target{},
+			out:  &Target{Method: "GET", URL: "http://goku", Body: []byte("ATTACK!")},
+		},
+		{
+			name: "headers merge",
+			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}}`),
+			hdr:  http.Header{"x": []string{"bar"}},
+			in:   &Target{Header: http.Header{"y": []string{"baz"}}},
+			out:  &Target{Method: "GET", URL: "http://goku", Header: http.Header{"y": []string{"baz"}, "x": []string{"bar", "foo"}}},
+		},
+		{
+			name: "no defaults",
+			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}, "body": "QVRUQUNLIQ=="}`),
+			in:   &Target{},
+			out:  &Target{Method: "GET", URL: "http://goku", Header: http.Header{"x": []string{"foo"}}, Body: []byte("ATTACK!")},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := NewJSONTargeter(tc.src, tc.body, tc.hdr)(tc.in)
+			if got, want := tc.in, tc.out; !got.Equal(want) {
+				t.Errorf("got Target %#v, want %#v", got, want)
+			}
+
+			if got, want := fmt.Sprint(err), fmt.Sprint(tc.err); got != want {
+				t.Errorf("got error: %+v, want: %+v", got, want)
+			}
+		})
+	}
+
+}
+
 func TestNewEagerTargeter(t *testing.T) {
 	t.Parallel()
 

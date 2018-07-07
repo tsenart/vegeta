@@ -43,11 +43,50 @@ func (t *Target) Request() (*http.Request, error) {
 	return req, nil
 }
 
+// Equal returns true if the target is equal to the other given target.
+func (t *Target) Equal(other *Target) bool {
+	switch {
+	case t == other:
+		return true
+	case t == nil || other == nil:
+		return false
+	default:
+		equal := t.Method == other.Method &&
+			t.URL == other.URL &&
+			bytes.Equal(t.Body, other.Body) &&
+			len(t.Header) == len(other.Header)
+
+		if !equal {
+			return false
+		}
+
+		for k := range t.Header {
+			left, right := t.Header[k], other.Header[k]
+			if len(left) != len(right) {
+				return false
+			}
+			for i := range left {
+				if left[i] != right[i] {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
+}
+
 var (
 	// ErrNoTargets is returned when not enough Targets are available.
 	ErrNoTargets = errors.New("no targets to attack")
 	// ErrNilTarget is returned when the passed Target pointer is nil.
 	ErrNilTarget = errors.New("nil target")
+	// ErrNoMethod is returned by JSONTargeter when a parsed Target has
+	// no method.
+	ErrNoMethod = errors.New("target: required method is missing")
+	// ErrNoURL is returned by JSONTargeter when a parsed Target has no
+	// URL.
+	ErrNoURL = errors.New("target: required url is missing")
 	// TargetFormats contains the canonical list of the valid target
 	// format identifiers.
 	TargetFormats = []string{HTTPTargetFormat, JSONTargetFormat}
@@ -91,16 +130,38 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 		dec.Lock()
 		defer dec.Unlock()
 
-		if err = dec.Decode(tgt); err == nil {
-			return nil
+		var t Target
+		if err = dec.Decode(&t); err != nil && err != io.EOF {
+			return err
+		} else if t.Method == "" {
+			return ErrNoMethod
+		} else if t.URL == "" {
+			return ErrNoURL
 		}
 
-		switch err {
-		case io.EOF:
-			return ErrNoTargets
-		default:
-			return err
+		tgt.Method = t.Method
+		tgt.URL = t.URL
+		if tgt.Body = body; len(t.Body) > 0 {
+			tgt.Body = t.Body
 		}
+
+		if tgt.Header == nil {
+			tgt.Header = http.Header{}
+		}
+
+		for k, vs := range header {
+			tgt.Header[k] = append(tgt.Header[k], vs...)
+		}
+
+		for k, vs := range t.Header {
+			tgt.Header[k] = append(tgt.Header[k], vs...)
+		}
+
+		if err == io.EOF {
+			err = ErrNoTargets
+		}
+
+		return err
 	}
 }
 
