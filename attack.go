@@ -127,9 +127,11 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	if !opts.lazy {
-		if tr, err = vegeta.NewEagerTargeter(tr); err != nil {
+		targets, err := vegeta.ReadAllTargets(tr)
+		if err != nil {
 			return err
 		}
+		tr = vegeta.NewStaticTargeter(targets...)
 	}
 
 	out, err := file(opts.outputf, true)

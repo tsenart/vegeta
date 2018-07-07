@@ -148,15 +148,11 @@ func TestJSONTargeter(t *testing.T) {
 
 }
 
-func TestNewEagerTargeter(t *testing.T) {
+func TestReadAllTargets(t *testing.T) {
 	t.Parallel()
 
 	src := []byte("GET http://:6060/\nHEAD http://:6606/")
-	read, err := NewEagerTargeter(NewHTTPTargeter(bytes.NewReader(src), []byte("body"), nil))
-	if err != nil {
-		t.Fatalf("Couldn't parse valid source: %s", err)
-	}
-	for _, want := range []Target{
+	want := []Target{
 		{
 			Method: "GET",
 			URL:    "http://:6060/",
@@ -169,13 +165,15 @@ func TestNewEagerTargeter(t *testing.T) {
 			Body:   []byte("body"),
 			Header: http.Header{},
 		},
-	} {
-		var got Target
-		if err := read(&got); err != nil {
-			t.Fatal(err)
-		} else if !reflect.DeepEqual(want, got) {
-			t.Fatalf("want: %#v, got: %#v", want, got)
-		}
+	}
+
+	got, err := ReadAllTargets(NewHTTPTargeter(bytes.NewReader(src), []byte("body"), nil))
+	if err != nil {
+		t.Fatalf("error reading all targets: %v", err)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got: %#v, want: %#v", got, want)
 	}
 }
 
@@ -305,14 +303,10 @@ func TestNewHTTPTargeter(t *testing.T) {
 func TestErrNilTarget(t *testing.T) {
 	t.Parallel()
 
-	eager, err := NewEagerTargeter(NewHTTPTargeter(strings.NewReader("GET http://foo.bar"), nil, nil))
-	if err != nil {
-		t.Fatal(err)
-	}
 	for i, tr := range []Targeter{
 		NewStaticTargeter(Target{Method: "GET", URL: "http://foo.bar"}),
+		NewJSONTargeter(strings.NewReader(""), nil, nil),
 		NewHTTPTargeter(strings.NewReader("GET http://foo.bar"), nil, nil),
-		eager,
 	} {
 		if got, want := tr(nil), ErrNilTarget; got != want {
 			t.Errorf("test #%d: got: %v, want: %v", i, got, want)

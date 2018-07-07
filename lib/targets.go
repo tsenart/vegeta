@@ -178,16 +178,10 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 	}
 }
 
-// NewEagerTargeter eagerly reads all Targets out of the provided Targeter and
-// returns a NewStaticTargeter with them.
-func NewEagerTargeter(t Targeter) (Targeter, error) {
-	var (
-		tgts []Target
-		tgt  Target
-		err  error
-	)
-
+// ReadAllTargets eagerly reads all Targets out of the provided Targeter.
+func ReadAllTargets(t Targeter) (tgts []Target, err error) {
 	for {
+		var tgt Target
 		if err = t(&tgt); err == ErrNoTargets {
 			break
 		} else if err != nil {
@@ -200,7 +194,7 @@ func NewEagerTargeter(t Targeter) (Targeter, error) {
 		return nil, ErrNoTargets
 	}
 
-	return NewStaticTargeter(tgts...), nil
+	return tgts, nil
 }
 
 // NewHTTPTargeter returns a new Targeter that decodes one Target from the
