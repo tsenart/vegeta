@@ -20,11 +20,13 @@ func main() {
 
 	valid := strings.Join(keys(types), ", ")
 
-	fs := flag.NewFlagSet("jsonschema", flag.ExitOnError)
+	fs := flag.NewFlagSet("jsonschema", flag.ContinueOnError)
 	typ := fs.String("type", "", fmt.Sprintf("Vegeta type to generate a JSON schema for [%s]", valid))
 	out := fs.String("output", "stdout", "Output file")
 
-	fs.Parse(os.Args[1:])
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		die("%s", err)
+	}
 
 	t, ok := types[*typ]
 	if !ok {
