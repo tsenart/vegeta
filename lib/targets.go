@@ -46,6 +46,9 @@ var (
 	ErrNoTargets = errors.New("no targets to attack")
 	// ErrNilTarget is returned when the passed Target pointer is nil.
 	ErrNilTarget = errors.New("nil target")
+	// TargetFormats contains the canonical list of the valid target
+	// format identifiers.
+	TargetFormats = []string{HTTPTargetFormat, JSONTargetFormat}
 )
 
 const (
