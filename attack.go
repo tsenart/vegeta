@@ -118,9 +118,10 @@ func attack(opts *attackOpts) (err error) {
 	case "json":
 		tr = vegeta.NewJSONTargeter(src, body, hdr)
 	case "http":
-		fallthrough
-	default:
 		tr = vegeta.NewHTTPTargeter(src, body, hdr)
+	default:
+		valid := [...]string{vegeta.HTTPTargetFormat, vegeta.JSONTargetFormat}
+		return fmt.Errorf("format %q isn't one of %v", opts.format, valid)
 	}
 
 	if !opts.lazy {
