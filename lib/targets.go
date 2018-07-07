@@ -128,7 +128,7 @@ func NewEagerTargeter(t Targeter) (Targeter, error) {
 	return NewStaticTargeter(tgts...), nil
 }
 
-// NewLegacyTargeter returns a new Targeter that decodes one Target from the
+// NewHTTPTargeter returns a new Targeter that decodes one Target from the
 // given io.Reader on every invocation. The format is as follows:
 //
 //    GET https://foo.bar/a/b/c
@@ -141,7 +141,7 @@ func NewEagerTargeter(t Targeter) (Targeter, error) {
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewLegacyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	var mu sync.Mutex
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {
