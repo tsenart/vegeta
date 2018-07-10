@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,7 +26,6 @@ func attackCmd() command {
 		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
 		maxBody: vegeta.DefaultMaxBody,
 	}
-
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
 	fs.StringVar(&opts.format, "format", vegeta.HTTPTargetFormat,
@@ -49,6 +49,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
+	fs.Var(&opts.resolvers, "resolvers", "Override system dns resolution (comma separated list)")
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
@@ -85,6 +86,7 @@ type attackOpts struct {
 	headers     headers
 	laddr       localAddr
 	keepalive   bool
+	resolvers   csl
 }
 
 // attack validates the attack arguments, sets up the
@@ -92,6 +94,14 @@ type attackOpts struct {
 func attack(opts *attackOpts) (err error) {
 	if opts.rate.IsZero() {
 		return errZeroRate
+	}
+
+	if len(opts.resolvers) > 0 {
+		res, err := vegeta.NewResolver(opts.resolvers)
+		if err != nil {
+			return err
+		}
+		net.DefaultResolver = res
 	}
 
 	files := map[string]io.Reader{}
