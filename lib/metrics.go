@@ -7,66 +7,64 @@ import (
 	"github.com/streadway/quantile"
 )
 
-type (
-	// Metrics holds metrics computed out of a slice of Results which are used
-	// in some of the Reporters
-	Metrics struct {
-		// Latencies holds computed request latency metrics.
-		Latencies LatencyMetrics `json:"latencies"`
-		// BytesIn holds computed incoming byte metrics.
-		BytesIn ByteMetrics `json:"bytes_in"`
-		// BytesOut holds computed outgoing byte metrics.
-		BytesOut ByteMetrics `json:"bytes_out"`
-		// First is the earliest timestamp in a Result set.
-		Earliest time.Time `json:"earliest"`
-		// Latest is the latest timestamp in a Result set.
-		Latest time.Time `json:"latest"`
-		// End is the latest timestamp in a Result set plus its latency.
-		End time.Time `json:"end"`
-		// Duration is the duration of the attack.
-		Duration time.Duration `json:"duration"`
-		// Wait is the extra time waiting for responses from targets.
-		Wait time.Duration `json:"wait"`
-		// Requests is the total number of requests executed.
-		Requests uint64 `json:"requests"`
-		// Rate is the rate of requests per second.
-		Rate float64 `json:"rate"`
-		// Success is the percentage of non-error responses.
-		Success float64 `json:"success"`
-		// StatusCodes is a histogram of the responses' status codes.
-		StatusCodes map[string]int `json:"status_codes"`
-		// Errors is a set of unique errors returned by the targets during the attack.
-		Errors []string `json:"errors"`
+// Metrics holds metrics computed out of a slice of Results which are used
+// in some of the Reporters
+type Metrics struct {
+	// Latencies holds computed request latency metrics.
+	Latencies LatencyMetrics `json:"latencies"`
+	// BytesIn holds computed incoming byte metrics.
+	BytesIn ByteMetrics `json:"bytes_in"`
+	// BytesOut holds computed outgoing byte metrics.
+	BytesOut ByteMetrics `json:"bytes_out"`
+	// First is the earliest timestamp in a Result set.
+	Earliest time.Time `json:"earliest"`
+	// Latest is the latest timestamp in a Result set.
+	Latest time.Time `json:"latest"`
+	// End is the latest timestamp in a Result set plus its latency.
+	End time.Time `json:"end"`
+	// Duration is the duration of the attack.
+	Duration time.Duration `json:"duration"`
+	// Wait is the extra time waiting for responses from targets.
+	Wait time.Duration `json:"wait"`
+	// Requests is the total number of requests executed.
+	Requests uint64 `json:"requests"`
+	// Rate is the rate of requests per second.
+	Rate float64 `json:"rate"`
+	// Success is the percentage of non-error responses.
+	Success float64 `json:"success"`
+	// StatusCodes is a histogram of the responses' status codes.
+	StatusCodes map[string]int `json:"status_codes"`
+	// Errors is a set of unique errors returned by the targets during the attack.
+	Errors []string `json:"errors"`
 
-		errors    map[string]struct{}
-		success   uint64
-		latencies *quantile.Estimator
-	}
+	errors    map[string]struct{}
+	success   uint64
+	latencies *quantile.Estimator
+}
 
-	// LatencyMetrics holds computed request latency metrics.
-	LatencyMetrics struct {
-		// Total is the total latency sum of all requests in an attack.
-		Total time.Duration `json:"total"`
-		// Mean is the mean request latency.
-		Mean time.Duration `json:"mean"`
-		// P50 is the 50th percentile request latency.
-		P50 time.Duration `json:"50th"`
-		// P95 is the 95th percentile request latency.
-		P95 time.Duration `json:"95th"`
-		// P99 is the 99th percentile request latency.
-		P99 time.Duration `json:"99th"`
-		// Max is the maximum observed request latency.
-		Max time.Duration `json:"max"`
-	}
+// LatencyMetrics holds computed request latency metrics.
+type LatencyMetrics struct {
+	// Total is the total latency sum of all requests in an attack.
+	Total time.Duration `json:"total"`
+	// Mean is the mean request latency.
+	Mean time.Duration `json:"mean"`
+	// P50 is the 50th percentile request latency.
+	P50 time.Duration `json:"50th"`
+	// P95 is the 95th percentile request latency.
+	P95 time.Duration `json:"95th"`
+	// P99 is the 99th percentile request latency.
+	P99 time.Duration `json:"99th"`
+	// Max is the maximum observed request latency.
+	Max time.Duration `json:"max"`
+}
 
-	// ByteMetrics holds computed byte flow metrics.
-	ByteMetrics struct {
-		// Total is the total number of flowing bytes in an attack.
-		Total uint64 `json:"total"`
-		// Mean is the mean number of flowing bytes per hit.
-		Mean float64 `json:"mean"`
-	}
-)
+// ByteMetrics holds computed byte flow metrics.
+type ByteMetrics struct {
+	// Total is the total number of flowing bytes in an attack.
+	Total uint64 `json:"total"`
+	// Mean is the mean number of flowing bytes per hit.
+	Mean float64 `json:"mean"`
+}
 
 // Add implements the Add method of the Report interface by adding the given
 // Result to Metrics.
