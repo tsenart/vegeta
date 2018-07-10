@@ -152,7 +152,7 @@ type bmizeranyEstimator struct {
 }
 
 func newBmizeranyEstimator(qs ...float64) *bmizeranyEstimator {
-	return &bmizeranyEstimator{bmizerany.NewTargeted(qs...)}
+	return &bmizeranyEstimator{Stream: bmizerany.NewTargeted(qs...)}
 }
 
 func (e *bmizeranyEstimator) Add(s float64) { e.Insert(s) }
@@ -165,7 +165,7 @@ type dgryskiEstimator struct {
 }
 
 func newDgriskyEstimator(epsilon float64) *dgryskiEstimator {
-	return &dgryskiEstimator{gk.New(epsilon)}
+	return &dgryskiEstimator{Stream: gk.New(epsilon)}
 }
 
 func (e *dgryskiEstimator) Add(s float64) { e.Insert(s) }

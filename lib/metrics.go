@@ -167,7 +167,7 @@ type estimator interface {
 type tdigestEstimator struct{ *tdigest.TDigest }
 
 func newTdigestEstimator(compression float64) *tdigestEstimator {
-	return &tdigestEstimator{tdigest.NewWithCompression(compression)}
+	return &tdigestEstimator{TDigest: tdigest.NewWithCompression(compression)}
 }
 
 func (e *tdigestEstimator) Add(s float64) { e.TDigest.Add(s, 1) }
