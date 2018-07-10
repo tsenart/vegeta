@@ -16,6 +16,7 @@ import (
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
+	"github.com/tsenart/vegeta/resolver"
 )
 
 func attackCmd() command {
@@ -97,7 +98,7 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	if len(opts.resolvers) > 0 {
-		res, err := vegeta.NewResolver(opts.resolvers)
+		res, err := resolver.NewResolver(opts.resolvers)
 		if err != nil {
 			return err
 		}

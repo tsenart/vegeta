@@ -1,4 +1,4 @@
-package vegeta
+package resolver
 
 import (
 	"net"

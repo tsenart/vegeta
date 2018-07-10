@@ -1,4 +1,4 @@
-package vegeta
+package resolver
 
 import (
 	"context"
@@ -66,6 +66,8 @@ func normalizeResolverAddresses(addresses []string) ([]string, error) {
 	return normalAddresses, nil
 }
 
+// ignore the third parameter, as this represents the dns server address that
+// are overriding.
 func (r *resolver) dial(ctx context.Context, network, _ string) (net.Conn, error) {
 	return r.dialer.DialContext(ctx, network, r.address())
 }
