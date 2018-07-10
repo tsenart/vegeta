@@ -40,12 +40,13 @@ func TestMetrics_Add(t *testing.T) {
 
 	want := Metrics{
 		Latencies: LatencyMetrics{
-			Total: duration("50.005s"),
-			Mean:  duration("5.0005ms"),
-			P50:   duration("5.0005ms"),
-			P95:   duration("9.5005ms"),
-			P99:   duration("9.9005ms"),
-			Max:   duration("10ms"),
+			Total:     duration("50.005s"),
+			Mean:      duration("5.0005ms"),
+			P50:       duration("5.0005ms"),
+			P95:       duration("9.5005ms"),
+			P99:       duration("9.9005ms"),
+			Max:       duration("10ms"),
+			estimator: got.Latencies.estimator,
 		},
 		BytesIn:     ByteMetrics{Total: 10240000, Mean: 1024},
 		BytesOut:    ByteMetrics{Total: 5120000, Mean: 512},
@@ -60,9 +61,8 @@ func TestMetrics_Add(t *testing.T) {
 		StatusCodes: map[string]int{"500": 3333, "200": 3334, "302": 3333},
 		Errors:      []string{"Internal server error"},
 
-		errors:    got.errors,
-		success:   got.success,
-		latencies: got.latencies,
+		errors:  got.errors,
+		success: got.success,
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -124,7 +124,7 @@ func BenchmarkMetrics(b *testing.B) {
 		{"dgrisky/go-gk", newDgriskyEstimator(0.5)},
 		{"influxdata/tdigest", newTdigestEstimator(100)},
 	} {
-		m := Metrics{latencies: tc.estimator}
+		m := Metrics{Latencies: LatencyMetrics{estimator: tc.estimator}}
 		b.Run("Add/"+tc.name, func(b *testing.B) {
 			for i := 0; i <= b.N; i++ {
 				m.Add(&Result{
