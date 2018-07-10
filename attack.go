@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -25,6 +26,8 @@ func attackCmd() command {
 
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
+	fs.StringVar(&opts.format, "format", vegeta.HTTPTargetFormat,
+		fmt.Sprintf("Targets format [%s]", strings.Join(vegeta.TargetFormats, ", ")))
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
@@ -59,6 +62,7 @@ var (
 type attackOpts struct {
 	name        string
 	targetsf    string
+	format      string
 	outputf     string
 	bodyf       string
 	certf       string
@@ -111,10 +115,23 @@ func attack(opts *attackOpts) (err error) {
 		src = files[opts.targetsf]
 		hdr = opts.headers.Header
 	)
-	if opts.lazy {
-		tr = vegeta.NewLazyTargeter(src, body, hdr)
-	} else if tr, err = vegeta.NewEagerTargeter(src, body, hdr); err != nil {
-		return err
+
+	switch opts.format {
+	case vegeta.JSONTargetFormat:
+		tr = vegeta.NewJSONTargeter(src, body, hdr)
+	case vegeta.HTTPTargetFormat:
+		tr = vegeta.NewHTTPTargeter(src, body, hdr)
+	default:
+		return fmt.Errorf("format %q isn't one of [%s]",
+			opts.format, strings.Join(vegeta.TargetFormats, ", "))
+	}
+
+	if !opts.lazy {
+		targets, err := vegeta.ReadAllTargets(tr)
+		if err != nil {
+			return err
+		}
+		tr = vegeta.NewStaticTargeter(targets...)
 	}
 
 	out, err := file(opts.outputf, true)

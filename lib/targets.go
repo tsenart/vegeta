@@ -3,6 +3,7 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +17,13 @@ import (
 )
 
 // Target is an HTTP request blueprint.
+//
+//go:generate jsonschema -type=Target -output=target.schema.json
 type Target struct {
-	Method string
-	URL    string
-	Body   []byte
-	Header http.Header
+	Method string      `json:"method"`
+	URL    string      `json:"url"`
+	Body   []byte      `json:"body,omitempty"`
+	Header http.Header `json:"header,omitempty"`
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -40,16 +43,127 @@ func (t *Target) Request() (*http.Request, error) {
 	return req, nil
 }
 
+// Equal returns true if the target is equal to the other given target.
+func (t *Target) Equal(other *Target) bool {
+	switch {
+	case t == other:
+		return true
+	case t == nil || other == nil:
+		return false
+	default:
+		equal := t.Method == other.Method &&
+			t.URL == other.URL &&
+			bytes.Equal(t.Body, other.Body) &&
+			len(t.Header) == len(other.Header)
+
+		if !equal {
+			return false
+		}
+
+		for k := range t.Header {
+			left, right := t.Header[k], other.Header[k]
+			if len(left) != len(right) {
+				return false
+			}
+			for i := range left {
+				if left[i] != right[i] {
+					return false
+				}
+			}
+		}
+
+		return true
+	}
+}
+
 var (
 	// ErrNoTargets is returned when not enough Targets are available.
 	ErrNoTargets = errors.New("no targets to attack")
 	// ErrNilTarget is returned when the passed Target pointer is nil.
 	ErrNilTarget = errors.New("nil target")
+	// ErrNoMethod is returned by JSONTargeter when a parsed Target has
+	// no method.
+	ErrNoMethod = errors.New("target: required method is missing")
+	// ErrNoURL is returned by JSONTargeter when a parsed Target has no
+	// URL.
+	ErrNoURL = errors.New("target: required url is missing")
+	// TargetFormats contains the canonical list of the valid target
+	// format identifiers.
+	TargetFormats = []string{HTTPTargetFormat, JSONTargetFormat}
+)
+
+const (
+	// HTTPTargetFormat is the human readable identifier for the HTTP target format.
+	HTTPTargetFormat = "http"
+	// JSONTargetFormat is the human readable identifier for the JSON target format.
+	JSONTargetFormat = "json"
 )
 
 // A Targeter decodes a Target or returns an error in case of failure.
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
+
+// NewJSONTargeter returns a new targeter that decodes one Target from the
+// given io.Reader on every invocation. Each target is one JSON object in its own line.
+//
+// The method and url fields are required. If present, the body field must be base64 encoded.
+// The generated [JSON Schema](lib/target.schema.json) defines the format in detail.
+//
+//    {"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
+//    {"method":"GET",  "url":"https://goku/2"}
+//
+// body will be set as the Target's body if no body is provided in each target definiton.
+// hdr will be merged with the each Target's headers.
+//
+func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
+	type decoder struct {
+		*json.Decoder
+		sync.Mutex
+	}
+	dec := decoder{Decoder: json.NewDecoder(src)}
+
+	return func(tgt *Target) (err error) {
+		if tgt == nil {
+			return ErrNilTarget
+		}
+
+		dec.Lock()
+		defer dec.Unlock()
+
+		var t Target
+		if err = dec.Decode(&t); err != nil && err != io.EOF {
+			return err
+		} else if t.Method == "" {
+			return ErrNoMethod
+		} else if t.URL == "" {
+			return ErrNoURL
+		}
+
+		tgt.Method = t.Method
+		tgt.URL = t.URL
+		if tgt.Body = body; len(t.Body) > 0 {
+			tgt.Body = t.Body
+		}
+
+		if tgt.Header == nil {
+			tgt.Header = http.Header{}
+		}
+
+		for k, vs := range header {
+			tgt.Header[k] = append(tgt.Header[k], vs...)
+		}
+
+		for k, vs := range t.Header {
+			tgt.Header[k] = append(tgt.Header[k], vs...)
+		}
+
+		if err == io.EOF {
+			err = ErrNoTargets
+		}
+
+		return err
+	}
+}
 
 // NewStaticTargeter returns a Targeter which round-robins over the passed
 // Targets.
@@ -64,38 +178,39 @@ func NewStaticTargeter(tgts ...Target) Targeter {
 	}
 }
 
-// NewEagerTargeter eagerly reads all Targets out of the provided io.Reader and
-// returns a NewStaticTargeter with them.
-//
-// body will be set as the Target's body if no body is provided.
-// hdr will be merged with the each Target's headers.
-func NewEagerTargeter(src io.Reader, body []byte, header http.Header) (Targeter, error) {
-	var (
-		sc   = NewLazyTargeter(src, body, header)
-		tgts []Target
-		tgt  Target
-		err  error
-	)
+// ReadAllTargets eagerly reads all Targets out of the provided Targeter.
+func ReadAllTargets(t Targeter) (tgts []Target, err error) {
 	for {
-		if err = sc(&tgt); err == ErrNoTargets {
+		var tgt Target
+		if err = t(&tgt); err == ErrNoTargets {
 			break
 		} else if err != nil {
 			return nil, err
 		}
 		tgts = append(tgts, tgt)
 	}
+
 	if len(tgts) == 0 {
 		return nil, ErrNoTargets
 	}
-	return NewStaticTargeter(tgts...), nil
+
+	return tgts, nil
 }
 
-// NewLazyTargeter returns a new Targeter that lazily scans Targets from the
-// provided io.Reader on every invocation.
+// NewHTTPTargeter returns a new Targeter that decodes one Target from the
+// given io.Reader on every invocation. The format is as follows:
+//
+//    GET https://foo.bar/a/b/c
+//    Header-X: 123
+//    Header-Y: 321
+//    @/path/to/body/file
+//
+//    POST https://foo.bar/b/c/a
+//    Header-X: 123
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
-func NewLazyTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
+func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	var mu sync.Mutex
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {
