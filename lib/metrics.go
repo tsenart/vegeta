@@ -136,6 +136,8 @@ func (m *Metrics) init() {
 	}
 
 	if m.latencies == nil {
+		// This compression parameter value is the recommended value
+		// for normal uses as per http://javadox.com/com.tdunning/t-digest/3.0/com/tdunning/math/stats/TDigest.html
 		m.latencies = newTdigestEstimator(100)
 	}
 
