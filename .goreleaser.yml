@@ -15,6 +15,9 @@ builds:
   ldflags:
     - -s -w -extldflags "-static" -X main.Version={{.Version}} -X main.Commit={{.Commit}} -X main.Date={{.Date}}"
 
+git:
+  tags_prefix: "cli/"
+
 archive:
   name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}"
   format: tar.gz
