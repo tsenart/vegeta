@@ -29,8 +29,8 @@ Both the library and the CLI are versioned with [SemVer v2.0.0](https://semver.o
 After [v8.0.0](https://github.com/tsenart/vegeta/tree/v8.0.0), the two components
 are versioned separately to better isolate breaking changes to each.
 
-CLI releases are tagged with `cli-vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/tsenart/vegeta/releases).
-As for the library, new versions are tagged with `lib-vMAJOR.MINOR.PATCH` but not published as a release.
+CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/tsenart/vegeta/releases).
+As for the library, new versions are tagged with `lib/vMAJOR.MINOR.PATCH` but not published as a release.
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -436,7 +436,7 @@ echo 'GET http://localhost:8080' | \
 ## Usage (Library)
 
 The library versioning follows [SemVer v2.0.0](https://semver.org/spec/v2.0.0.html).
-Since [lib-v9.0.0](https://github.com/tsenart/vegeta/tree/lib-v9.0.0), the library and cli
+Since [lib/v9.0.0](https://github.com/tsenart/vegeta/tree/lib/v9.0.0), the library and cli
 are versioned separately to better isolate breaking changes to each component.
 
 ```go
