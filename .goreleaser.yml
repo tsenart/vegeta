@@ -18,6 +18,9 @@ builds:
 git:
   tags_prefix: "cli/"
 
+release:
+  name_template: "v{{.Version}}"
+
 archive:
   name_template: "{{.ProjectName}}-{{.Version}}-{{.Os}}-{{.Arch}}"
   format: tar.gz
