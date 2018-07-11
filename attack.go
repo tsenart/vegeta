@@ -50,7 +50,7 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
-	fs.Var(&opts.resolvers, "resolvers", "Override system dns resolution (comma separated list)")
+	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
