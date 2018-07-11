@@ -4,6 +4,7 @@ go:
   - tip
 before_install:
   - sudo apt-get install -y dnsmasq
+  - sudo service dnsmasq stop
 install:
   - go get -v github.com/golang/lint/golint
   - go get -d -t -v ./...
