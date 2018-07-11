@@ -20,7 +20,7 @@ clean-vendor:
 	rm -rf vendor
 
 dist:
-	goreleaser release
+	goreleaser release --debug --skip-validate
 
 clean-dist:
 	rm -rf dist
