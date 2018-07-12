@@ -59,6 +59,10 @@ func TestTargetRequest(t *testing.T) {
 }
 
 func TestJSONTargeter(t *testing.T) {
+	target := func(s string) io.Reader {
+		return strings.NewReader(s + "\n")
+	}
+
 	for _, tc := range []struct {
 		name string
 		src  io.Reader
@@ -83,52 +87,69 @@ func TestJSONTargeter(t *testing.T) {
 			err:  ErrNoTargets,
 		},
 		{
+			name: "no new line",
+			src:  strings.NewReader(`{"method": "GET", "url": "https://goku"}`),
+			in:   &Target{},
+			out:  &Target{},
+			err:  ErrNoTargets,
+		},
+		{
 			name: "empty object",
-			src:  strings.NewReader(`{}`),
+			src:  target("{}"),
 			in:   &Target{},
 			out:  &Target{},
 			err:  ErrNoMethod,
 		},
 		{
 			name: "empty method",
-			src:  strings.NewReader(`{"method": ""}`),
+			src:  target(`{"method": ""}`),
 			in:   &Target{},
 			out:  &Target{},
 			err:  ErrNoMethod,
 		},
 		{
 			name: "empty url",
-			src:  strings.NewReader(`{"method": "GET"}`),
+			src:  target(`{"method": "GET"}`),
 			in:   &Target{},
 			out:  &Target{},
 			err:  ErrNoURL,
 		},
 		{
 			name: "bad body encoding",
-			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "body": "NOT BASE64"}`),
+			src:  target(`{"method": "GET", "url": "http://goku", "body": "NOT BASE64"}`),
 			in:   &Target{},
 			out:  &Target{},
 			err:  errors.New("illegal base64 data at input byte 3"),
 		},
 		{
 			name: "default body",
-			src:  strings.NewReader(`{"method": "GET", "url": "http://goku"}`),
+			src:  target(`{"method": "GET", "url": "http://goku"}`),
 			body: []byte(`ATTACK!`),
 			in:   &Target{},
 			out:  &Target{Method: "GET", URL: "http://goku", Body: []byte("ATTACK!")},
 		},
 		{
 			name: "headers merge",
-			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}}`),
+			src:  target(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}}`),
 			hdr:  http.Header{"x": []string{"bar"}},
 			in:   &Target{Header: http.Header{"y": []string{"baz"}}},
 			out:  &Target{Method: "GET", URL: "http://goku", Header: http.Header{"y": []string{"baz"}, "x": []string{"bar", "foo"}}},
 		},
 		{
 			name: "no defaults",
-			src:  strings.NewReader(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}, "body": "QVRUQUNLIQ=="}`),
+			src:  target(`{"method": "GET", "url": "http://goku", "header":{"x": ["foo"]}, "body": "QVRUQUNLIQ=="}`),
 			in:   &Target{},
 			out:  &Target{Method: "GET", URL: "http://goku", Header: http.Header{"x": []string{"foo"}}, Body: []byte("ATTACK!")},
+		},
+		{
+			name: "skips empty lines and surrounding whitespace",
+			src: strings.NewReader(`
+
+				  {"method": "GET", "url": "https://goku"}
+
+			`),
+			in:  &Target{},
+			out: &Target{Method: "GET", URL: "https://goku"},
 		},
 	} {
 		tc := tc
@@ -149,62 +170,87 @@ func TestJSONTargeter(t *testing.T) {
 }
 
 func TestReadAllTargets(t *testing.T) {
-	t.Parallel()
-
-	// HTTPTargeter test
-	{
-		src := []byte("GET http://:6060/\nHEAD http://:6606/")
-		want := []Target{
-			{
-				Method: "GET",
-				URL:    "http://:6060/",
-				Body:   []byte("body"),
-				Header: http.Header{},
-			},
-			{
-				Method: "HEAD",
-				URL:    "http://:6606/",
-				Body:   []byte("body"),
-				Header: http.Header{},
-			},
+	equal := func(a, b []Target) bool {
+		if len(a) != len(b) {
+			return false
 		}
 
-		got, err := ReadAllTargets(NewHTTPTargeter(bytes.NewReader(src), []byte("body"), nil))
-		if err != nil {
-			t.Fatalf("error reading all targets: %v", err)
+		for i := range a {
+			if !a[i].Equal(&b[i]) {
+				return false
+			}
 		}
 
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("got: %#v, want: %#v", got, want)
-		}
+		return true
 	}
-	// JSONTargeter test
-	{
-		src := []byte(`{"method": "GET", "url": "http://:6060/"}{"method": "HEAD", "url": "http://:6606/"}`)
-		want := []Target{
-			{
-				Method: "GET",
-				URL:    "http://:6060/",
-				Body:   []byte("body"),
-				Header: http.Header{},
-			},
-			{
-				Method: "HEAD",
-				URL:    "http://:6606/",
-				Body:   []byte("body"),
-				Header: http.Header{},
-			},
-		}
 
-		got, err := ReadAllTargets(NewJSONTargeter(bytes.NewReader(src), []byte("body"), nil))
-		if err != nil {
-			t.Fatalf("error reading all targets: %v", err)
-		}
-
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("got: %#v, want: %#v", got, want)
-		}
+	targets := []Target{
+		{Method: "GET", URL: "http://:6060/"},
+		{Method: "HEAD", URL: "http://:6606/"},
 	}
+
+	for _, tc := range []struct {
+		name string
+		in   Targeter
+		out  []Target
+		err  error
+	}{
+		{
+			name: "HTTPTargeter/single",
+			in:   NewHTTPTargeter(strings.NewReader(`GET http://:6060/`), nil, nil),
+			out:  targets[:1],
+		},
+		{
+			name: "HTTPTargeter/many",
+			in: NewHTTPTargeter(strings.NewReader(`
+				GET http://:6060/
+				HEAD http://:6606/
+			`), nil, nil),
+			out: targets,
+		},
+		{
+			name: "JSONTargeter/single",
+			in:   NewJSONTargeter(strings.NewReader(`{"method": "GET", "url": "http://:6060/"}`+"\n"), nil, nil),
+			out:  targets[:1],
+		},
+		{
+			name: "JSONTargeter/many",
+			in: NewJSONTargeter(strings.NewReader(`
+				{"method": "GET", "url": "http://:6060/"}
+				{"method": "HEAD", "url": "http://:6606/"}
+			`), nil, nil),
+			out: targets,
+		},
+		{
+			name: "no targets",
+			in:   NewHTTPTargeter(strings.NewReader(""), nil, nil),
+			err:  ErrNoTargets,
+		},
+		{
+			name: "unexpected error",
+			in:   NewJSONTargeter(errReader{err: io.ErrUnexpectedEOF}, nil, nil),
+			err:  io.ErrUnexpectedEOF,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out, err := ReadAllTargets(tc.in)
+			if got, want := out, tc.out; !equal(got, want) {
+				t.Errorf("got targets: %#v, want %#v", got, want)
+			}
+
+			if got, want := fmt.Sprint(err), fmt.Sprint(tc.err); got != want {
+				t.Errorf("got err %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+type errReader struct{ err error }
+
+func (e errReader) Read(p []byte) (n int, err error) {
+	return 0, e.err
 }
 
 func TestNewHTTPTargeter(t *testing.T) {
