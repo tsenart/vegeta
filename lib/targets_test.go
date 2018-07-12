@@ -80,7 +80,7 @@ func TestJSONTargeter(t *testing.T) {
 			src:  &bytes.Buffer{},
 			in:   &Target{},
 			out:  &Target{},
-			err:  ErrNoMethod,
+			err:  ErrNoTargets,
 		},
 		{
 			name: "empty object",
@@ -151,29 +151,59 @@ func TestJSONTargeter(t *testing.T) {
 func TestReadAllTargets(t *testing.T) {
 	t.Parallel()
 
-	src := []byte("GET http://:6060/\nHEAD http://:6606/")
-	want := []Target{
-		{
-			Method: "GET",
-			URL:    "http://:6060/",
-			Body:   []byte("body"),
-			Header: http.Header{},
-		},
-		{
-			Method: "HEAD",
-			URL:    "http://:6606/",
-			Body:   []byte("body"),
-			Header: http.Header{},
-		},
-	}
+	// HTTPTargeter test
+	{
+		src := []byte("GET http://:6060/\nHEAD http://:6606/")
+		want := []Target{
+			{
+				Method: "GET",
+				URL:    "http://:6060/",
+				Body:   []byte("body"),
+				Header: http.Header{},
+			},
+			{
+				Method: "HEAD",
+				URL:    "http://:6606/",
+				Body:   []byte("body"),
+				Header: http.Header{},
+			},
+		}
 
-	got, err := ReadAllTargets(NewHTTPTargeter(bytes.NewReader(src), []byte("body"), nil))
-	if err != nil {
-		t.Fatalf("error reading all targets: %v", err)
-	}
+		got, err := ReadAllTargets(NewHTTPTargeter(bytes.NewReader(src), []byte("body"), nil))
+		if err != nil {
+			t.Fatalf("error reading all targets: %v", err)
+		}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got: %#v, want: %#v", got, want)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got: %#v, want: %#v", got, want)
+		}
+	}
+	// JSONTargeter test
+	{
+		src := []byte(`{"method": "GET", "url": "http://:6060/"}{"method": "HEAD", "url": "http://:6606/"}`)
+		want := []Target{
+			{
+				Method: "GET",
+				URL:    "http://:6060/",
+				Body:   []byte("body"),
+				Header: http.Header{},
+			},
+			{
+				Method: "HEAD",
+				URL:    "http://:6606/",
+				Body:   []byte("body"),
+				Header: http.Header{},
+			},
+		}
+
+		got, err := ReadAllTargets(NewJSONTargeter(bytes.NewReader(src), []byte("body"), nil))
+		if err != nil {
+			t.Fatalf("error reading all targets: %v", err)
+		}
+
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got: %#v, want: %#v", got, want)
+		}
 	}
 }
 
@@ -189,7 +219,7 @@ func TestNewHTTPTargeter(t *testing.T) {
 			GET http://:6060
 			@238hhqwjhd8hhw3r.txt`,
 		errors.New("bad header"): `
-		  GET http://:6060
+			GET http://:6060
 			Authorization`,
 		errors.New("bad header"): `
 			GET http://:6060

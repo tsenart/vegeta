@@ -131,7 +131,10 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 		defer dec.Unlock()
 
 		var t Target
-		if err = dec.Decode(&t); err != nil && err != io.EOF {
+		if err = dec.Decode(&t); err != nil {
+			if err == io.EOF {
+				err = ErrNoTargets
+			}
 			return err
 		} else if t.Method == "" {
 			return ErrNoMethod
@@ -155,10 +158,6 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 
 		for k, vs := range t.Header {
 			tgt.Header[k] = append(tgt.Header[k], vs...)
-		}
-
-		if err == io.EOF {
-			err = ErrNoTargets
 		}
 
 		return err
