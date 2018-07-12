@@ -116,22 +116,37 @@ type Targeter func(*Target) error
 // hdr will be merged with the each Target's headers.
 //
 func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
-	type decoder struct {
-		*json.Decoder
+	type reader struct {
+		*bufio.Reader
 		sync.Mutex
 	}
-	dec := decoder{Decoder: json.NewDecoder(src)}
+	rd := reader{Reader: bufio.NewReader(src)}
 
 	return func(tgt *Target) (err error) {
 		if tgt == nil {
 			return ErrNilTarget
 		}
 
-		dec.Lock()
-		defer dec.Unlock()
+		rd.Lock()
+		defer rd.Unlock()
+
+		var line []byte
+		for len(line) == 0 {
+			if line, err = rd.ReadBytes('\n'); err != nil {
+				break
+			}
+			line = bytes.TrimSpace(line) // Skip empty lines
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				err = ErrNoTargets
+			}
+			return err
+		}
 
 		var t Target
-		if err = dec.Decode(&t); err != nil && err != io.EOF {
+		if err = json.Unmarshal(line, &t); err != nil {
 			return err
 		} else if t.Method == "" {
 			return ErrNoMethod
@@ -157,11 +172,7 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 			tgt.Header[k] = append(tgt.Header[k], vs...)
 		}
 
-		if err == io.EOF {
-			err = ErrNoTargets
-		}
-
-		return err
+		return nil
 	}
 }
 
