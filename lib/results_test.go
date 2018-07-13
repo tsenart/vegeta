@@ -48,8 +48,6 @@ func TestDecoding(t *testing.T) {
 }
 
 func TestEncoding(t *testing.T) {
-	t.Parallel()
-
 	for _, tc := range []struct {
 		encoding string
 		enc      func(io.Writer) Encoder
@@ -59,7 +57,10 @@ func TestEncoding(t *testing.T) {
 		{"csv", NewCSVEncoder, NewCSVDecoder},
 		{"json", NewJSONEncoder, NewJSONDecoder},
 	} {
+		tc := tc
 		t.Run(tc.encoding, func(t *testing.T) {
+			t.Parallel()
+
 			var buf bytes.Buffer
 			enc := tc.enc(&buf)
 			dec := tc.dec(&buf)
@@ -98,5 +99,4 @@ func TestEncoding(t *testing.T) {
 			}
 		})
 	}
-
 }
