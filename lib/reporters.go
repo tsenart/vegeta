@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 
+	lttb "github.com/dgryski/go-lttb"
 	"github.com/lucasb-eyer/go-colorful"
 )
 
@@ -109,51 +111,70 @@ func NewJSONReporter(m *Metrics) Reporter {
 // http://dygraphs.com/
 func NewPlotReporter(title string, rs *Results) Reporter {
 	return func(w io.Writer) (err error) {
+		series := make(map[string][]Results, len(*rs))
+		for _, r := range *rs {
+			idx := 0
+			if r.Error == "" {
+				idx++
+			}
+
+			if len(series[r.Attack]) == 0 {
+				series[r.Attack] = make([]Results, 2)
+			}
+
+			series[r.Attack][idx] = append(series[r.Attack][idx], r)
+		}
+
+		samples := make(map[string][][]lttb.Point, len(series))
+		for attack, results := range series {
+			for i := range results {
+				sort.Sort(results[i])
+				points := make([]lttb.Point, 0, len(results[i]))
+				for _, r := range results[i] {
+					points = append(points, lttb.Point{
+						X: float64(r.Timestamp.Sub(results[i][0].Timestamp).Seconds()),
+						Y: float64(r.Latency.Seconds() * 1000),
+					})
+				}
+				samples[attack] = append(samples[attack], lttb.LTTB(points, 1000))
+			}
+		}
+
+		const count = 2 // OK and Errors
+		i, offsets := 0, make(map[string]int, len(series))
+		for name := range series {
+			offsets[name] = 1 + i*count
+			i++
+		}
+
 		_, err = fmt.Fprintf(w, plotsTemplateHead, title, asset(dygraphs), asset(html2canvas))
 		if err != nil {
 			return err
 		}
 
-		attacks := make(map[string]Results, len(*rs))
-		for _, r := range *rs {
-			attacks[r.Attack] = append(attacks[r.Attack], r)
-		}
-
-		const series = 2 // OK and Errors
-		i, offsets := 0, make(map[string]int, len(attacks))
-		for attack := range attacks {
-			offsets[attack] = 1 + i*series
-			i++
-		}
-
 		const nan = "NaN"
 
-		data := make([]string, 1+len(attacks)*series)
-		for attack, results := range attacks {
-			for i, r := range results {
-				for j := range data {
-					data[j] = nan
-				}
+		data := make([]string, 1+len(series)*count)
+		for attack, results := range samples {
+			for idx, points := range results {
+				for i, p := range points {
+					for j := range data {
+						data[j] = nan
+					}
 
-				offset := offsets[attack]
-				if r.Error == "" {
-					offset++
-				}
+					offset := offsets[attack] + idx
+					data[0] = strconv.FormatFloat(p.X, 'f', -1, 32)
+					data[offset] = strconv.FormatFloat(p.Y, 'f', -1, 32)
 
-				ts := r.Timestamp.Sub(results[0].Timestamp).Seconds()
-				data[0] = strconv.FormatFloat(ts, 'f', -1, 32)
+					s := "[" + strings.Join(data, ",") + "]"
 
-				latency := r.Latency.Seconds() * 1000
-				data[offset] = strconv.FormatFloat(latency, 'f', -1, 32)
+					if i < len(*rs)-1 {
+						s += ","
+					}
 
-				s := "[" + strings.Join(data, ",") + "]"
-
-				if i < len(*rs)-1 {
-					s += ","
-				}
-
-				if _, err = io.WriteString(w, s); err != nil {
-					return err
+					if _, err = io.WriteString(w, s); err != nil {
+						return err
+					}
 				}
 			}
 		}
