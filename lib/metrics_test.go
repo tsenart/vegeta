@@ -1,9 +1,14 @@
 package vegeta
 
 import (
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
+
+	bmizerany "github.com/bmizerany/perks/quantile"
+	gk "github.com/dgryski/go-gk"
+	streadway "github.com/streadway/quantile"
 )
 
 func TestMetrics_Add(t *testing.T) {
@@ -35,12 +40,13 @@ func TestMetrics_Add(t *testing.T) {
 
 	want := Metrics{
 		Latencies: LatencyMetrics{
-			Total: duration("50.005s"),
-			Mean:  duration("5.0005ms"),
-			P50:   duration("4.991ms"),
-			P95:   duration("9.509ms"),
-			P99:   duration("9.898ms"),
-			Max:   duration("10ms"),
+			Total:     duration("50.005s"),
+			Mean:      duration("5.0005ms"),
+			P50:       duration("5.0005ms"),
+			P95:       duration("9.5005ms"),
+			P99:       duration("9.9005ms"),
+			Max:       duration("10ms"),
+			estimator: got.Latencies.estimator,
 		},
 		BytesIn:     ByteMetrics{Total: 10240000, Mean: 1024},
 		BytesOut:    ByteMetrics{Total: 5120000, Mean: 512},
@@ -55,9 +61,8 @@ func TestMetrics_Add(t *testing.T) {
 		StatusCodes: map[string]int{"500": 3333, "200": 3334, "302": 3333},
 		Errors:      []string{"Internal server error"},
 
-		errors:    got.errors,
-		success:   got.success,
-		latencies: got.latencies,
+		errors:  got.errors,
+		success: got.success,
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -89,4 +94,81 @@ func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("\ngot:  %+v\nwant: %+v", got, want)
 	}
+}
+
+func BenchmarkMetrics(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	latencies := make([]time.Duration, 1000000)
+	for i := range latencies {
+		latencies[i] = time.Duration(1e6 + rng.Int63n(1e10-1e6)) // 1ms to 10s
+	}
+
+	for _, tc := range []struct {
+		name string
+		estimator
+	}{
+		{"streadway/quantile", streadway.New(
+			streadway.Known(0.50, 0.01),
+			streadway.Known(0.95, 0.001),
+			streadway.Known(0.99, 0.0005),
+		)},
+		{"bmizerany/perks/quantile", newBmizeranyEstimator(
+			0.50,
+			0.95,
+			0.99,
+		)},
+		{"dgrisky/go-gk", newDgriskyEstimator(0.5)},
+		{"influxdata/tdigest", newTdigestEstimator(100)},
+	} {
+		m := Metrics{Latencies: LatencyMetrics{estimator: tc.estimator}}
+		b.Run("Add/"+tc.name, func(b *testing.B) {
+			for i := 0; i <= b.N; i++ {
+				m.Add(&Result{
+					Code:      200,
+					Timestamp: time.Unix(int64(i), 0),
+					Latency:   latencies[i%len(latencies)],
+					BytesIn:   1024,
+					BytesOut:  512,
+				})
+			}
+
+		})
+
+		b.Run("Close/"+tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				m.Close()
+			}
+		})
+	}
+
+}
+
+type bmizeranyEstimator struct {
+	*bmizerany.Stream
+}
+
+func newBmizeranyEstimator(qs ...float64) *bmizeranyEstimator {
+	return &bmizeranyEstimator{Stream: bmizerany.NewTargeted(qs...)}
+}
+
+func (e *bmizeranyEstimator) Add(s float64) { e.Insert(s) }
+func (e *bmizeranyEstimator) Get(q float64) float64 {
+	return e.Query(q)
+}
+
+type dgryskiEstimator struct {
+	*gk.Stream
+}
+
+func newDgriskyEstimator(epsilon float64) *dgryskiEstimator {
+	return &dgryskiEstimator{Stream: gk.New(epsilon)}
+}
+
+func (e *dgryskiEstimator) Add(s float64) { e.Insert(s) }
+func (e *dgryskiEstimator) Get(q float64) float64 {
+	return e.Query(q)
 }
