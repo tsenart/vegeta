@@ -21,6 +21,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/dgryski/go-lttb"
+  packages = ["."]
+  revision = "abe543751142703f622ffea8f68289523d2236d2"
+
+[[projects]]
+  branch = "master"
   name = "github.com/influxdata/tdigest"
   packages = ["."]
   revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
@@ -72,6 +78,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fb39a677ce103160b5e8e1ece09b716da865a11999666a24d5839633e33d8588"
+  inputs-digest = "aa595148b3c65cced75d6b68b3f95cfb0340bab014fb153c66b81d242c3c019f"
   solver-name = "gps-cdcl"
   solver-version = 1

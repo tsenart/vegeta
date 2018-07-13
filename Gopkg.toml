@@ -39,6 +39,10 @@
 
 [[constraint]]
   branch = "master"
+  name = "github.com/dgryski/go-lttb"
+
+[[constraint]]
+  branch = "master"
   name = "github.com/influxdata/tdigest"
 
 [[constraint]]
