@@ -111,7 +111,7 @@ func NewJSONReporter(m *Metrics) Reporter {
 // http://dygraphs.com/
 func NewPlotReporter(title string, rs *Results) Reporter {
 	return func(w io.Writer) (err error) {
-		series := make(map[string][]Results, len(*rs))
+		series := map[string][]Results{}
 		for _, r := range *rs {
 			idx := 0
 			if r.Error == "" {
