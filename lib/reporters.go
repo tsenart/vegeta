@@ -132,8 +132,8 @@ func NewPlotReporter(title string, rs *Results) Reporter {
 				points := make([]lttb.Point, 0, len(results[i]))
 				for _, r := range results[i] {
 					points = append(points, lttb.Point{
-						X: float64(r.Timestamp.Sub(results[i][0].Timestamp).Seconds()),
-						Y: float64(r.Latency.Seconds() * 1000),
+						X: r.Timestamp.Sub(results[i][0].Timestamp).Seconds(),
+						Y: r.Latency.Seconds() * 1000,
 					})
 				}
 				samples[attack] = append(samples[attack], lttb.LTTB(points, 1000))
