@@ -27,6 +27,26 @@
 
 [[constraint]]
   branch = "master"
+  name = "github.com/alecthomas/jsonschema"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/bmizerany/perks"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/dgryski/go-gk"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/influxdata/tdigest"
+
+[[constraint]]
+  name = "github.com/lucasb-eyer/go-colorful"
+  version = "1.0.0"
+
+[[constraint]]
+  branch = "master"
   name = "github.com/streadway/quantile"
 
 [[constraint]]

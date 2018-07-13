@@ -23,13 +23,13 @@
   branch = "master"
   name = "github.com/influxdata/tdigest"
   packages = ["."]
-  revision = "617b83f940fd9acd207f712561a8a0590277fb38"
+  revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
 
 [[projects]]
-  branch = "master"
   name = "github.com/lucasb-eyer/go-colorful"
   packages = ["."]
-  revision = "8abd3beca3a7f5039809449d6013a0254ac22bb1"
+  revision = "345fbb3dbcdb252d9985ee899a84963c0fa24c82"
+  version = "v1.0"
 
 [[projects]]
   branch = "master"
@@ -46,7 +46,7 @@
     "http2/hpack",
     "idna"
   ]
-  revision = "2491c5de3490fced2f6cff376127c667efeed857"
+  revision = "d0887baf81f4598189d4e12a37c6da86f0bba4d0"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -72,6 +72,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3f57915bac2b6a24d1d9bd8e2eda4e30f5b8ccd57e54192bac724c4368892009"
+  inputs-digest = "fb39a677ce103160b5e8e1ece09b716da865a11999666a24d5839633e33d8588"
   solver-name = "gps-cdcl"
   solver-version = 1
