@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func BenchmarkPlotReporter(b *testing.B) {
+func BenchmarkHTMLPlot(b *testing.B) {
 	b.StopTimer()
 	// Build result set
 	rs := make(Results, 50000)
@@ -20,11 +20,10 @@ func BenchmarkPlotReporter(b *testing.B) {
 			rs[i].Error = "Error"
 		}
 	}
-	rep := NewPlotReporter("Vegeta Plot", &rs)
 	// Start benchmark
 	b.ReportAllocs()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		rep.Report(ioutil.Discard)
+		NewHTMLPlot("Vegeta Plot", 5000, rs).WriteTo(ioutil.Discard)
 	}
 }

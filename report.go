@@ -13,7 +13,7 @@ import (
 
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, plot, hist[buckets]]")
+	reporter := fs.String("reporter", "text", "Reporter [text, json, hist[buckets]]")
 	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
 	output := fs.String("output", "stdout", "Output file")
 	return command{fs, func(args []string) error {
@@ -59,9 +59,6 @@ func report(reporter, inputs, output string) error {
 	case "json":
 		var m vegeta.Metrics
 		rep, report = vegeta.NewJSONReporter(&m), &m
-	case "plot":
-		var rs vegeta.Results
-		rep, report = vegeta.NewPlotReporter("Vegeta Plot", &rs), &rs
 	case "hist":
 		if len(reporter) < 6 {
 			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
