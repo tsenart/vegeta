@@ -281,13 +281,13 @@ Specifies the kind of report to be generated. It defaults to text.
 
 ##### `text`
 ```console
-Requests      [total, rate]             1200, 120.00
-Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
-Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
-Bytes In      [total, mean]             3714690, 3095.57
-Bytes Out     [total, mean]             0, 0.00
-Success       [ratio]                   55.42%
-Status Codes  [code:count]              0:535  200:665
+Requests      [total, rate]                1200, 120.10
+Duration      [total, attack, wait]        9.992530625s, 9.991666185s, 864.44µs
+Latencies     [mean, 50, 90, 95, 99, max]  1.623143ms, 1.420976ms, 2.808559ms, 2.941666ms, 3.120381ms, 4.092141ms
+Bytes In      [total, mean]                394800, 329.00
+Bytes Out     [total, mean]                0, 0.00
+Success       [ratio]                      55.42%
+Status Codes  [code:count]                 0:535  200:665
 Error Set:
 Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
 Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
@@ -301,33 +301,34 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```json
 {
   "latencies": {
-    "total": 237119463,
-    "mean": 2371194,
-    "50th": 2854306,
-    "95th": 3478629,
-    "99th": 3530000,
-    "max": 3660505
+    "total": 1947772197,
+    "mean": 1623143,
+    "50th": 1420976,
+    "90th": 2808559,
+    "95th": 2941666,
+    "99th": 3120381,
+    "max": 4092141
   },
   "bytes_in": {
-    "total": 606700,
-    "mean": 6067
+    "total": 394800,
+    "mean": 329
   },
   "bytes_out": {
     "total": 0,
     "mean": 0
   },
-  "earliest": "2015-09-19T14:45:50.645818631+02:00",
-  "latest": "2015-09-19T14:45:51.635818575+02:00",
-  "end": "2015-09-19T14:45:51.639325797+02:00",
-  "duration": 989999944,
-  "wait": 3507222,
-  "requests": 100,
-  "rate": 101.01010672380401,
+  "earliest": "2018-06-25T23:24:22.823753167-07:00",
+  "latest": "2018-06-25T23:24:32.815419352-07:00",
+  "end": "2018-06-25T23:24:32.816283792-07:00",
+  "duration": 9991666185,
+  "wait": 864440,
+  "requests": 1200,
+  "rate": 120.10008919248136,
   "success": 1,
   "status_codes": {
-    "200": 100
+    "200": 1200
   },
-  "errors": []
+  "errors": null
 }
 ```
 ##### `plot`
@@ -406,12 +407,12 @@ It'll read and sort them by timestamp before generating reports.
 
 ```console
 $ vegeta report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
-Requests      [total, rate]         3600000, 60000.00
-Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
-Bytes In      [total, mean]         3714690, 3095.57
-Bytes Out     [total, mean]         0, 0.00
-Success       [ratio]               100.0%
-Status Codes  [code:count]          200:3600000
+Requests      [total, rate]             3600000, 60000.00
+Latencies     [mean, 90, 95, 99, max]   223.340085ms, 318.808559ms, 326.913687ms, 416.537743ms, 7.788103259s
+Bytes In      [total, mean]             3714690, 3095.57
+Bytes Out     [total, mean]             0, 0.00
+Success       [ratio]                   100.0%
+Status Codes  [code:count]              200:3600000
 Error Set:
 ```
 
