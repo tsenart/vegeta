@@ -71,7 +71,7 @@ func plot(files []string, threshold int, title, output string) error {
 	sigch := make(chan os.Signal, 1)
 	signal.Notify(sigch, os.Interrupt)
 
-	var rs vegeta.Results
+	plot := vegeta.NewHTMLPlot(title, threshold)
 decode:
 	for {
 		select {
@@ -85,10 +85,12 @@ decode:
 				}
 				return err
 			}
-			rs.Add(&r)
+			plot.Add(&r)
 		}
 	}
 
-	plot := vegeta.NewHTMLPlot(title, threshold, rs)
-	return plot.WriteTo(out)
+	plot.Close()
+
+	_, err = plot.WriteTo(out)
+	return err
 }
