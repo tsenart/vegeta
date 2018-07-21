@@ -15,30 +15,36 @@ type timeSeries struct {
 	len    int
 }
 
-type point [2]float64
-
-func (ts timeSeries) add(r *Result) {
-	ts.data.Push(
-		uint32(r.Timestamp.Sub(ts.began).Seconds()),
-		r.Latency.Seconds()*1000,
-	)
-	ts.len++
-
+func newTimeSeries(attack, label string, began time.Time) *timeSeries {
+	return &timeSeries{
+		attack: attack,
+		label:  label,
+		began:  began,
+		data:   tsz.New(0),
+	}
 }
 
-func (ts timeSeries) points(count int) ([]point, error) {
+type point [2]float64
+
+func (ts *timeSeries) add(t uint32, v float64) {
+	ts.data.Push(t, v)
+	ts.len++
+}
+
+func (ts *timeSeries) points(count int) ([]point, error) {
 	it := ts.data.Iter()
 	ps := make([]point, 0, count)
 	for i := 0; i < ts.len && it.Next(); i++ {
 		x, y := it.Values()
-		ps = append(ps, point{float64(x), y})
+		d := time.Duration(x) * 100 * time.Microsecond
+		ps = append(ps, point{d.Seconds(), y})
 	}
 	return ps, it.Err()
 }
 
 // LTTB down-samples the data to contain only threshold number of points that
 // have the same visual shape as the original data
-func (ts timeSeries) lttb(threshold int) ([]point, error) {
+func (ts *timeSeries) lttb(threshold int) ([]point, error) {
 
 	if threshold >= ts.len || threshold == 0 {
 		return ts.points(ts.len)
