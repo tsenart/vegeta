@@ -167,7 +167,7 @@ func (p *HTMLPlot) data() (dataPoints, []string, error) {
 	labels[0] = "Seconds"
 
 	for i, s := range series {
-		points, err := s.lttb(p.threshold)
+		points, err := lttb(s.len, p.threshold, s.iter())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -177,7 +177,7 @@ func (p *HTMLPlot) data() (dataPoints, []string, error) {
 			for j := range point {
 				point[j] = nan
 			}
-			point[0], point[i+1] = p[0], p[1]
+			point[0], point[i+1] = p.x, p.y
 			data = append(data, point)
 		}
 
