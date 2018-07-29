@@ -65,6 +65,7 @@ func (p *HTMLPlot) Add(r *Result) {
 	s.add(r)
 }
 
+// Close closes the HTML plot for writing.
 func (p *HTMLPlot) Close() {
 	for _, as := range p.series {
 		for _, ts := range []*timeSeries{as.ok, as.err} {
