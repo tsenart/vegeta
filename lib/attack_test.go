@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
@@ -264,5 +265,75 @@ func TestMaxBody(t *testing.T) {
 				t.Fatalf("got: %s, want: %s", got, want)
 			}
 		})
+	}
+}
+
+func TestClient(t *testing.T) {
+	t.Parallel()
+
+	dialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
+		KeepAlive: 30 * time.Second,
+		Timeout:   DefaultTimeout,
+	}
+
+	jar, _ := cookiejar.New(nil)
+
+	client := http.Client{
+		Jar: jar,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			Dial:  dialer.Dial,
+			ResponseHeaderTimeout: DefaultTimeout,
+			TLSClientConfig:       DefaultTLSConfig,
+			TLSHandshakeTimeout:   10 * time.Second,
+			MaxIdleConnsPerHost:   DefaultConnections,
+		},
+	}
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+	)
+	defer server.Close()
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	rate := Rate{Freq: 100, Per: time.Second}
+
+	atk := NewAttacker(Client(client))
+	var hits uint64
+	for range atk.Attack(tr, rate, 1*time.Second, "") {
+		hits++
+	}
+
+	if got, want := hits, uint64(rate.Freq); got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestDialer(t *testing.T) {
+	t.Parallel()
+
+	dialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
+		KeepAlive: 2 * time.Second,
+		Timeout:   DefaultTimeout,
+	}
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+	)
+	defer server.Close()
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	rate := Rate{Freq: 100, Per: time.Second}
+
+	atk := NewAttacker(Dialer(dialer))
+	var hits uint64
+	for range atk.Attack(tr, rate, 1*time.Second, "") {
+		hits++
+	}
+
+	if got, want := hits, uint64(rate.Freq); got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
