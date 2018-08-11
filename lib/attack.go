@@ -20,6 +20,8 @@ type Attacker struct {
 	stopch    chan struct{}
 	workers   uint64
 	redirects int
+	seqmu     sync.Mutex
+	seq       uint64
 }
 
 const (
@@ -204,13 +206,13 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, name strin
 		defer close(ticks)
 		interval := 1e9 / rate
 		hits := rate * uint64(du.Seconds())
-		began, seq := time.Now(), uint64(0)
+		began, count := time.Now(), uint64(0)
 		for {
-			now, next := time.Now(), began.Add(time.Duration(seq*interval))
+			now, next := time.Now(), began.Add(time.Duration(count*interval))
 			time.Sleep(next.Sub(now))
 			select {
-			case ticks <- seq:
-				if seq++; seq == hits {
+			case ticks <- count:
+				if count++; count == hits {
 					return
 				}
 			case <-a.stopch:
@@ -237,14 +239,14 @@ func (a *Attacker) Stop() {
 
 func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, ticks <-chan uint64, results chan<- *Result) {
 	defer workers.Done()
-	for seq := range ticks {
-		results <- a.hit(tr, name, seq)
+	for range ticks {
+		results <- a.hit(tr, name)
 	}
 }
 
-func (a *Attacker) hit(tr Targeter, name string, seq uint64) *Result {
+func (a *Attacker) hit(tr Targeter, name string) *Result {
 	var (
-		res = Result{Attack: name, Seq: seq}
+		res = Result{Attack: name}
 		tgt Target
 		err error
 	)
@@ -265,7 +267,12 @@ func (a *Attacker) hit(tr Targeter, name string, seq uint64) *Result {
 		return &res
 	}
 
+	a.seqmu.Lock()
 	res.Timestamp = time.Now()
+	res.Seq = a.seq
+	a.seq++
+	a.seqmu.Unlock()
+
 	r, err := a.client.Do(req)
 	if err != nil {
 		return &res

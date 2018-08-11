@@ -76,7 +76,7 @@ func TestRedirects(t *testing.T) {
 	redirects := 2
 	atk := NewAttacker(Redirects(redirects))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	want := fmt.Sprintf("stopped after %d redirects", redirects)
 	if got := res.Error; !strings.HasSuffix(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
@@ -93,7 +93,7 @@ func TestNoFollow(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(Redirects(NoFollow))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	if res.Error != "" {
 		t.Fatalf("got err: %v", res.Error)
 	}
@@ -112,7 +112,7 @@ func TestTimeout(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	want := "net/http: timeout awaiting response headers"
 	if got := res.Error; !strings.HasSuffix(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
@@ -137,7 +137,7 @@ func TestLocalAddr(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(LocalAddr(*addr))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	atk.hit(tr, "", 0)
+	atk.hit(tr, "")
 }
 
 func TestKeepAlive(t *testing.T) {
@@ -171,7 +171,7 @@ func TestStatusCodeErrors(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	if got, want := res.Error, "400 Bad Request"; got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -181,7 +181,7 @@ func TestBadTargeterError(t *testing.T) {
 	t.Parallel()
 	atk := NewAttacker()
 	tr := func(*Target) error { return io.EOF }
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	if got, want := res.Error, io.EOF.Error(); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -199,7 +199,7 @@ func TestResponseBodyCapture(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	if got := res.Body; !bytes.Equal(got, want) {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -226,7 +226,7 @@ func TestProxyOption(t *testing.T) {
 	}))
 
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://127.0.0.2"})
-	res := atk.hit(tr, "", 0)
+	res := atk.hit(tr, "")
 	if got, want := res.Error, ""; got != want {
 		t.Errorf("got error: %q, want %q", got, want)
 	}
