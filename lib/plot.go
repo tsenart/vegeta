@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"strconv"
-	"time"
 )
 
 // An HTMLPlot represents an interactive HTML time series
@@ -39,10 +38,10 @@ func (as *attackSeries) add(r *Result) {
 		*s = newTimeSeries(r.Attack, label, r.Timestamp)
 	}
 
-	(*s).add(
-		uint32(r.Timestamp.Sub((*s).began)/(100*time.Microsecond)),
-		r.Latency.Seconds()*1000,
-	)
+	t := uint64(r.Timestamp.Sub((*s).began)) / 1e6 // ns -> ms
+	v := r.Latency.Seconds() * 1000
+
+	(*s).add(t, v)
 }
 
 // NewHTMLPlot returns an HTMLPlot with the given title,
@@ -168,7 +167,7 @@ func (p *HTMLPlot) data() (dataPoints, []string, error) {
 	labels[0] = "Seconds"
 
 	for i, s := range series {
-		points, err := lttb(s.len, p.threshold, s.iter())
+		points, err := lttb.Downsample(s.len, p.threshold, s.iter())
 		if err != nil {
 			return nil, nil, err
 		}
