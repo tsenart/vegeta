@@ -6,6 +6,9 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"time"
+
+	"github.com/tsenart/vegeta/lib/lttb"
 )
 
 // An HTMLPlot represents an interactive HTML time series
@@ -14,43 +17,81 @@ type HTMLPlot struct {
 	title     string
 	threshold int
 	series    map[string]*attackSeries
+	label     func(*Result) string
 }
 
 // attackSeries groups the two timeSeries an attack results in:
 // OK and Error data points
-type attackSeries struct{ ok, err *timeSeries }
+type attackSeries struct {
+	began  time.Time
+	seq    uint64
+	buf    map[uint64]point
+	series map[string]*timeSeries
+	label  func(*Result) string
+}
+
+type point struct {
+	ts  *timeSeries
+	seq uint64
+	t   time.Time
+	v   float64
+}
+
+// newAttackSeries returns a new attackSeries that partitions added
+// Results with the given labelling function.
+func newAttackSeries(label func(*Result) string) *attackSeries {
+	return &attackSeries{
+		buf:    map[uint64]point{},
+		series: map[string]*timeSeries{},
+		label:  label,
+	}
+}
 
 // add adds the given result to the OK timeSeries if the Result
 // has no error, or to the Error timeSeries otherwise.
 func (as *attackSeries) add(r *Result) {
-	var (
-		s     **timeSeries
-		label string
-	)
+	label := as.label(r)
 
-	if r.Error == "" {
-		s, label = &as.ok, "OK"
-	} else {
-		s, label = &as.err, "Error"
+	s, ok := as.series[label]
+	if !ok {
+		s = newTimeSeries(r.Attack, label)
+		as.series[label] = s
 	}
 
-	if *s == nil {
-		*s = newTimeSeries(r.Attack, label, r.Timestamp)
+	p := point{
+		ts:  s,
+		seq: r.Seq,
+		t:   r.Timestamp,
+		v:   r.Latency.Seconds() * 1000,
 	}
 
-	t := uint64(r.Timestamp.Sub((*s).began)) / 1e6 // ns -> ms
-	v := r.Latency.Seconds() * 1000
+	if as.buf[p.seq] = p; p.seq != as.seq {
+		return // buffer
+	} else if as.seq == 0 {
+		as.began = r.Timestamp // first point in attack
+	}
 
-	(*s).add(t, v)
+	// found successor
+	for {
+		p, ok := as.buf[as.seq]
+		if !ok {
+			return
+		}
+
+		delete(as.buf, as.seq)
+		p.ts.add(p.seq, uint64(p.t.Sub(as.began))/1e6, p.v)
+		as.seq++
+	}
 }
 
 // NewHTMLPlot returns an HTMLPlot with the given title,
-// downsampling threshold.
-func NewHTMLPlot(title string, threshold int) *HTMLPlot {
+// downsampling threshold, and result labeling function.
+func NewHTMLPlot(title string, threshold int, label func(*Result) string) *HTMLPlot {
 	return &HTMLPlot{
 		title:     title,
 		threshold: threshold,
 		series:    map[string]*attackSeries{},
+		label:     label,
 	}
 }
 
@@ -58,7 +99,7 @@ func NewHTMLPlot(title string, threshold int) *HTMLPlot {
 func (p *HTMLPlot) Add(r *Result) {
 	s, ok := p.series[r.Attack]
 	if !ok {
-		s = &attackSeries{}
+		s = newAttackSeries(p.label)
 		p.series[r.Attack] = s
 	}
 	s.add(r)
@@ -67,7 +108,7 @@ func (p *HTMLPlot) Add(r *Result) {
 // Close closes the HTML plot for writing.
 func (p *HTMLPlot) Close() {
 	for _, as := range p.series {
-		for _, ts := range []*timeSeries{as.ok, as.err} {
+		for _, ts := range as.series {
 			if ts != nil {
 				ts.data.Finish()
 			}
@@ -149,7 +190,7 @@ func (p *HTMLPlot) data() (dataPoints, []string, error) {
 	)
 
 	for _, as := range p.series {
-		for _, s := range [...]*timeSeries{as.ok, as.err} {
+		for _, s := range as.series {
 			if s != nil {
 				series = append(series, s)
 				count += s.len
@@ -173,12 +214,12 @@ func (p *HTMLPlot) data() (dataPoints, []string, error) {
 		}
 
 		for _, p := range points {
-			point := make([]float64, size)
-			for j := range point {
-				point[j] = nan
+			pt := make([]float64, size)
+			for j := range pt {
+				pt[j] = nan
 			}
-			point[0], point[i+1] = p.x, p.y
-			data = append(data, point)
+			pt[0], pt[i+1] = p.X, p.Y
+			data = append(data, pt)
 		}
 
 		labels[i+1] = s.attack + ": " + s.label

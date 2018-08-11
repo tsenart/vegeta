@@ -22,7 +22,13 @@ func BenchmarkHTMLPlot(b *testing.B) {
 		}
 	}
 
-	plot := NewHTMLPlot("Vegeta Plot", 5000)
+	plot := NewHTMLPlot("Vegeta Plot", 5000, func(r *Result) string {
+		if r.Code >= 200 && r.Code < 300 {
+			return "OK"
+		}
+		return "Error"
+	})
+
 	b.Run("Add", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			plot.Add(&rs[i%len(rs)])

@@ -9,22 +9,20 @@ import (
 
 type timeSeries struct {
 	attack string
-	label  string // OK or ERROR
-	began  time.Time
+	label  string
 	data   *tsz.Series
 	len    int
 }
 
-func newTimeSeries(attack, label string, began time.Time) *timeSeries {
+func newTimeSeries(attack, label string) *timeSeries {
 	return &timeSeries{
 		attack: attack,
 		label:  label,
-		began:  began,
 		data:   tsz.New(0),
 	}
 }
 
-func (ts *timeSeries) add(t uint64, v float64) {
+func (ts *timeSeries) add(seq, t uint64, v float64) {
 	ts.data.Push(t, v)
 	ts.len++
 }
@@ -36,7 +34,7 @@ func (ts *timeSeries) iter() lttb.Iter {
 		for i := 0; i < count && it.Next(); i++ {
 			t, v := it.Values()
 			ps = append(ps, lttb.Point{
-				X: time.Duration(t).Seconds(),
+				X: time.Duration(t * 1e6).Seconds(),
 				Y: v,
 			})
 		}
