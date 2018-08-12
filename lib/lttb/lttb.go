@@ -5,7 +5,7 @@ import "errors"
 // A Point in a line chart.
 type Point struct{ X, Y float64 }
 
-// An Iter represents an iterator function that returns
+// An Iter is an iterator function that returns
 // count number of Points or an error.
 type Iter func(count int) ([]Point, error)
 
