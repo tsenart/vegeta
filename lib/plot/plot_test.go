@@ -8,7 +8,7 @@ import (
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
-func BenchmarkHTMLPlot(b *testing.B) {
+func BenchmarkPlot(b *testing.B) {
 	b.StopTimer()
 	// Build result set
 	rs := make(vegeta.Results, 50000000)
@@ -27,12 +27,7 @@ func BenchmarkHTMLPlot(b *testing.B) {
 	plot := New(
 		Title("Vegeta Plot"),
 		Downsample(5000),
-		Label(func(r *vegeta.Result) string {
-			if r.Code >= 200 && r.Code < 300 {
-				return "OK"
-			}
-			return "Error"
-		}),
+		Label(ErrorLabeler),
 	)
 
 	b.Run("Add", func(b *testing.B) {
