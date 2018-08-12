@@ -92,7 +92,10 @@ decode:
 				}
 				return err
 			}
-			plot.Add(&r)
+
+			if err = plot.Add(&r); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -1,15 +1,19 @@
 package vegeta
 
 import (
+	"errors"
 	"time"
 
 	tsz "github.com/dgryski/go-tsz"
 	"github.com/tsenart/vegeta/lib/lttb"
 )
 
+// An in-memory timeSeries of points with high compression of
+// both timestamps and values.  It's not safe for concurrent use.
 type timeSeries struct {
 	attack string
 	label  string
+	prev   uint64
 	data   *tsz.Series
 	len    int
 }
@@ -22,9 +26,18 @@ func newTimeSeries(attack, label string) *timeSeries {
 	}
 }
 
-func (ts *timeSeries) add(seq, t uint64, v float64) {
+var errMonotonicTimestamp = errors.New("timeseries: non monotonically increasing timestamp.")
+
+func (ts *timeSeries) add(t uint64, v float64) error {
+	if ts.prev > t {
+		return errMonotonicTimestamp
+	}
+
 	ts.data.Push(t, v)
+	ts.prev = t
 	ts.len++
+
+	return nil
 }
 
 func (ts *timeSeries) iter() lttb.Iter {

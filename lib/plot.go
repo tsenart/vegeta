@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"math"
@@ -47,7 +48,7 @@ func newLabeledSeries(label func(*Result) string) *labeledSeries {
 	}
 }
 
-func (ls *labeledSeries) add(r *Result) {
+func (ls *labeledSeries) add(r *Result) (err error) {
 	label := ls.label(r)
 
 	ts, ok := ls.series[label]
@@ -64,7 +65,7 @@ func (ls *labeledSeries) add(r *Result) {
 	}
 
 	if ls.buf[p.seq] = p; p.seq != ls.seq {
-		return // buffer
+		return nil // buffer
 	} else if ls.seq == 0 {
 		ls.began = r.Timestamp // first point in attack
 	}
@@ -73,11 +74,16 @@ func (ls *labeledSeries) add(r *Result) {
 	for {
 		p, ok := ls.buf[ls.seq]
 		if !ok {
-			return
+			return nil
+		}
+		delete(ls.buf, ls.seq)
+
+		// timestamp in ms precision
+		err = p.ts.add(uint64(p.t.Sub(ls.began))/1e6, p.v)
+		if err != nil {
+			return fmt.Errorf("point with sequence number %d in %v", p.seq, err)
 		}
 
-		delete(ls.buf, ls.seq)
-		p.ts.add(p.seq, uint64(p.t.Sub(ls.began))/1e6, p.v) // timestamp in ms precision
 		ls.seq++
 	}
 }
@@ -94,13 +100,13 @@ func NewHTMLPlot(title string, threshold int, label func(*Result) string) *HTMLP
 }
 
 // Add adds the given Result to the HTMLPlot time series.
-func (p *HTMLPlot) Add(r *Result) {
+func (p *HTMLPlot) Add(r *Result) error {
 	s, ok := p.series[r.Attack]
 	if !ok {
 		s = newLabeledSeries(p.label)
 		p.series[r.Attack] = s
 	}
-	s.add(r)
+	return s.add(r)
 }
 
 // Close closes the HTML plot for writing.
