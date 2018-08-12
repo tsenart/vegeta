@@ -18,7 +18,24 @@ type HTMLPlot struct {
 	title     string
 	threshold int
 	series    map[string]*labeledSeries
-	label     func(*Result) string
+	label     HTMLPlotLabeler
+}
+
+// An HTMLPlotLabeler is a function that returns a label
+// to partition and represent Results in separate (but overlaid) line charts
+// in the rendered plot.
+type HTMLPlotLabeler func(*Result) (label string)
+
+// ErrorLabeler is an HTMLPlotLabeler which
+// labels a result with an OK or ERROR label
+// based on whether it has an error set.
+func ErrorLabeler(r *Result) (label string) {
+	switch r.Error {
+	case "":
+		return "OK"
+	default:
+		return "ERROR"
+	}
 }
 
 // labeledSeries groups timeSeries by a label function applied to
@@ -29,7 +46,7 @@ type labeledSeries struct {
 	seq    uint64
 	buf    map[uint64]point
 	series map[string]*timeSeries
-	label  func(*Result) string
+	label  HTMLPlotLabeler
 }
 
 // a point to be added to a timeSeries.
@@ -88,15 +105,34 @@ func (ls *labeledSeries) add(r *Result) (err error) {
 	}
 }
 
+// HTMLPlotOpt is a functional option type for HTMLPlot.
+type HTMLPlotOpt func(*HTMLPlot)
+
+// Downsample returns an HTMLPlotOpt that enables downsampling
+// to the given threshold number of data points.
+func Downsample(threshold int) HTMLPlotOpt {
+	return func(p *HTMLPlot) { p.threshold = threshold }
+}
+
+// Labeler returns an HTMLPlotOpt that sets the given HTMLPlotLabeler
+// to be used to partition results into multiple overlaid line charts.
+func Labeler(l HTMLPlotLabeler) HTMLPlotOpt {
+	return func(p *HTMLPlot) { p.label = l }
+}
+
 // NewHTMLPlot returns an HTMLPlot with the given title,
 // downsampling threshold, and result labeling function.
-func NewHTMLPlot(title string, threshold int, label func(*Result) string) *HTMLPlot {
-	return &HTMLPlot{
-		title:     title,
-		threshold: threshold,
-		series:    map[string]*labeledSeries{},
-		label:     label,
+func NewHTMLPlot(title string, opts ...HTMLPlotOpt) *HTMLPlot {
+	p := &HTMLPlot{
+		title:  title,
+		series: map[string]*labeledSeries{},
 	}
+
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	return p
 }
 
 // Add adds the given Result to the HTMLPlot time series.
