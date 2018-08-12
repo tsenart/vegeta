@@ -16,13 +16,14 @@ import (
 type HTMLPlot struct {
 	title     string
 	threshold int
-	series    map[string]*attackSeries
+	series    map[string]*labeledSeries
 	label     func(*Result) string
 }
 
-// attackSeries groups the two timeSeries an attack results in:
-// OK and Error data points
-type attackSeries struct {
+// labeledSeries groups timeSeries by a label function applied to
+// each incoming result. It re-orders and buffers out-of-order results
+// by their sequence number before adding them to the labeled timeSeries.
+type labeledSeries struct {
 	began  time.Time
 	seq    uint64
 	buf    map[uint64]point
@@ -30,6 +31,7 @@ type attackSeries struct {
 	label  func(*Result) string
 }
 
+// a point to be added to a timeSeries.
 type point struct {
 	ts  *timeSeries
 	seq uint64
@@ -37,50 +39,46 @@ type point struct {
 	v   float64
 }
 
-// newAttackSeries returns a new attackSeries that partitions added
-// Results with the given labelling function.
-func newAttackSeries(label func(*Result) string) *attackSeries {
-	return &attackSeries{
+func newLabeledSeries(label func(*Result) string) *labeledSeries {
+	return &labeledSeries{
 		buf:    map[uint64]point{},
 		series: map[string]*timeSeries{},
 		label:  label,
 	}
 }
 
-// add adds the given result to the OK timeSeries if the Result
-// has no error, or to the Error timeSeries otherwise.
-func (as *attackSeries) add(r *Result) {
-	label := as.label(r)
+func (ls *labeledSeries) add(r *Result) {
+	label := ls.label(r)
 
-	s, ok := as.series[label]
+	ts, ok := ls.series[label]
 	if !ok {
-		s = newTimeSeries(r.Attack, label)
-		as.series[label] = s
+		ts = newTimeSeries(r.Attack, label)
+		ls.series[label] = ts
 	}
 
 	p := point{
-		ts:  s,
+		ts:  ts,
 		seq: r.Seq,
 		t:   r.Timestamp,
 		v:   r.Latency.Seconds() * 1000,
 	}
 
-	if as.buf[p.seq] = p; p.seq != as.seq {
+	if ls.buf[p.seq] = p; p.seq != ls.seq {
 		return // buffer
-	} else if as.seq == 0 {
-		as.began = r.Timestamp // first point in attack
+	} else if ls.seq == 0 {
+		ls.began = r.Timestamp // first point in attack
 	}
 
 	// found successor
 	for {
-		p, ok := as.buf[as.seq]
+		p, ok := ls.buf[ls.seq]
 		if !ok {
 			return
 		}
 
-		delete(as.buf, as.seq)
-		p.ts.add(p.seq, uint64(p.t.Sub(as.began))/1e6, p.v)
-		as.seq++
+		delete(ls.buf, ls.seq)
+		p.ts.add(p.seq, uint64(p.t.Sub(ls.began))/1e6, p.v) // timestamp in ms precision
+		ls.seq++
 	}
 }
 
@@ -90,7 +88,7 @@ func NewHTMLPlot(title string, threshold int, label func(*Result) string) *HTMLP
 	return &HTMLPlot{
 		title:     title,
 		threshold: threshold,
-		series:    map[string]*attackSeries{},
+		series:    map[string]*labeledSeries{},
 		label:     label,
 	}
 }
@@ -99,7 +97,7 @@ func NewHTMLPlot(title string, threshold int, label func(*Result) string) *HTMLP
 func (p *HTMLPlot) Add(r *Result) {
 	s, ok := p.series[r.Attack]
 	if !ok {
-		s = newAttackSeries(p.label)
+		s = newLabeledSeries(p.label)
 		p.series[r.Attack] = s
 	}
 	s.add(r)
