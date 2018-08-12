@@ -1,17 +1,19 @@
-package vegeta
+package plot
 
 import (
 	"io/ioutil"
 	"testing"
 	"time"
+
+	vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func BenchmarkHTMLPlot(b *testing.B) {
 	b.StopTimer()
 	// Build result set
-	rs := make(Results, 50000000)
+	rs := make(vegeta.Results, 50000000)
 	for began, i := time.Now(), 0; i < cap(rs); i++ {
-		rs[i] = Result{
+		rs[i] = vegeta.Result{
 			Attack:    "foo",
 			Code:      uint16(i % 600),
 			Latency:   50 * time.Millisecond,
@@ -22,9 +24,10 @@ func BenchmarkHTMLPlot(b *testing.B) {
 		}
 	}
 
-	plot := NewHTMLPlot("Vegeta Plot",
+	plot := New(
+		Title("Vegeta Plot"),
 		Downsample(5000),
-		Labeler(func(r *Result) string {
+		Label(func(r *vegeta.Result) string {
 			if r.Code >= 200 && r.Code < 300 {
 				return "OK"
 			}
@@ -34,7 +37,7 @@ func BenchmarkHTMLPlot(b *testing.B) {
 
 	b.Run("Add", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			plot.Add(&rs[i%len(rs)])
+			_ = plot.Add(&rs[i%len(rs)])
 		}
 	})
 

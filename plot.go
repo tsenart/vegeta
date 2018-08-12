@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
+	"github.com/tsenart/vegeta/lib/plot"
 )
 
 var plotUsage = strings.TrimSpace(`
@@ -46,11 +47,11 @@ func plotCmd() command {
 		if len(files) == 0 {
 			files = append(files, "stdin")
 		}
-		return plot(files, *threshold, *title, *output)
+		return plotRun(files, *threshold, *title, *output)
 	}}
 }
 
-func plot(files []string, threshold int, title, output string) error {
+func plotRun(files []string, threshold int, title, output string) error {
 	srcs := make([]vegeta.Decoder, len(files))
 	for i, f := range files {
 		in, err := file(f, false)
@@ -71,9 +72,10 @@ func plot(files []string, threshold int, title, output string) error {
 	sigch := make(chan os.Signal, 1)
 	signal.Notify(sigch, os.Interrupt)
 
-	plot := vegeta.NewHTMLPlot(title,
-		vegeta.Downsample(threshold),
-		vegeta.Labeler(vegeta.ErrorLabeler),
+	p := plot.New(
+		plot.Title(title),
+		plot.Downsample(threshold),
+		plot.Label(plot.ErrorLabeler),
 	)
 
 decode:
@@ -90,14 +92,14 @@ decode:
 				return err
 			}
 
-			if err = plot.Add(&r); err != nil {
+			if err = p.Add(&r); err != nil {
 				return err
 			}
 		}
 	}
 
-	plot.Close()
+	p.Close()
 
-	_, err = plot.WriteTo(out)
+	_, err = p.WriteTo(out)
 	return err
 }

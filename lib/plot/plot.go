@@ -1,4 +1,4 @@
-package vegeta
+package plot
 
 import (
 	"encoding/json"
@@ -9,27 +9,28 @@ import (
 	"strconv"
 	"time"
 
+	vegeta "github.com/tsenart/vegeta/lib"
 	"github.com/tsenart/vegeta/lib/lttb"
 )
 
-// An HTMLPlot represents an interactive HTML time series
+// An Plot represents an interactive HTML time series
 // plot of Result latencies over time.
-type HTMLPlot struct {
+type Plot struct {
 	title     string
 	threshold int
 	series    map[string]*labeledSeries
-	label     HTMLPlotLabeler
+	label     Labeler
 }
 
-// An HTMLPlotLabeler is a function that returns a label
+// An Labeler is a function that returns a label
 // to partition and represent Results in separate (but overlaid) line charts
 // in the rendered plot.
-type HTMLPlotLabeler func(*Result) (label string)
+type Labeler func(*vegeta.Result) (label string)
 
 // ErrorLabeler is an HTMLPlotLabeler which
 // labels a result with an OK or ERROR label
 // based on whether it has an error set.
-func ErrorLabeler(r *Result) (label string) {
+func ErrorLabeler(r *vegeta.Result) (label string) {
 	switch r.Error {
 	case "":
 		return "OK"
@@ -46,7 +47,7 @@ type labeledSeries struct {
 	seq    uint64
 	buf    map[uint64]point
 	series map[string]*timeSeries
-	label  HTMLPlotLabeler
+	label  Labeler
 }
 
 // a point to be added to a timeSeries.
@@ -57,7 +58,7 @@ type point struct {
 	v   float64
 }
 
-func newLabeledSeries(label func(*Result) string) *labeledSeries {
+func newLabeledSeries(label Labeler) *labeledSeries {
 	return &labeledSeries{
 		buf:    map[uint64]point{},
 		series: map[string]*timeSeries{},
@@ -65,7 +66,7 @@ func newLabeledSeries(label func(*Result) string) *labeledSeries {
 	}
 }
 
-func (ls *labeledSeries) add(r *Result) (err error) {
+func (ls *labeledSeries) add(r *vegeta.Result) (err error) {
 	label := ls.label(r)
 
 	ts, ok := ls.series[label]
@@ -105,38 +106,37 @@ func (ls *labeledSeries) add(r *Result) (err error) {
 	}
 }
 
-// HTMLPlotOpt is a functional option type for HTMLPlot.
-type HTMLPlotOpt func(*HTMLPlot)
+// Opt is a functional option type for Plot.
+type Opt func(*Plot)
 
-// Downsample returns an HTMLPlotOpt that enables downsampling
-// to the given threshold number of data points.
-func Downsample(threshold int) HTMLPlotOpt {
-	return func(p *HTMLPlot) { p.threshold = threshold }
+// Title returns an Opt that sets the title of a Plot.
+func Title(title string) Opt {
+	return func(p *Plot) { p.title = title }
 }
 
-// Labeler returns an HTMLPlotOpt that sets the given HTMLPlotLabeler
+// Downsample returns an Opt that enables downsampling
+// to the given threshold number of data points per labeled series.
+func Downsample(threshold int) Opt {
+	return func(p *Plot) { p.threshold = threshold }
+}
+
+// Label returns an Opt that sets the given Labeler
 // to be used to partition results into multiple overlaid line charts.
-func Labeler(l HTMLPlotLabeler) HTMLPlotOpt {
-	return func(p *HTMLPlot) { p.label = l }
+func Label(l Labeler) Opt {
+	return func(p *Plot) { p.label = l }
 }
 
-// NewHTMLPlot returns an HTMLPlot with the given title,
-// downsampling threshold, and result labeling function.
-func NewHTMLPlot(title string, opts ...HTMLPlotOpt) *HTMLPlot {
-	p := &HTMLPlot{
-		title:  title,
-		series: map[string]*labeledSeries{},
-	}
-
+// New returns a Plot with the given Opts applied.
+func New(opts ...Opt) *Plot {
+	p := &Plot{series: map[string]*labeledSeries{}}
 	for _, opt := range opts {
 		opt(p)
 	}
-
 	return p
 }
 
-// Add adds the given Result to the HTMLPlot time series.
-func (p *HTMLPlot) Add(r *Result) error {
+// Add adds the given Result to the Plot time series.
+func (p *Plot) Add(r *vegeta.Result) error {
 	s, ok := p.series[r.Attack]
 	if !ok {
 		s = newLabeledSeries(p.label)
@@ -146,7 +146,7 @@ func (p *HTMLPlot) Add(r *Result) error {
 }
 
 // Close closes the HTML plot for writing.
-func (p *HTMLPlot) Close() {
+func (p *Plot) Close() {
 	for _, as := range p.series {
 		for _, ts := range as.series {
 			if ts != nil {
@@ -157,7 +157,7 @@ func (p *HTMLPlot) Close() {
 }
 
 // WriteTo writes the HTML plot to the give io.Writer.
-func (p HTMLPlot) WriteTo(w io.Writer) (n int64, err error) {
+func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 	type dygraphsOpts struct {
 		Title       string   `json:"title"`
 		Labels      []string `json:"labels,omitempty"`
@@ -223,7 +223,7 @@ func (p HTMLPlot) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 // See http://dygraphs.com/data.html
-func (p *HTMLPlot) data() (dataPoints, []string, error) {
+func (p *Plot) data() (dataPoints, []string, error) {
 	var (
 		series []*timeSeries
 		count  int
