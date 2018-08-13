@@ -6,19 +6,21 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 	"github.com/tsenart/vegeta/lib/plot"
 )
 
-var plotUsage = strings.TrimSpace(`
-Usage: vegeta plot [options] [<file>...]
+const plotUsage = `Usage: vegeta plot [options] [<file>...]
 
 Outputs an HTML time series plot of request latencies over time.
 The X axis represents elapsed time in seconds from the beginning
 of the earliest attack in all input files. The Y axis represents
 request latency in milliseconds.
+
+Click and drag to select a region to zoom into. Double click to zoom out.
+Choose a different number on the bottom left corner input field
+to change the moving average window size (in data points).
 
 Arguments:
   <file>  A file output by running vegeta attack [default: stdin]
@@ -29,7 +31,13 @@ Options:
   --threshold  Threshold of data points to downsample series to.
                Series with less than --threshold number of data
                points are not downsampled. [default: 4000]
-`)
+
+Examples:
+  echo "GET http://:80" | vegeta attack -name=50qps -rate=50 -duration=5s > results.50qps.bin
+  cat results.50qps.bin | vegeta plot > plot.50qps.html
+  echo "GET http://:80" | vegeta attack -name=100qps -rate=100 -duration=5s > results.100qps.bin
+  vegeta plot results.50qps.bin results.100qps.bin > plot.html
+`
 
 func plotCmd() command {
 	fs := flag.NewFlagSet("vegeta plot", flag.ExitOnError)
