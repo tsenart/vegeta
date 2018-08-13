@@ -30,3 +30,7 @@ vendor
 
 *.gob
 *.lz
+
+.DS_Store
+lib/plot/assets/*
+!lib/plot/assets/VERSIONS
