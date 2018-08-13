@@ -43,6 +43,10 @@
 
 [[constraint]]
   branch = "master"
+  name = "github.com/tsenart/go-tsz"
+
+[[constraint]]
+  branch = "master"
   name = "github.com/influxdata/tdigest"
 
 [[constraint]]
@@ -56,6 +60,10 @@
 [[constraint]]
   branch = "master"
   name = "golang.org/x/net"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/shurcooL/vfsgen"
 
 [prune]
   go-tests = true

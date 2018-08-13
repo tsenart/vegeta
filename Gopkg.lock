@@ -23,7 +23,18 @@
   branch = "master"
   name = "github.com/dgryski/go-lttb"
   packages = ["."]
-  revision = "abe543751142703f622ffea8f68289523d2236d2"
+  revision = "318fcdf10a77c2df09d83777e41f5e18d236ec9d"
+
+[[projects]]
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/function",
+    "cmp/internal/value"
+  ]
+  revision = "3af367b6b30c263d47e8895973edcca9a49cf029"
+  version = "v0.2.0"
 
 [[projects]]
   branch = "master"
@@ -32,16 +43,31 @@
   revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
 
 [[projects]]
-  name = "github.com/lucasb-eyer/go-colorful"
+  branch = "master"
+  name = "github.com/shurcooL/httpfs"
+  packages = ["vfsutil"]
+  revision = "809beceb23714880abc4a382a00c05f89d13b1cc"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/shurcooL/vfsgen"
   packages = ["."]
-  revision = "345fbb3dbcdb252d9985ee899a84963c0fa24c82"
-  version = "v1.0"
+  revision = "62bca832be04bd2bcaabd3b68a6b19a7ec044411"
 
 [[projects]]
   branch = "master"
   name = "github.com/streadway/quantile"
   packages = ["."]
   revision = "b0c588724d25ae13f5afb3d90efec0edc636432b"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/tsenart/go-tsz"
+  packages = [
+    ".",
+    "testdata"
+  ]
+  revision = "5b84236c62a2bc7f112f4fb6417e7c896690118c"
 
 [[projects]]
   branch = "master"
@@ -52,7 +78,7 @@
     "http2/hpack",
     "idna"
   ]
-  revision = "d0887baf81f4598189d4e12a37c6da86f0bba4d0"
+  revision = "c39426892332e1bb5ec0a434a079bf82f5d30c54"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -78,6 +104,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "aa595148b3c65cced75d6b68b3f95cfb0340bab014fb153c66b81d242c3c019f"
+  inputs-digest = "b7d8d94fc16de1cf511b1c4fe518392c07ab60b0a6ff5d102b5101eabbf69d9d"
   solver-name = "gps-cdcl"
   solver-version = 1

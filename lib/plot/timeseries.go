@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	tsz "github.com/dgryski/go-tsz"
+	tsz "github.com/tsenart/go-tsz"
 	"github.com/tsenart/vegeta/lib/lttb"
 )
 
