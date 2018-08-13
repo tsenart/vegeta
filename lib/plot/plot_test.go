@@ -6,10 +6,13 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	vegeta "github.com/tsenart/vegeta/lib"
+	"github.com/tsenart/vegeta/lib/lttb"
 )
 
 var update = flag.Bool("update", false, "Update .golden files")
@@ -65,29 +68,34 @@ func TestPlot(t *testing.T) {
 func TestLabeledSeries(t *testing.T) {
 	t.Parallel()
 
-	s := newLabeledSeries(func(r *vegeta.Result) string {
-		return r.Attack
-	})
-
-	count := int(1e5)
-	attacks := []string{"foo", "bar", "baz"}
+	s := newLabeledSeries(ErrorLabeler)
+	count := 500000
+	want := map[string][]lttb.Point{}
 
 	// test out of order adds
+	began := time.Unix(0, 0)
 	for i := count - 1; i >= 0; i-- {
 		r := vegeta.Result{
-			Attack:    attacks[i%len(attacks)],
+			Attack:    "attack",
 			Seq:       uint64(i),
-			Timestamp: time.Unix(int64(i), 0),
+			Timestamp: began.Add(time.Duration(i) * time.Millisecond),
 			Latency:   time.Duration(rand.Intn(1000)) * time.Millisecond,
 		}
 
-		if err := s.add(&r); err != nil {
-			t.Fatal(err)
+		if i%2 == 0 {
+			r.Error = "Boom!"
 		}
 
-		_, ok := s.series[r.Attack]
-		if !ok {
-			t.Fatalf("series %q not found after adding %v", r.Attack, r)
+		label := ErrorLabeler(&r)
+		point := lttb.Point{
+			X: r.Timestamp.Sub(began).Seconds(),
+			Y: r.Latency.Seconds() * 1000,
+		}
+
+		want[label] = append(want[label], point)
+
+		if err := s.add(&r); err != nil {
+			t.Fatal(err)
 		}
 	}
 
@@ -102,16 +110,16 @@ func TestLabeledSeries(t *testing.T) {
 			t.Errorf("series %q: %v", label, err)
 		}
 
-		if have, want := len(ps), ts.len; have != want {
+		if have, want := len(ps), count/2; have != want {
 			t.Errorf("missing points: have %d, want %d", have, want)
 		}
 
-		prev := 0.0
-		for _, p := range ps {
-			if p.X < prev {
-				t.Fatalf("series %q: point %v not in order", label, p)
-			}
-			prev = p.X
+		sort.Slice(want[label], func(i, j int) bool {
+			return want[label][i].X < want[label][j].X
+		})
+
+		if diff := cmp.Diff(ps, want[label]); diff != "" {
+			t.Error(diff)
 		}
 	}
 
