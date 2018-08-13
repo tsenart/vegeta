@@ -1,3 +1,5 @@
+//go:generate go run -tags=dev assets_gen.go
+
 package plot
 
 import (
@@ -5,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"math"
 	"strconv"
 	"time"
@@ -177,6 +180,7 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 
 	type plotData struct {
 		Title         string
+		DygraphsCSS   template.CSS
 		HTML2CanvasJS template.JS
 		DygraphsJS    template.JS
 		Data          template.JS
@@ -215,11 +219,21 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 		return 0, err
 	}
 
+	assets := map[string][]byte{}
+	for _, path := range []string{"dygraph.min.js", "dygraph.css", "html2canvas.min.js"} {
+		bs, err := asset(path)
+		if err != nil {
+			return 0, err
+		}
+		assets[path] = bs
+	}
+
 	cw := countingWriter{w: w}
 	err = plotTemplate.Execute(&cw, &plotData{
 		Title:         p.title,
-		HTML2CanvasJS: template.JS(asset(html2canvas)),
-		DygraphsJS:    template.JS(asset(dygraphs)),
+		DygraphsCSS:   template.CSS(assets["dygraph.css"]),
+		HTML2CanvasJS: template.JS(assets["html2canvas.min.js"]),
+		DygraphsJS:    template.JS(assets["dygraph.min.js"]),
 		Data:          template.JS(data),
 		Opts:          template.JS(optsJSON),
 	})
@@ -273,6 +287,14 @@ func (p *Plot) data() (dataPoints, []string, error) {
 	return data, labels, nil
 }
 
+func asset(path string) ([]byte, error) {
+	file, err := Assets.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(file)
+}
+
 type countingWriter struct {
 	n int64
 	w io.Writer
@@ -312,33 +334,10 @@ func (ps dataPoints) Append(buf []byte) []byte {
 	return append(buf, "  ]"...)
 }
 
-var plotTemplate = template.Must(template.New("plot").Parse(`
-<!doctype html>
-<html>
-<head>
-  <title>{{.Title}}</title>
-  <meta charset="utf-8">
-</head>
-<body>
-  <div id="latencies" style="font-family: Courier; width: 100%%; height: 600px"></div>
-  <button id="download">Download as PNG</button>
-	<script>{{.HTML2CanvasJS}}</script>
-	<script>{{.DygraphsJS}}</script>
-  <script>
-  document.getElementById("download").addEventListener("click", function(e) {
-    html2canvas(document.body, {background: "#fff"}).then(function(canvas) {
-      var url = canvas.toDataURL('image/png').replace(/^data:image\/[^;]/, 'data:application/octet-stream');
-      var a = document.createElement("a");
-      a.setAttribute("download", "vegeta-plot.png");
-      a.setAttribute("href", url);
-      a.click();
-    });
-  });
-
-  var container = document.getElementById("latencies");
-  var opts = {{.Opts}};
-  var data = {{.Data}};
-  var plot = new Dygraph(container, data, opts);
-  </script>
-</body>
-</html>`))
+var plotTemplate = func() *template.Template {
+	bs, err := asset("plot.html.tpl")
+	if err != nil {
+		panic(err)
+	}
+	return template.Must(template.New("plot").Parse(string(bs)))
+}()
