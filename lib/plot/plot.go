@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"sort"
 	"strconv"
 	"time"
 
@@ -265,6 +266,11 @@ func (p *Plot) data() (dataPoints, []string, error) {
 	)
 
 	labels[0] = "Seconds"
+
+	sort.Slice(series, func(i, j int) bool {
+		return series[i].attack+series[i].label <
+			series[j].attack+series[j].label
+	})
 
 	for i, s := range series {
 		points, err := lttb.Downsample(s.len, p.threshold, s.iter())
