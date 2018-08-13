@@ -364,7 +364,7 @@ request latency in ns, bytes out, bytes in, and lastly the error.
 
 ### `plot` command
 
-![Plot](https://i.imgur.com/sSXHxSw.png)
+![Plot](https://i.imgur.com/Jra1sNH.png)
 
 ```
 Usage: vegeta plot [options] [<file>...]
