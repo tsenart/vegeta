@@ -88,11 +88,10 @@ func (ls *labeledSeries) add(r *vegeta.Result) (err error) {
 		ls.began = r.Timestamp // first point in attack
 	}
 
-	// found successor
-	for {
+	for len(ls.buf) > 0 {
 		p, ok := ls.buf[ls.seq]
 		if !ok {
-			return nil
+			break
 		}
 		delete(ls.buf, ls.seq)
 
@@ -104,6 +103,8 @@ func (ls *labeledSeries) add(r *vegeta.Result) (err error) {
 
 		ls.seq++
 	}
+
+	return nil
 }
 
 // Opt is a functional option type for Plot.
@@ -127,11 +128,17 @@ func Label(l Labeler) Opt {
 }
 
 // New returns a Plot with the given Opts applied.
+// If no Label opt is given, ErrorLabeler will be used as default.
 func New(opts ...Opt) *Plot {
 	p := &Plot{series: map[string]*labeledSeries{}}
 	for _, opt := range opts {
 		opt(p)
 	}
+
+	if p.label == nil {
+		p.label = ErrorLabeler
+	}
+
 	return p
 }
 
@@ -149,9 +156,7 @@ func (p *Plot) Add(r *vegeta.Result) error {
 func (p *Plot) Close() {
 	for _, as := range p.series {
 		for _, ts := range as.series {
-			if ts != nil {
-				ts.data.Finish()
-			}
+			ts.data.Finish()
 		}
 	}
 }

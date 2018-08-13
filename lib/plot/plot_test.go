@@ -1,15 +1,70 @@
 package plot
 
 import (
+	"bytes"
+	"flag"
 	"io/ioutil"
 	"math/rand"
+	"path/filepath"
 	"testing"
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
+var update = flag.Bool("update", false, "Update .golden files")
+
+func TestPlot(t *testing.T) {
+	p := New(Title("TestPlot"), Downsample(400))
+
+	rng := rand.New(rand.NewSource(0))
+	zf := rand.NewZipf(rng, 3, 2, 1000)
+	attacks := []string{"500QPS", "1000QPS", "2000QPS"}
+	began := time.Now()
+	for i := 0; i < 1e5; i++ {
+		for _, attack := range attacks {
+			r := vegeta.Result{
+				Attack:    attack,
+				Seq:       uint64(i),
+				Timestamp: began.Add(time.Duration(i) * time.Millisecond),
+				Latency:   time.Duration(zf.Uint64()) * time.Millisecond,
+			}
+
+			if err := p.Add(&r); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	p.Close()
+
+	var b bytes.Buffer
+	if _, err := p.WriteTo(&b); err != nil {
+		t.Fatal(err)
+	}
+
+	gp := filepath.Join("testdata", filepath.FromSlash(t.Name())+".golden.html")
+	if *update {
+		t.Logf("updating %q", gp)
+		if err := ioutil.WriteFile(gp, b.Bytes(), 0644); err != nil {
+			t.Fatalf("failed to update %q: %s", gp, err)
+		}
+	}
+
+	g, err := ioutil.ReadFile(gp)
+	if err != nil {
+		t.Fatalf("failed reading %q: %s", gp, err)
+	}
+
+	if !bytes.Equal(b.Bytes(), g) {
+		t.Log(string(b.Bytes()))
+		t.Errorf("bytes do not match %q", gp)
+	}
+}
+
 func TestLabeledSeries(t *testing.T) {
+	t.Parallel()
+
 	s := newLabeledSeries(func(r *vegeta.Result) string {
 		return r.Attack
 	})
