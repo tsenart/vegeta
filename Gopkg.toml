@@ -39,11 +39,15 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/influxdata/tdigest"
+  name = "github.com/dgryski/go-lttb"
 
 [[constraint]]
-  name = "github.com/lucasb-eyer/go-colorful"
-  version = "1.0.0"
+  branch = "master"
+  name = "github.com/tsenart/go-tsz"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/influxdata/tdigest"
 
 [[constraint]]
   branch = "master"
@@ -52,6 +56,10 @@
 [[constraint]]
   branch = "master"
   name = "golang.org/x/net"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/shurcooL/vfsgen"
 
 [prune]
   go-tests = true

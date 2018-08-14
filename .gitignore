@@ -27,3 +27,8 @@ vegeta-*.tar.gz
 lib/lib.test
 dist
 vendor
+
+*.gob
+*.lz
+
+.DS_Store

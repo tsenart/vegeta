@@ -97,7 +97,7 @@ report command:
   -output string
       Output file (default "stdout")
   -reporter string
-      Reporter [text, json, plot, hist[buckets]] (default "text")
+      Reporter [text, json, hist[buckets]] (default "text")
 
 dump command:
   -dumper string
@@ -111,7 +111,7 @@ examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
   vegeta attack -targets=targets.txt > results.bin
   vegeta report -inputs=results.bin -reporter=json > metrics.json
-  cat results.bin | vegeta report -reporter=plot > plot.html
+  cat results.bin | vegeta plot > plot.html
   cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
 ```
 
@@ -330,19 +330,6 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
   "errors": []
 }
 ```
-##### `plot`
-Generates an HTML5 page with an interactive plot based on
-[Dygraphs](http://dygraphs.com).
-Click and drag to select a region to zoom into. Double click to zoom
-out.
-Input a different number on the bottom left corner input field
-to change the moving average window size (in data points).
-
-Each point on the plot shows a request, the X axis represents the time
-at the start of the request and the Y axis represents the time taken
-to complete that request.
-
-![Plot](http://i.imgur.com/oi0cgGq.png)
 
 ##### `hist`
 Computes and prints a text based histogram for the given buckets.
@@ -374,6 +361,39 @@ Dumps attack results as JSON objects.
 Dumps attack results as CSV records with six columns.
 The columns are: unix timestamp in ns since epoch, http status code,
 request latency in ns, bytes out, bytes in, and lastly the error.
+
+### `plot` command
+
+![Plot](https://i.imgur.com/Jra1sNH.png)
+
+```
+Usage: vegeta plot [options] [<file>...]
+
+Outputs an HTML time series plot of request latencies over time.
+The X axis represents elapsed time in seconds from the beginning
+of the earliest attack in all input files. The Y axis represents
+request latency in milliseconds.
+
+Click and drag to select a region to zoom into. Double click to zoom out.
+Choose a different number on the bottom left corner input field
+to change the moving average window size (in data points).
+
+Arguments:
+  <file>  A file output by running vegeta attack [default: stdin]
+
+Options:
+  --title      Title and header of the resulting HTML page.
+               [default: Vegeta Plot]
+  --threshold  Threshold of data points to downsample series to.
+               Series with less than --threshold number of data
+               points are not downsampled. [default: 4000]
+
+Examples:
+  echo "GET http://:80" | vegeta attack -name=50qps -rate=50 -duration=5s > results.50qps.bin
+  cat results.50qps.bin | vegeta plot > plot.50qps.html
+  echo "GET http://:80" | vegeta attack -name=100qps -rate=100 -duration=5s > results.100qps.bin
+  vegeta plot results.50qps.bin results.100qps.bin > plot.html
+```
 
 ## Usage: Distributed attacks
 Whenever your load test can't be conducted due to Vegeta hitting machine limits

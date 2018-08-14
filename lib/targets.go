@@ -18,7 +18,7 @@ import (
 
 // Target is an HTTP request blueprint.
 //
-//go:generate jsonschema -type=Target -output=target.schema.json
+//go:generate go run ../internal/cmd/jsonschema/main.go -type=Target -output=target.schema.json
 type Target struct {
 	Method string      `json:"method"`
 	URL    string      `json:"url"`

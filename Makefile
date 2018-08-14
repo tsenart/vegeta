@@ -10,7 +10,6 @@ clean-vegeta:
 	rm vegeta
 
 generate: vendor
-	go install ./internal/cmd/...
 	go generate ./...
 
 vendor:
