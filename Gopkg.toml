@@ -50,10 +50,6 @@
   name = "github.com/influxdata/tdigest"
 
 [[constraint]]
-  name = "github.com/lucasb-eyer/go-colorful"
-  version = "1.0.0"
-
-[[constraint]]
   branch = "master"
   name = "github.com/streadway/quantile"
 
