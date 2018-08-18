@@ -99,13 +99,13 @@ report command:
   -reporter string
       Reporter [text, json, hist[buckets]] (default "text")
 
-dump command:
-  -dumper string
-      Dumper [json, csv] (default "json")
-  -inputs string
-      Input files (comma separated) (default "stdin")
+encode command:
+  -from string
+        Input decoding [csv, gob, json] (default "gob")
   -output string
-      Output file (default "stdout")
+        Output file (default "stdout")
+  -to string
+        Output encoding [csv, gob, json] (default "json")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -157,7 +157,7 @@ defines the format in detail.
 
 ```bash
 jq -ncM '{method: "GET", url: "http://goku", body: "Punch!" | @base64, header: {"Content-Type": ["text/plain"]}}' |
-  vegeta attack -format=json -rate=100 | vegeta dump
+  vegeta attack -format=json -rate=100 | vegeta encode
 ```
 
 ##### `http` format
@@ -343,24 +343,35 @@ Bucket         #     %       Histogram
 [6ms,   +Inf]  4771  25.93%  ###################
 ```
 
-### `dump` command
+### `encode` command
 
-#### `-inputs`
-Specifies the input files containing attack results to be dumped. You can specify more than one (comma separated).
+#### `[<file>...]`
+Input files are given as optional list of arguments. Defaults to `stdin`.
+
+#### `-to`
+Specifies the encoding format of the output.
 
 #### `-output`
-Specifies the output file to which the dump will be written to.
-
-#### `-dumper`
-Specifies the dump format.
-
-##### `json`
-Dumps attack results as JSON objects.
+Specifies the file to which the output will be written to. Defaults to
+`stdout`.
 
 ##### `csv`
-Dumps attack results as CSV records with six columns.
-The columns are: unix timestamp in ns since epoch, http status code,
-request latency in ns, bytes out, bytes in, and lastly the error.
+Decodes/encodes results as CSV records with nine columns:
+* unix timestamp in nanoseconds since epoch
+* HTTP status code
+* request latency in nanoseconds
+* bytes out
+* bytes in
+* error if present
+* Base64 encoded body
+* attack name
+* sequence number
+
+##### `gob`
+Decodes/encodes results as Golangs native [binary encoding](https://golang.org/pkg/encoding/gob).
+
+##### `json`
+Decodes/encodes results as JSON objects.
 
 ### `plot` command
 
@@ -440,7 +451,7 @@ If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://
 
 ```
 echo 'GET http://localhost:8080' | \
-    vegeta attack -rate 5000 -duration 10m | vegeta dump | \
+    vegeta attack -rate 5000 -duration 10m | vegeta encode | \
     jaggr @count=rps \
           hist\[100,200,300,400,500\]:code \
           p25,p50,p95:latency \
