@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -93,7 +95,16 @@ func encode(files []string, to, output string) error {
 		return fmt.Errorf("encode: unknown encoding %q", to)
 	}
 
+	sigch := make(chan os.Signal, 1)
+	signal.Notify(sigch, os.Interrupt)
+
 	for {
+		select {
+		case <-sigch:
+			return nil
+		default:
+		}
+
 		var r vegeta.Result
 		if err = dec.Decode(&r); err != nil {
 			if err == io.EOF {
