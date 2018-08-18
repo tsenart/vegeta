@@ -136,6 +136,9 @@ func NewCSVEncoder(w io.Writer) Encoder {
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
 func NewCSVDecoder(rd io.Reader) Decoder {
 	dec := csv.NewReader(rd)
+	dec.FieldsPerRecord = 9
+	dec.TrimLeadingSpace = true
+
 	return func(r *Result) error {
 		rec, err := dec.Read()
 		if err != nil {
