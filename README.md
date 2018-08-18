@@ -348,9 +348,6 @@ Bucket         #     %       Histogram
 #### `[<file>...]`
 Input files are given as optional list of arguments. Defaults to `stdin`.
 
-#### `-from`
-Specifies the encoding format of the input files.
-
 #### `-to`
 Specifies the encoding format of the output.
 
