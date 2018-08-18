@@ -18,6 +18,26 @@ const (
 	encodingJSON = "json"
 )
 
+const encodeUsage = `Usage: vegeta encode [options] [<file>...]
+
+Encodes vegeta attack results from one encoding to another.
+The supported encodings are Gob (binary), CSV and JSON.
+Each input file may have a different encoding which is detected
+automatically.
+
+Arguments:
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
+
+Options:
+  --to      Output encoding (gob | json | csv) [default: json]
+  --output  Output file [default: stdout]
+
+Examples:
+  echo "GET http://:80" | vegeta attack -rate=1/s > results.gob
+  cat results.gob | vegeta encode | jq -c 'del(.body)' | vegeta encode -to gob
+`
+
 func encodeCmd() command {
 	encs := "[" + strings.Join([]string{encodingCSV, encodingGob, encodingJSON}, ", ") + "]"
 	fs := flag.NewFlagSet("vegeta encode", flag.ExitOnError)
@@ -25,8 +45,7 @@ func encodeCmd() command {
 	output := fs.String("output", "stdout", "Output file")
 
 	fs.Usage = func() {
-		fmt.Println("Usage: vegeta encode [flags] [<file>...]")
-		fs.PrintDefaults()
+		fmt.Fprintln(os.Stderr, encodeUsage)
 	}
 
 	return command{fs, func(args []string) error {
