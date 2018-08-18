@@ -16,6 +16,7 @@ func main() {
 		"report": reportCmd(),
 		"plot":   plotCmd(),
 		"encode": encodeCmd(),
+		"dump":   dumpCmd(),
 	}
 
 	fs := flag.NewFlagSet("vegeta", flag.ExitOnError)
