@@ -20,7 +20,7 @@ type encoderFunc func(io.Writer) vegeta.Encoder
 
 func encodeCmd() command {
 	var (
-		fs     = flag.NewFlagSet("encode", flag.ExitOnError)
+		fs     = flag.NewFlagSet("vegeta encode", flag.ExitOnError)
 		from   = fs.String("from", "gob", "Input decoding [csv, gob, json]")
 		to     = fs.String("to", "json", "Output encoding [csv, gob, json]")
 		output = fs.String("output", "", "Output file")
