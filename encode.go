@@ -24,6 +24,18 @@ The supported encodings are Gob (binary), CSV and JSON.
 Each input file may have a different encoding which is detected
 automatically.
 
+The CSV encoder doesn't write a header. The columns written by it are:
+
+  1. Unix timestamp in nanoseconds since epoch
+  2. HTTP status code
+  3. Request latency in nanoseconds
+  4. Bytes out
+  5. Bytes in
+  6. Error
+  7. Base64 encoded response body
+  8. Attack name
+  9. Sequence number of request
+
 Arguments:
   <file>  A file with vegeta attack results encoded with one of
           the supported encodings (gob | json | csv) [default: stdin]
