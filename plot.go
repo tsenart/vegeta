@@ -60,16 +60,11 @@ func plotCmd() command {
 }
 
 func plotRun(files []string, threshold int, title, output string) error {
-	srcs := make([]vegeta.Decoder, len(files))
-	for i, f := range files {
-		in, err := file(f, false)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-		srcs[i] = vegeta.NewDecoder(in)
+	dec, mc, err := decoder(files)
+	defer mc.Close()
+	if err != nil {
+		return err
 	}
-	dec := vegeta.NewRoundRobinDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
