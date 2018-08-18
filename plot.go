@@ -23,7 +23,8 @@ Choose a different number on the bottom left corner input field
 to change the moving average window size (in data points).
 
 Arguments:
-  <file>  A file output by running vegeta attack [default: stdin]
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
   --title      Title and header of the resulting HTML page.
