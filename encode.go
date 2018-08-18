@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 )
@@ -19,12 +20,11 @@ type decoderFunc func(io.Reader) vegeta.Decoder
 type encoderFunc func(io.Writer) vegeta.Encoder
 
 func encodeCmd() command {
-	var (
-		fs     = flag.NewFlagSet("vegeta encode", flag.ExitOnError)
-		from   = fs.String("from", "gob", "Input decoding [csv, gob, json]")
-		to     = fs.String("to", "json", "Output encoding [csv, gob, json]")
-		output = fs.String("output", "", "Output file")
-	)
+	encs := "[" + strings.Join([]string{encodingCSV, encodingGob, encodingJSON}, ", ") + "]"
+	fs := flag.NewFlagSet("vegeta encode", flag.ExitOnError)
+	from := fs.String("from", encodingGob, "Input decoding "+encs)
+	to := fs.String("to", encodingJSON, "Output encoding "+encs)
+	output := fs.String("output", "", "Output file")
 
 	fs.Usage = func() {
 		fmt.Println("Usage: vegeta encode [flags] [<file>...]")
