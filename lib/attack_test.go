@@ -22,13 +22,13 @@ func TestAttackRate(t *testing.T) {
 	)
 	defer server.Close()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	rate := uint64(100)
+	rate := Rate{Freq: 100, Per: time.Second}
 	atk := NewAttacker()
 	var hits uint64
 	for range atk.Attack(tr, rate, 1*time.Second, "") {
 		hits++
 	}
-	if got, want := hits, rate; got != want {
+	if got, want := hits, uint64(rate.Freq); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
@@ -43,7 +43,8 @@ func TestAttackDuration(t *testing.T) {
 	atk := NewAttacker()
 	time.AfterFunc(2*time.Second, func() { t.Fatal("Timed out") })
 
-	rate, hits := uint64(100), uint64(0)
+	rate := Rate{Freq: 100, Per: time.Second}
+	hits := uint64(0)
 	for range atk.Attack(tr, rate, 0, "") {
 		if hits++; hits == 100 {
 			atk.Stop()
@@ -51,7 +52,7 @@ func TestAttackDuration(t *testing.T) {
 		}
 	}
 
-	if got, want := hits, rate; got != want {
+	if got, want := hits, uint64(rate.Freq); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }

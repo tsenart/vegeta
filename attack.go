@@ -22,6 +22,7 @@ func attackCmd() command {
 	opts := &attackOpts{
 		headers: headers{http.Header{}},
 		laddr:   localAddr{&vegeta.DefaultLocalAddr},
+		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
 	}
 
 	fs.StringVar(&opts.name, "name", "", "Attack name")
@@ -39,10 +40,10 @@ func attackCmd() command {
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
-	fs.Uint64Var(&opts.rate, "rate", 50, "Requests per second")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
+	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
@@ -54,7 +55,7 @@ func attackCmd() command {
 }
 
 var (
-	errZeroRate = errors.New("rate must be bigger than zero")
+	errZeroRate = errors.New("rate frequency and time unit must be bigger than zero")
 	errBadCert  = errors.New("bad certificate")
 )
 
@@ -74,7 +75,7 @@ type attackOpts struct {
 	lazy        bool
 	duration    time.Duration
 	timeout     time.Duration
-	rate        uint64
+	rate        vegeta.Rate
 	workers     uint64
 	connections int
 	redirects   int
@@ -86,7 +87,7 @@ type attackOpts struct {
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(opts *attackOpts) (err error) {
-	if opts.rate == 0 {
+	if opts.rate.IsZero() {
 		return errZeroRate
 	}
 

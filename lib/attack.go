@@ -187,11 +187,22 @@ func H2C(enabled bool) func(*Attacker) {
 	}
 }
 
+// A Rate of hits during an Attack.
+type Rate struct {
+	Freq int           // Frequency (number of occurrences) per ...
+	Per  time.Duration // Time unit, usually 1s
+}
+
+// IsZero returns true if either Freq or Per are zero valued.
+func (r Rate) IsZero() bool {
+	return r.Freq == 0 || r.Per == 0
+}
+
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for the given duration. When the duration is zero the attack
 // runs until Stop is called. Results are sent to the returned channel as soon
 // as they arrive and will have their Attack field set to the given name.
-func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, name string) <-chan *Result {
+func (a *Attacker) Attack(tr Targeter, r Rate, du time.Duration, name string) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan uint64)
@@ -204,8 +215,8 @@ func (a *Attacker) Attack(tr Targeter, rate uint64, du time.Duration, name strin
 		defer close(results)
 		defer workers.Wait()
 		defer close(ticks)
-		interval := 1e9 / rate
-		hits := rate * uint64(du.Seconds())
+		interval := uint64(r.Per.Nanoseconds() / int64(r.Freq))
+		hits := uint64(du) / interval
 		began, count := time.Now(), uint64(0)
 		for {
 			now, next := time.Now(), began.Add(time.Duration(count*interval))
