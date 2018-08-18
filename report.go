@@ -6,40 +6,58 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
+const reportUsage = `Usage: vegeta report [options] [<file>...]
+
+Outputs a report of attack results.
+
+Arguments:
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
+
+Options:
+  --type    Which report type to generate (text | json | hist[buckets]).
+            [default: text]
+  --output  Output file [default: stdout]
+
+Examples:
+  echo "GET http://:80" | vegeta attack -rate=10/s > results.gob
+  echo "GET http://:80" | vegeta attack -rate=100/s | vegeta encode > results.json
+  vegeta report results.*
+`
+
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	reporter := fs.String("reporter", "text", "Reporter [text, json, hist[buckets]]")
-	inputs := fs.String("inputs", "stdin", "Input files (comma separated)")
+	typ := fs.String("type", "text", "Report type to generate [text, json, hist[buckets]]")
 	output := fs.String("output", "stdout", "Output file")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, reportUsage)
+	}
+
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
-		return report(*reporter, *inputs, *output)
+		files := fs.Args()
+		if len(files) == 0 {
+			files = append(files, "stdin")
+		}
+		return report(files, *typ, *output)
 	}}
 }
 
-// report validates the report arguments, sets up the required resources
-// and writes the report
-func report(reporter, inputs, output string) error {
-	if len(reporter) < 4 {
-		return fmt.Errorf("bad reporter: %s", reporter)
+func report(files []string, typ, output string) error {
+	if len(typ) < 4 {
+		return fmt.Errorf("invalid report type: %s", typ)
 	}
 
-	files := strings.Split(inputs, ",")
-	srcs := make([]vegeta.Decoder, len(files))
-	for i, f := range files {
-		in, err := file(f, false)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-		srcs[i] = vegeta.NewDecoder(in)
+	dec, mc, err := decoder(files)
+	defer mc.Close()
+	if err != nil {
+		return err
 	}
-	dec := vegeta.NewRoundRobinDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {
@@ -52,7 +70,7 @@ func report(reporter, inputs, output string) error {
 		report vegeta.Report
 	)
 
-	switch reporter[:4] {
+	switch typ[:4] {
 	case "plot":
 		return fmt.Errorf("The plot reporter has been deprecated and succeeded by the vegeta plot command")
 	case "text":
@@ -62,16 +80,16 @@ func report(reporter, inputs, output string) error {
 		var m vegeta.Metrics
 		rep, report = vegeta.NewJSONReporter(&m), &m
 	case "hist":
-		if len(reporter) < 6 {
-			return fmt.Errorf("bad buckets: '%s'", reporter[4:])
+		if len(typ) < 6 {
+			return fmt.Errorf("bad buckets: '%s'", typ[4:])
 		}
 		var hist vegeta.Histogram
-		if err := hist.Buckets.UnmarshalText([]byte(reporter[4:])); err != nil {
+		if err := hist.Buckets.UnmarshalText([]byte(typ[4:])); err != nil {
 			return err
 		}
 		rep, report = vegeta.NewHistogramReporter(&hist), &hist
 	default:
-		return fmt.Errorf("unknown reporter: %q", reporter)
+		return fmt.Errorf("unknown report type: %q", typ)
 	}
 
 	sigch := make(chan os.Signal, 1)
