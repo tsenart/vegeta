@@ -101,10 +101,9 @@ var Version, Commit, Date string
 const examples = `
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
-  vegeta attack -targets=targets.txt > results.bin
-  vegeta report -inputs=results.bin -reporter=json > metrics.json
+  vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
-  cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
+  cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
 `
 
 type command struct {

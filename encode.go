@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -24,6 +23,18 @@ Encodes vegeta attack results from one encoding to another.
 The supported encodings are Gob (binary), CSV and JSON.
 Each input file may have a different encoding which is detected
 automatically.
+
+The CSV encoder doesn't write a header. The columns written by it are:
+
+  1. Unix timestamp in nanoseconds since epoch
+  2. HTTP status code
+  3. Request latency in nanoseconds
+  4. Bytes out
+  5. Bytes in
+  6. Error
+  7. Base64 encoded response body
+  8. Attack name
+  9. Sequence number of request
 
 Arguments:
   <file>  A file with vegeta attack results encoded with one of
@@ -59,42 +70,11 @@ func encodeCmd() command {
 }
 
 func encode(files []string, to, output string) error {
-	srcs := make([]vegeta.Decoder, len(files))
-	decs := []func(io.Reader) vegeta.Decoder{
-		vegeta.NewDecoder,
-		vegeta.NewJSONDecoder,
-		vegeta.NewCSVDecoder,
+	dec, mc, err := decoder(files)
+	defer mc.Close()
+	if err != nil {
+		return err
 	}
-
-	for i, f := range files {
-		in, err := file(f, false)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		// Auto-detect encoding of each file individually and buffer the read bytes
-		// so that they can be read in subsequent decoding attempts as well as
-		// in the final decoder.
-
-		var buf bytes.Buffer
-		var dec func(io.Reader) vegeta.Decoder
-		for j := range decs {
-			rd := io.MultiReader(bytes.NewReader(buf.Bytes()), io.TeeReader(in, &buf))
-			if err = decs[j](rd).Decode(&vegeta.Result{}); err == nil {
-				dec = decs[j]
-				break
-			}
-		}
-
-		if dec == nil {
-			return fmt.Errorf("encode: can't detect encoding of %q", f)
-		}
-
-		srcs[i] = dec(io.MultiReader(&buf, in))
-	}
-
-	dec := vegeta.NewRoundRobinDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {

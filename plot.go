@@ -23,7 +23,8 @@ Choose a different number on the bottom left corner input field
 to change the moving average window size (in data points).
 
 Arguments:
-  <file>  A file output by running vegeta attack [default: stdin]
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
   --title      Title and header of the resulting HTML page.
@@ -60,16 +61,11 @@ func plotCmd() command {
 }
 
 func plotRun(files []string, threshold int, title, output string) error {
-	srcs := make([]vegeta.Decoder, len(files))
-	for i, f := range files {
-		in, err := file(f, false)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-		srcs[i] = vegeta.NewDecoder(in)
+	dec, mc, err := decoder(files)
+	defer mc.Close()
+	if err != nil {
+		return err
 	}
-	dec := vegeta.NewRoundRobinDecoder(srcs...)
 
 	out, err := file(output, true)
 	if err != nil {

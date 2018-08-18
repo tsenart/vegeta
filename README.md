@@ -41,78 +41,81 @@ Usage: vegeta [global flags] <command> [command flags]
 
 global flags:
   -cpus int
-      Number of CPUs to use (default 8)
+    	Number of CPUs to use (default 8)
   -profile string
-      Enable profiling of [cpu, heap]
+    	Enable profiling of [cpu, heap]
   -version
-      Print version and exit
+    	Print version and exit
 
 attack command:
   -body string
-      Requests body file
+    	Requests body file
   -cert string
-      TLS client PEM encoded certificate file
+    	TLS client PEM encoded certificate file
   -connections int
-      Max open idle connections per target host (default 10000)
+    	Max open idle connections per target host (default 10000)
   -duration duration
-      Duration of the test [0 = forever]
+    	Duration of the test [0 = forever]
   -format string
-      Targets format [http, json] (default "http")
+    	Targets format [http, json] (default "http")
   -h2c
-      Send HTTP/2 requests without TLS encryption
+    	Send HTTP/2 requests without TLS encryption
   -header value
-      Request header
+    	Request header
   -http2
-      Send HTTP/2 requests when supported by the server (default true)
+    	Send HTTP/2 requests when supported by the server (default true)
   -insecure
-      Ignore invalid server TLS certificates
+    	Ignore invalid server TLS certificates
   -keepalive
-      Use persistent connections (default true)
+    	Use persistent connections (default true)
   -key string
-      TLS client PEM encoded private key file
+    	TLS client PEM encoded private key file
   -laddr value
-      Local IP address (default 0.0.0.0)
+    	Local IP address (default 0.0.0.0)
   -lazy
-      Read targets lazily
+    	Read targets lazily
   -name string
-      Attack name
+    	Attack name
   -output string
-      Output file (default "stdout")
-  -rate uint
-      Requests per second (default 50)
+    	Output file (default "stdout")
+  -rate value
+    	Number of requests per time unit (default 50/1s)
   -redirects int
-      Number of redirects to follow. -1 will not follow but marks as success (default 10)
+    	Number of redirects to follow. -1 will not follow but marks as success (default 10)
   -root-certs value
-      TLS root certificate files (comma separated list)
+    	TLS root certificate files (comma separated list)
   -targets string
-      Targets file (default "stdin")
+    	Targets file (default "stdin")
   -timeout duration
-      Requests timeout (default 30s)
+    	Requests timeout (default 30s)
   -workers uint
-      Initial number of workers (default 10)
-
-report command:
-  -inputs string
-      Input files (comma separated) (default "stdin")
-  -output string
-      Output file (default "stdout")
-  -reporter string
-      Reporter [text, json, hist[buckets]] (default "text")
+    	Initial number of workers (default 10)
 
 encode command:
-  -from string
-        Input decoding [csv, gob, json] (default "gob")
   -output string
-        Output file (default "stdout")
+    	Output file (default "stdout")
   -to string
-        Output encoding [csv, gob, json] (default "json")
+    	Output encoding [csv, gob, json] (default "json")
+
+plot command:
+  -output string
+    	Output file (default "stdout")
+  -threshold int
+    	Threshold of data points above which series are downsampled. (default 4000)
+  -title string
+    	Title and header of the resulting HTML page (default "Vegeta Plot")
+
+report command:
+  -output string
+    	Output file (default "stdout")
+  -type string
+    	Report type to generate [text, json, hist[buckets]] (default "text")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
-  vegeta attack -targets=targets.txt > results.bin
-  vegeta report -inputs=results.bin -reporter=json > metrics.json
+  vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
-  cat results.bin | vegeta report -reporter="hist[0,100ms,200ms,300ms]"
+  cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
 ```
 
 #### `-cpus`
@@ -239,9 +242,10 @@ Specifies the output file to which the binary results will be written
 to. Made to be piped to the report command input. Defaults to stdout.
 
 ####  `-rate`
-Specifies the requests per second rate to issue against
+Specifies the request rate per time unit to issue against
 the targets. The actual request rate can vary slightly due to things like
 garbage collection, but overall it should stay very close to the specified.
+If no time unit is provided, 1s is used.
 
 #### `-redirects`
 Specifies the max number of redirects followed on each request. The
@@ -265,21 +269,29 @@ Specifies the initial number of workers used in the attack. The actual
 number of workers will increase if necessary in order to sustain the
 requested rate.
 
-### report command
+### `report` command
 
-#### `-inputs`
-Specifies the input files to generate the report of, defaulting to stdin.
-These are the output of vegeta attack. You can specify more than one (comma
-separated) and they will be merged and sorted before being used by the
-reports.
+```
+Usage: vegeta report [options] [<file>...]
 
-#### `-output`
-Specifies the output file to which the report will be written to.
+Outputs a report of attack results.
 
-#### `-reporter`
-Specifies the kind of report to be generated. It defaults to text.
+Arguments:
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
 
-##### `text`
+Options:
+  --type    Which report type to generate (text | json | hist[buckets]).
+            [default: text]
+  --output  Output file [default: stdout]
+
+Examples:
+  echo "GET http://:80" | vegeta attack -rate=10/s > results.gob
+  echo "GET http://:80" | vegeta attack -rate=100/s | vegeta encode > results.json
+  vegeta report results.*
+```
+
+#### `report -type=text`
 ```console
 Requests      [total, rate]             1200, 120.00
 Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
@@ -297,7 +309,7 @@ Get http://localhost:6060: net/http: transport closed before response was receiv
 Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```
 
-##### `json`
+#### `report -type=json`
 ```json
 {
   "latencies": {
@@ -331,11 +343,11 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 }
 ```
 
-##### `hist`
+#### `report -type=hist`
 Computes and prints a text based histogram for the given buckets.
 Each bucket upper bound is non-inclusive.
 ```console
-cat results.bin | vegeta report -reporter='hist[0,2ms,4ms,6ms]'
+cat results.bin | vegeta report -type='hist[0,2ms,4ms,6ms]'
 Bucket         #     %       Histogram
 [0,     2ms]   6007  32.65%  ########################
 [2ms,   4ms]   5505  29.92%  ######################
@@ -345,33 +357,38 @@ Bucket         #     %       Histogram
 
 ### `encode` command
 
-#### `[<file>...]`
-Input files are given as optional list of arguments. Defaults to `stdin`.
+```
+Usage: vegeta encode [options] [<file>...]
 
-#### `-to`
-Specifies the encoding format of the output.
+Encodes vegeta attack results from one encoding to another.
+The supported encodings are Gob (binary), CSV and JSON.
+Each input file may have a different encoding which is detected
+automatically.
 
-#### `-output`
-Specifies the file to which the output will be written to. Defaults to
-`stdout`.
+The CSV encoder doesn't write a header. The columns written by it are:
 
-##### `csv`
-Decodes/encodes results as CSV records with nine columns:
-* unix timestamp in nanoseconds since epoch
-* HTTP status code
-* request latency in nanoseconds
-* bytes out
-* bytes in
-* error if present
-* Base64 encoded body
-* attack name
-* sequence number
+  1. Unix timestamp in nanoseconds since epoch
+  2. HTTP status code
+  3. Request latency in nanoseconds
+  4. Bytes out
+  5. Bytes in
+  6. Error
+  7. Base64 encoded response body
+  8. Attack name
+  9. Sequence number of request
 
-##### `gob`
-Decodes/encodes results as Golangs native [binary encoding](https://golang.org/pkg/encoding/gob).
+Arguments:
+  <file>  A file with vegeta attack results encoded with one of
+          the supported encodings (gob | json | csv) [default: stdin]
 
-##### `json`
-Decodes/encodes results as JSON objects.
+Options:
+  --to      Output encoding (gob | json | csv) [default: json]
+  --output  Output file [default: stdout]
+
+Examples:
+  echo "GET http://:80" | vegeta attack -rate=1/s > results.gob
+  cat results.gob | vegeta encode | jq -c 'del(.body)' | vegeta encode -to gob
+```
 
 ### `plot` command
 

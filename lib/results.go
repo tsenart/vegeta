@@ -64,9 +64,35 @@ func (rs Results) Swap(i, j int)      { rs[i], rs[j] = rs[j], rs[i] }
 // A Decoder decodes a Result and returns an error in case of failure.
 type Decoder func(*Result) error
 
+// A DecoderFactory constructs a new Decoder from a given io.Reader.
+type DecoderFactory func(io.Reader) Decoder
+
+// DecoderFor automatically detects the encoding of the first few bytes in
+// the given io.Reader and then returns the corresponding Decoder or nil
+// in case of failing to detect a supported encoding.
+func DecoderFor(r io.Reader) Decoder {
+	var buf bytes.Buffer
+	for _, dec := range []DecoderFactory{
+		NewDecoder,
+		NewJSONDecoder,
+		NewCSVDecoder,
+	} {
+		rd := io.MultiReader(bytes.NewReader(buf.Bytes()), io.TeeReader(r, &buf))
+		if err := dec(rd).Decode(&Result{}); err == nil {
+			return dec(io.MultiReader(&buf, r))
+		}
+	}
+	return nil
+}
+
 // NewRoundRobinDecoder returns a new Decoder that round robins across the
 // given Decoders on every invocation or decoding error.
 func NewRoundRobinDecoder(dec ...Decoder) Decoder {
+	// Optimization for single Decoder case.
+	if len(dec) == 1 {
+		return dec[0]
+	}
+
 	var seq uint64
 	return func(r *Result) (err error) {
 		for range dec {
