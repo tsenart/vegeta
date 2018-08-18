@@ -349,7 +349,7 @@ Bucket         #     %       Histogram
 Input files are given as optional list of arguments. Defaults to `stdin`.
 
 #### `-from`
-Specifies the decoding format of the inputs.
+Specifies the encoding format of the input files.
 
 #### `-to`
 Specifies the encoding format of the output.
@@ -371,8 +371,7 @@ Decodes/encodes results as CSV records with nine columns:
 * sequence number
 
 ##### `gob`
-Decodes/encodes results as Golangs native [binary
-encoding](https://golang.org/pkg/encoding/gob).
+Decodes/encodes results as Golangs native [binary encoding](https://golang.org/pkg/encoding/gob).
 
 ##### `json`
 Decodes/encodes results as JSON objects.
