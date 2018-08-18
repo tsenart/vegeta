@@ -53,6 +53,9 @@ func TestEncoding(t *testing.T) {
 		enc      func(io.Writer) Encoder
 		dec      func(io.Reader) Decoder
 	}{
+		{"auto-gob", NewEncoder, DecoderFor},
+		{"auto-json", NewJSONEncoder, DecoderFor},
+		{"auto-csv", NewCSVEncoder, DecoderFor},
 		{"gob", NewEncoder, NewDecoder},
 		{"csv", NewCSVEncoder, NewCSVDecoder},
 		{"json", NewJSONEncoder, NewJSONDecoder},
@@ -61,9 +64,6 @@ func TestEncoding(t *testing.T) {
 		t.Run(tc.encoding, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
-			enc := tc.enc(&buf)
-			dec := tc.dec(&buf)
 			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, body []byte, attack, e string) bool {
 				want := Result{
 					Attack:    attack,
@@ -77,10 +77,13 @@ func TestEncoding(t *testing.T) {
 					Body:      body,
 				}
 
+				var buf bytes.Buffer
+				enc := tc.enc(&buf)
 				if err := enc(&want); err != nil {
 					t.Fatal(err)
 				}
 
+				dec := tc.dec(&buf)
 				var got Result
 				if err := dec(&got); err != nil {
 					t.Fatalf("err: %q buffer: %s", err, buf.String())
