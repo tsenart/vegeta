@@ -498,7 +498,7 @@ import (
 )
 
 func main() {
-  rate := uint64(100) // per second
+  rate := vegeta.Rate{Freq: 100, Per: time.Second}
   duration := 4 * time.Second
   targeter := vegeta.NewStaticTargeter(vegeta.Target{
     Method: "GET",
@@ -507,7 +507,7 @@ func main() {
   attacker := vegeta.NewAttacker()
 
   var metrics vegeta.Metrics
-  for res := range attacker.Attack(targeter, rate, duration) {
+  for res := range attacker.Attack(targeter, rate, duration, "Big Bang!") {
     metrics.Add(res)
   }
   metrics.Close()
