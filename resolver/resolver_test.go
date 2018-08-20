@@ -27,7 +27,10 @@ func TestResolveMiekg(t *testing.T) {
 		m.SetReply(r)
 		localIP := net.ParseIP("127.0.0.1")
 		defer func() {
-			w.WriteMsg(m)
+			err := w.WriteMsg(m)
+			if err != nil {
+				t.Logf("got error writing dns message: %s", err)
+			}
 		}()
 		if len(r.Question) == 0 {
 			m.RecursionAvailable = true
@@ -40,7 +43,7 @@ func TestResolveMiekg(t *testing.T) {
 		if q.Name == fakeDomain+"." {
 			m.Answer = []dns.RR{&dns.A{
 				Hdr: dns.RR_Header{
-					Name:   r.Question[0].Name,
+					Name:   q.Name,
 					Rrtype: dns.TypeA,
 					Class:  dns.ClassINET,
 					Ttl:    1,
@@ -71,7 +74,12 @@ func TestResolveMiekg(t *testing.T) {
 		// the handler. It will specifically not check if the query has the QR bit not set.
 		Unsafe: false,
 	}
-	go ds.ListenAndServe()
+	go func() {
+		err := ds.ListenAndServe()
+		if err != nil {
+			t.Logf("got error during dns ListenAndServe: %s", err)
+		}
+	}()
 
 	defer func() {
 		_ = ds.Shutdown()
