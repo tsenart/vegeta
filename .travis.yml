@@ -2,9 +2,6 @@ language: go
 sudo: false
 go:
   - tip
-before_install:
-  - sudo apt-get install -y dnsmasq
-  - sudo service dnsmasq stop
 install:
   - go get -v github.com/golang/lint/golint
   - go get -d -t -v ./...
@@ -12,4 +9,4 @@ install:
 script:
   - go vet ./...
   - $HOME/gopath/bin/golint .
-  - VEGETA_TESTDNSMASQ_ENABLE=1 go test -v ./...
+  - go test -v ./...

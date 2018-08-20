@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -9,58 +8,73 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 const (
-	dnsmasqRunEnv  = "VEGETA_TESTDNSMASQ_ENABLE"
-	dnsmasqPathEnv = "VEGETA_TESTDNSMASQ_PATH"
 	dnsmasqPortEnv = "VEGETA_TESTDNSMASQ_PORT"
+	fakeDomain     = "acme.notadomain"
 )
 
-func TestResolveDNSMasq(t *testing.T) {
+func TestResolveMiekg(t *testing.T) {
+
+	dns.HandleFunc(".", func(w dns.ResponseWriter, r *dns.Msg) {
+		m := &dns.Msg{}
+		m.SetReply(r)
+		localIP := net.ParseIP("127.0.0.1")
+		defer func() {
+			w.WriteMsg(m)
+		}()
+		if len(r.Question) == 0 {
+			m.RecursionAvailable = true
+			m.SetRcode(r, dns.RcodeRefused)
+			return
+		}
+
+		q := r.Question[0]
+
+		if q.Name == fakeDomain+"." {
+			m.Answer = []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{
+					Name:   r.Question[0].Name,
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    1,
+				},
+				A: localIP,
+			}}
+		} else {
+			m.SetRcode(r, dns.RcodeNameError)
+		}
+	})
 	const payload = "there is no cloud, just someone else's computer"
 
 	var (
-		path = "dnsmasq"
 		port = "5300"
 	)
-	if _, ok := os.LookupEnv(dnsmasqRunEnv); !ok {
-		t.Skipf("skipping test becuase %s is not set", dnsmasqRunEnv)
-	}
+
 	if ePort, ok := os.LookupEnv(dnsmasqPortEnv); ok {
 		port = ePort
 	}
-	if ePath, ok := os.LookupEnv(dnsmasqPathEnv); ok {
-		path = ePath
+
+	ds := dns.Server{
+		Addr:         fmt.Sprintf("%s:%s", "127.0.0.1", port),
+		Net:          "udp",
+		UDPSize:      dns.MinMsgSize,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 2 * time.Second,
+		// Unsafe instructs the server to disregard any sanity checks and directly hand the message to
+		// the handler. It will specifically not check if the query has the QR bit not set.
+		Unsafe: false,
 	}
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	cmd := exec.Command(path, "-h", "-H", "./hosts", "-p", port, "-d")
-
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Start()
-	if err != nil {
-		t.Fatalf("failed starting dnsmasq: %s", err)
-	}
-	defer func() {
-		err := cmd.Wait()
-		if err != nil {
-			t.Logf("unclean shutdown of dnsmasq: %s", err)
-		}
-		t.Log(stdout.String())
-		t.Log(stderr.String())
-	}()
-	time.Sleep(time.Second)
+	go ds.ListenAndServe()
 
 	defer func() {
-		_ = cmd.Process.Kill()
+		_ = ds.Shutdown()
 	}()
 
 	res, err := NewResolver([]string{net.JoinHostPort("127.0.0.1", port)})
@@ -82,7 +96,7 @@ func TestResolveDNSMasq(t *testing.T) {
 		t.Errorf("could not parse port from httptest url %s: %s", ts.URL, err)
 		return
 	}
-	tsurl.Host = net.JoinHostPort("acme.notadomain", hport)
+	tsurl.Host = net.JoinHostPort(fakeDomain, hport)
 	resp, err := http.Get(tsurl.String())
 	if err != nil {
 		t.Errorf("failed resolver round trip: %s", err)
