@@ -449,11 +449,11 @@ $ for machine in 10.0.1.1 10.0.2.1 10.0.3.1; do
   done
 ```
 
-The `report` command accepts multiple result files in a comma separated list.
+The `report` command accepts multiple result files.
 It'll read and sort them by timestamp before generating reports.
 
 ```console
-$ vegeta report -inputs="10.0.1.1.bin,10.0.2.1.bin,10.0.3.1.bin"
+$ vegeta report 10.0.1.1.bin 10.0.2.1.bin 10.0.3.1.bin
 Requests      [total, rate]         3600000, 60000.00
 Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
 Bytes In      [total, mean]         3714690, 3095.57
