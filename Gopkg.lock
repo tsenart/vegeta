@@ -64,6 +64,19 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
+  name = "github.com/mailru/easyjson"
+  packages = [
+    ".",
+    "buffer",
+    "jlexer",
+    "jwriter",
+  ]
+  pruneopts = "UT"
+  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+
+[[projects]]
+  branch = "master"
   digest = "1:7ca2584fa7da0520cd2d1136a10194fe5a5b220bdb215074ab6f7b5ad91115f4"
   name = "github.com/shurcooL/httpfs"
   packages = ["vfsutil"]
@@ -144,6 +157,9 @@
     "github.com/dgryski/go-lttb",
     "github.com/google/go-cmp/cmp",
     "github.com/influxdata/tdigest",
+    "github.com/mailru/easyjson",
+    "github.com/mailru/easyjson/jlexer",
+    "github.com/mailru/easyjson/jwriter",
     "github.com/shurcooL/vfsgen",
     "github.com/streadway/quantile",
     "github.com/tsenart/go-tsz",
