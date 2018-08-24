@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/c2h5oh/datasize"
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
@@ -91,4 +93,34 @@ func (f *rateFlag) String() string {
 		return ""
 	}
 	return fmt.Sprintf("%d/%s", f.Freq, f.Per)
+}
+
+type maxBodyFlag struct{ n *int64 }
+
+func (f *maxBodyFlag) Set(v string) (err error) {
+	if v == "-1" {
+		*(f.n) = -1
+		return nil
+	}
+
+	var ds datasize.ByteSize
+	if err = ds.UnmarshalText([]byte(v)); err != nil {
+		return err
+	}
+
+	if ds > math.MaxInt64 {
+		return fmt.Errorf("-max-body=%d overflows int64", ds)
+	}
+
+	*(f.n) = int64(ds)
+	return nil
+}
+
+func (f *maxBodyFlag) String() string {
+	if f.n == nil {
+		return ""
+	} else if *(f.n) == -1 {
+		return "-1"
+	}
+	return datasize.ByteSize(*(f.n)).String()
 }

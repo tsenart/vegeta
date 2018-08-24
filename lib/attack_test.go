@@ -236,3 +236,33 @@ func TestProxyOption(t *testing.T) {
 		t.Errorf("got body: %q, want: %q", got, want)
 	}
 }
+
+func TestMaxBody(t *testing.T) {
+	t.Parallel()
+
+	body := []byte("VEGETA")
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(body)
+		}),
+	)
+	defer server.Close()
+
+	for i := DefaultMaxBody; i < int64(len(body)); i++ {
+		maxBody := i
+		t.Run(fmt.Sprint(maxBody), func(t *testing.T) {
+			atk := NewAttacker(MaxBody(maxBody))
+			tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+			res := atk.hit(tr, "")
+
+			want := body
+			if maxBody >= 0 {
+				want = want[:maxBody]
+			}
+
+			if got := res.Body; !bytes.Equal(got, want) {
+				t.Fatalf("got: %s, want: %s", got, want)
+			}
+		})
+	}
+}
