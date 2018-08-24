@@ -23,6 +23,7 @@ func attackCmd() command {
 		headers: headers{http.Header{}},
 		laddr:   localAddr{&vegeta.DefaultLocalAddr},
 		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
+		maxBody: vegeta.DefaultMaxBody,
 	}
 
 	fs.StringVar(&opts.name, "name", "", "Attack name")
@@ -43,6 +44,7 @@ func attackCmd() command {
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
+	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to be read from response bodies. [-1 = no limit]")
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
@@ -79,6 +81,7 @@ type attackOpts struct {
 	workers     uint64
 	connections int
 	redirects   int
+	maxBody     int64
 	headers     headers
 	laddr       localAddr
 	keepalive   bool
@@ -156,6 +159,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.Connections(opts.connections),
 		vegeta.HTTP2(opts.http2),
 		vegeta.H2C(opts.h2c),
+		vegeta.MaxBody(opts.maxBody),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

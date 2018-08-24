@@ -74,6 +74,8 @@ attack command:
     	Local IP address (default 0.0.0.0)
   -lazy
     	Read targets lazily
+  -max-body value
+	Maximum number of bytes to be read from response bodies. [-1 = no limit] (default -1)
   -name string
     	Attack name
   -output string
@@ -236,6 +238,22 @@ Specifies whether to read the input targets lazily instead of eagerly.
 This allows streaming targets into the attack command and reduces memory
 footprint.
 The trade-off is one of added latency in each hit against the targets.
+
+#### `-max-body`
+Specifies the maximum number of bytes to be read from the body of each
+response. Set to -1 for no limit. It knows how to intepret values like these:
+
+* `"10 MB"` -> `10MB`
+* `"10240 g"` -> `10TB`
+* `"2000"` -> `2000B`
+* `"1tB"` -> `1TB`
+* `"5 peta"` -> `5PB`
+* `"28 kilobytes"` -> `28KB`
+* `"1 gigabyte"` -> `1GB`
+
+#### `-name`
+
+Specifies the name of the attack to be recorded in responses.
 
 #### `-output`
 Specifies the output file to which the binary results will be written

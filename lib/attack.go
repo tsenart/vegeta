@@ -3,6 +3,7 @@ package vegeta
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ type Attacker struct {
 	client    http.Client
 	stopch    chan struct{}
 	workers   uint64
+	maxBody   int64
 	redirects int
 	seqmu     sync.Mutex
 	seq       uint64
@@ -36,6 +38,9 @@ const (
 	DefaultConnections = 10000
 	// DefaultWorkers is the default initial number of workers used to carry an attack.
 	DefaultWorkers = 10
+	// DefaultMaxBody is the default max number of bytes to be read from response bodies.
+	// Defaults to no limit.
+	DefaultMaxBody = int64(-1)
 	// NoFollow is the value when redirects are not followed but marked successful
 	NoFollow = -1
 )
@@ -50,12 +55,18 @@ var (
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
-	a := &Attacker{stopch: make(chan struct{}), workers: DefaultWorkers}
+	a := &Attacker{
+		stopch:  make(chan struct{}),
+		workers: DefaultWorkers,
+		maxBody: DefaultMaxBody,
+	}
+
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
 		Timeout:   DefaultTimeout,
 	}
+
 	a.client = http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -187,6 +198,12 @@ func H2C(enabled bool) func(*Attacker) {
 	}
 }
 
+// MaxBody returns a functional option which limits the max number of bytes
+// read from response bodies. Set to -1 to disable any limits.
+func MaxBody(n int64) func(*Attacker) {
+	return func(a *Attacker) { a.maxBody = n }
+}
+
 // A Rate of hits during an Attack.
 type Rate struct {
 	Freq int           // Frequency (number of occurrences) per ...
@@ -290,9 +307,15 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}
 	defer r.Body.Close()
 
-	if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
+	body := io.Reader(r.Body)
+	if a.maxBody >= 0 {
+		body = io.LimitReader(r.Body, a.maxBody)
+	}
+
+	if res.Body, err = ioutil.ReadAll(body); err != nil {
 		return &res
 	}
+
 	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(res.Body))
 
