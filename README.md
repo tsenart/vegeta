@@ -240,7 +240,7 @@ footprint.
 The trade-off is one of added latency in each hit against the targets.
 
 #### `-max-body`
-Specified the maximum number of bytes to be read from the body of each
+Specifies the maximum number of bytes to be read from the body of each
 response. Set to -1 for no limit. It knows how to intepret values like these:
 
 * `"10 MB"` -> `10MB`
