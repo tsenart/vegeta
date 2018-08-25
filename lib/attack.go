@@ -285,6 +285,12 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		}
 	}()
 
+	a.seqmu.Lock()
+	res.Timestamp = time.Now()
+	res.Seq = a.seq
+	a.seq++
+	a.seqmu.Unlock()
+
 	if err = tr(&tgt); err != nil {
 		a.Stop()
 		return &res
@@ -294,12 +300,6 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	if err != nil {
 		return &res
 	}
-
-	a.seqmu.Lock()
-	res.Timestamp = time.Now()
-	res.Seq = a.seq
-	a.seq++
-	a.seqmu.Unlock()
 
 	r, err := a.client.Do(req)
 	if err != nil {
