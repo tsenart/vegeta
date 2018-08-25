@@ -119,7 +119,7 @@ func TestJSONTargeter(t *testing.T) {
 			src:  target(`{"method": "GET", "url": "http://goku", "body": "NOT BASE64"}`),
 			in:   &Target{},
 			out:  &Target{},
-			err:  errors.New("illegal base64 data at input byte 3"),
+			err:  errors.New("parse error: illegal base64 data at input byte 3 near offset 0 of ''"),
 		},
 		{
 			name: "default body",
