@@ -66,7 +66,7 @@ func (out *jsonResult) decode(in *jlexer.Lexer) {
 	}
 }
 
-func (in *jsonResult) encode(out *jwriter.Writer) {
+func (in jsonResult) encode(out *jwriter.Writer) {
 	out.RawByte('{')
 	first := true
 	_ = first

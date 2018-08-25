@@ -389,3 +389,34 @@ func TestErrNilTarget(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkJSONTargetEncoding(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	targets := make([]Target, 1e5)
+	for i := 0; i < cap(targets); i++ {
+		targets[i] = Target{
+			Method: "POST",
+			URL:    "https://goku/12345",
+			Body:   []byte("BIG BANG!"),
+			Header: http.Header{"Content-Type": []string{"high/energy"}},
+		}
+	}
+
+	var buf bytes.Buffer
+	enc := NewJSONTargetEncoder(&buf)
+
+	b.Run("encode", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			enc.Encode(&targets[i%len(targets)])
+		}
+	})
+
+	dec := NewJSONTargeter(&buf, nil, nil)
+	b.Run("decode", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			dec.Decode(&targets[i%len(targets)])
+		}
+	})
+}

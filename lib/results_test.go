@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestDecoding(t *testing.T) {
+func TestResultDecoding(t *testing.T) {
 	t.Parallel()
 
 	var b1, b2 bytes.Buffer
@@ -48,7 +48,7 @@ func TestDecoding(t *testing.T) {
 	}
 }
 
-func TestEncoding(t *testing.T) {
+func TestResultEncoding(t *testing.T) {
 	for _, tc := range []struct {
 		encoding string
 		enc      func(io.Writer) Encoder
@@ -109,7 +109,7 @@ func TestEncoding(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodings(b *testing.B) {
+func BenchmarkResultEncodings(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
