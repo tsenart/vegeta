@@ -30,7 +30,7 @@ After [v8.0.0](https://github.com/tsenart/vegeta/tree/v8.0.0), the two component
 are versioned separately to better isolate breaking changes to each.
 
 CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/tsenart/vegeta/releases).
-As for the library, new versions are tagged with both `lib/vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH` but not published as a release.
+As for the library, new versions are tagged with `lib/vMAJOR.MINOR.PATCH` but not published as a release.
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
