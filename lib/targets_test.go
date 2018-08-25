@@ -119,7 +119,7 @@ func TestJSONTargeter(t *testing.T) {
 			src:  target(`{"method": "GET", "url": "http://goku", "body": "NOT BASE64"}`),
 			in:   &Target{},
 			out:  &Target{},
-			err:  errors.New("illegal base64 data at input byte 3"),
+			err:  errors.New("parse error: illegal base64 data at input byte 3 near offset 0 of ''"),
 		},
 		{
 			name: "default body",
@@ -388,4 +388,35 @@ func TestErrNilTarget(t *testing.T) {
 			t.Errorf("test #%d: got: %v, want: %v", i, got, want)
 		}
 	}
+}
+
+func BenchmarkJSONTargetEncoding(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	targets := make([]Target, 1e5)
+	for i := 0; i < cap(targets); i++ {
+		targets[i] = Target{
+			Method: "POST",
+			URL:    "https://goku/12345",
+			Body:   []byte("BIG BANG!"),
+			Header: http.Header{"Content-Type": []string{"high/energy"}},
+		}
+	}
+
+	var buf bytes.Buffer
+	enc := NewJSONTargetEncoder(&buf)
+
+	b.Run("encode", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			enc.Encode(&targets[i%len(targets)])
+		}
+	})
+
+	dec := NewJSONTargeter(&buf, nil, nil)
+	b.Run("decode", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			dec.Decode(&targets[i%len(targets)])
+		}
+	})
 }

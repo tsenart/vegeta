@@ -3,7 +3,6 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	jlexer "github.com/mailru/easyjson/jlexer"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 // Target is an HTTP request blueprint.
@@ -103,6 +105,11 @@ const (
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
 
+// Decode is a convenience method that calls the underlying Targeter function.
+func (tr Targeter) Decode(t *Target) error {
+	return tr(t)
+}
+
 // NewJSONTargeter returns a new targeter that decodes one Target from the
 // given io.Reader on every invocation. Each target is one JSON object in its own line.
 //
@@ -127,16 +134,16 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 			return ErrNilTarget
 		}
 
-		rd.Lock()
-		defer rd.Unlock()
+		var jl jlexer.Lexer
 
-		var line []byte
-		for len(line) == 0 {
-			if line, err = rd.ReadBytes('\n'); err != nil {
+		rd.Lock()
+		for len(jl.Data) == 0 {
+			if jl.Data, err = rd.ReadBytes('\n'); err != nil {
 				break
 			}
-			line = bytes.TrimSpace(line) // Skip empty lines
+			jl.Data = bytes.TrimSpace(jl.Data) // Skip empty lines
 		}
+		rd.Unlock()
 
 		if err != nil {
 			if err == io.EOF {
@@ -145,8 +152,10 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 			return err
 		}
 
-		var t Target
-		if err = json.Unmarshal(line, &t); err != nil {
+		var t jsonTarget
+		t.decode(&jl)
+
+		if err = jl.Error(); err != nil {
 			return err
 		} else if t.Method == "" {
 			return ErrNoMethod
@@ -173,6 +182,28 @@ func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 		}
 
 		return nil
+	}
+}
+
+// A TargetEncoder encodes a Target in a format that can be read by a Targeter.
+type TargetEncoder func(*Target) error
+
+// Encode is a convenience method that calls the underlying TargetEncoder function.
+func (enc TargetEncoder) Encode(t *Target) error {
+	return enc(t)
+}
+
+// NewJSONTargetEncoder returns a TargetEncoder that encods Targets in the JSON format.
+func NewJSONTargetEncoder(w io.Writer) TargetEncoder {
+	var jw jwriter.Writer
+	return func(t *Target) error {
+		(*jsonTarget)(t).encode(&jw)
+		if jw.Error != nil {
+			return jw.Error
+		}
+		jw.RawByte('\n')
+		_, err := jw.DumpTo(w)
+		return err
 	}
 }
 

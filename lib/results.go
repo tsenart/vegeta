@@ -1,15 +1,18 @@
 package vegeta
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
-	"encoding/json"
 	"io"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/mailru/easyjson/jlexer"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 func init() {
@@ -212,12 +215,27 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 // NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
 // object.
 func NewJSONEncoder(w io.Writer) Encoder {
-	enc := json.NewEncoder(w)
-	return func(r *Result) error { return enc.Encode(r) }
+	var jw jwriter.Writer
+	return func(r *Result) error {
+		(*jsonResult)(r).encode(&jw)
+		if jw.Error != nil {
+			return jw.Error
+		}
+		jw.RawByte('\n')
+		_, err := jw.DumpTo(w)
+		return err
+	}
 }
 
 // NewJSONDecoder returns a Decoder that decodes JSON encoded Results.
 func NewJSONDecoder(r io.Reader) Decoder {
-	dec := json.NewDecoder(r)
-	return func(r *Result) error { return dec.Decode(r) }
+	rd := bufio.NewReader(r)
+	return func(r *Result) (err error) {
+		var jl jlexer.Lexer
+		if jl.Data, err = rd.ReadSlice('\n'); err != nil {
+			return err
+		}
+		(*jsonResult)(r).decode(&jl)
+		return jl.Error()
+	}
 }
