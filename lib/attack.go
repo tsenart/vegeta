@@ -204,6 +204,11 @@ func MaxBody(n int64) func(*Attacker) {
 	return func(a *Attacker) { a.maxBody = n }
 }
 
+// Client returns a functional option that allows you to bring your own http.Client
+func Client(c *http.Client) func(*Attacker) {
+	return func(a *Attacker) { a.client = *c }
+}
+
 // A Rate of hits during an Attack.
 type Rate struct {
 	Freq int           // Frequency (number of occurrences) per ...

@@ -266,3 +266,38 @@ func TestMaxBody(t *testing.T) {
 		})
 	}
 }
+
+func TestClient(t *testing.T) {
+	t.Parallel()
+
+	dialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
+		KeepAlive: 30 * time.Second,
+		Timeout:   DefaultTimeout,
+	}
+
+	client := &http.Client{
+		Timeout: time.Duration(1 * time.Nanosecond),
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			Dial:  dialer.Dial,
+			ResponseHeaderTimeout: DefaultTimeout,
+			TLSClientConfig:       DefaultTLSConfig,
+			TLSHandshakeTimeout:   10 * time.Second,
+			MaxIdleConnsPerHost:   DefaultConnections,
+		},
+	}
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+	)
+	defer server.Close()
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+
+	atk := NewAttacker(Client(client))
+	resp := atk.hit(tr, "TEST")
+	if !strings.Contains(resp.Error, "Client.Timeout exceeded while awaiting headers") {
+		t.Errorf("Expected timeout error")
+	}
+}
