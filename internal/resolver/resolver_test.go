@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +15,7 @@ import (
 )
 
 const (
-	dnsmasqPortEnv = "VEGETA_TESTDNSMASQ_PORT"
-	fakeDomain     = "acme.notadomain"
+	fakeDomain = "acme.notadomain"
 )
 
 func TestResolveMiekg(t *testing.T) {
@@ -56,24 +54,20 @@ func TestResolveMiekg(t *testing.T) {
 	})
 	const payload = "there is no cloud, just someone else's computer"
 
-	var (
-		port = "5300"
-	)
-
-	if ePort, ok := os.LookupEnv(dnsmasqPortEnv); ok {
-		port = ePort
-	}
+	done := make(chan struct{})
 
 	ds := dns.Server{
-		Addr:         fmt.Sprintf("%s:%s", "127.0.0.1", port),
+		Addr:         "127.0.0.1:0",
 		Net:          "udp",
 		UDPSize:      dns.MinMsgSize,
 		ReadTimeout:  2 * time.Second,
 		WriteTimeout: 2 * time.Second,
 		// Unsafe instructs the server to disregard any sanity checks and directly hand the message to
 		// the handler. It will specifically not check if the query has the QR bit not set.
-		Unsafe: false,
+		Unsafe:            false,
+		NotifyStartedFunc: func() { close(done) },
 	}
+
 	go func() {
 		err := ds.ListenAndServe()
 		if err != nil {
@@ -85,7 +79,10 @@ func TestResolveMiekg(t *testing.T) {
 		_ = ds.Shutdown()
 	}()
 
-	res, err := NewResolver([]string{net.JoinHostPort("127.0.0.1", port)})
+	// wait for notify function to be called, ensuring ds.PacketConn is not nil.
+	<-done
+
+	res, err := NewResolver([]string{ds.PacketConn.LocalAddr().String()})
 	if err != nil {
 		t.Errorf("error from NewResolver: %s", err)
 		return
