@@ -51,13 +51,9 @@ func normalizeAddrs(addrs []string) ([]string, error) {
 		}
 
 		// validate valid port.
-		port, err := strconv.ParseUint(portstr, 10, 16)
+		_, err = strconv.ParseUint(portstr, 10, 16)
 		if err != nil {
 			return nil, err
-		}
-
-		if port <= 0 {
-			return nil, errors.New("invalid port")
 		}
 
 		// make sure host is an ip.
