@@ -1,12 +1,14 @@
 package resolver
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -116,75 +118,51 @@ func TestResolver(t *testing.T) {
 	}
 }
 
-func TestResolveAddresses(t *testing.T) {
-	table := map[string]struct {
-		input          []string
-		want           []string
-		expectError    bool
-		expectMismatch bool
+func TestNormalizeAddrs(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   []string
+		out  []string
+		err  error
 	}{
-		"Good list": {
-			input: []string{
-				"8.8.8.8:53",
-				"9.9.9.9:1234",
-				"2.3.4.5",
-			},
-			want: []string{
-				"8.8.8.8:53",
-				"9.9.9.9:1234",
-				"2.3.4.5:53",
-			},
-			expectError:    false,
-			expectMismatch: false,
+		{
+			name: "default port 53",
+			in:   []string{"127.0.0.1"},
+			out:  []string{"127.0.0.1:53"},
 		},
-		"Mismatch list": {
-			input: []string{
-				"9.9.9.9:1234",
-			},
-			want: []string{
-				"9.9.9.9:53",
-			},
-			expectError:    false,
-			expectMismatch: true,
+		{
+			name: "invalid host port",
+			in:   []string{"127.0.0.1.boom:53"},
+			err:  errors.New("host 127.0.0.1.boom is not an IP address"),
 		},
-		"Parse error list": {
-			input: []string{
-				"abcd.com:53",
-			},
-			expectError: true,
+		{
+			name: "invalid port",
+			in:   []string{"127.0.0.1:999999999"},
+			err:  errors.New(`strconv.ParseUint: parsing "999999999": value out of range`),
 		},
-	}
-	for subtest, tdata := range table {
-		t.Run(subtest, func(t *testing.T) {
-			addrs, err := normalizeAddrs(tdata.input)
-			if tdata.expectError {
-				if err == nil {
-					t.Error("expected error, got none")
-				}
-				return
+		{
+			name: "invalid IP",
+			in:   []string{"127.0.0.500:53"},
+			err:  errors.New(`host 127.0.0.500 is not an IP address`),
+		},
+		{
+			name: "normalized",
+			in:   []string{"127.0.0.1", "8.8.8.8:9000", "1.1.1.1"},
+			out:  []string{"127.0.0.1:53", "8.8.8.8:9000", "1.1.1.1:53"},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
+			addrs, err := normalizeAddrs(tc.in)
+			if have, want := addrs, tc.out; !reflect.DeepEqual(have, want) {
+				t.Errorf("have addrs: %v, want: %v", have, want)
 			}
 
-			if err != nil {
-				t.Errorf("expected nil error, got: %s", err)
-				return
+			if have, want := fmt.Sprint(err), fmt.Sprint(tc.err); have != want {
+				t.Errorf("have err: %v, want: %v", have, want)
 			}
-
-			match := true
-			if len(tdata.want) != len(addrs) {
-				match = false
-			} else {
-				for i, addr := range addrs {
-					if addr != tdata.want[i] {
-						match = false
-						break
-					}
-				}
-			}
-			if !tdata.expectMismatch && !match {
-				t.Errorf("unexpected mismatch, input: %#v, want: %#v", addrs, tdata.want)
-			}
-
 		})
 	}
 
