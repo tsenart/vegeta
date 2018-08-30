@@ -275,7 +275,7 @@ the response is marked as successful.
 
 #### `-resolvers`
 Specifies custom DNS resolver addresses to use for name resolution instead of
-the ones configured by the operating system.
+the ones configured by the operating system. Works only on non Windows systems.
 
 #### `-root-certs`
 Specifies the trusted TLS root CAs certificate files as a comma separated
