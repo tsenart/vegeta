@@ -75,7 +75,7 @@ attack command:
   -lazy
     	Read targets lazily
   -max-body value
-	Maximum number of bytes to be read from response bodies. [-1 = no limit] (default -1)
+    	Maximum number of bytes to be read from response bodies. [-1 = no limit] (default -1)
   -name string
     	Attack name
   -output string
@@ -84,6 +84,8 @@ attack command:
     	Number of requests per time unit (default 50/1s)
   -redirects int
     	Number of redirects to follow. -1 will not follow but marks as success (default 10)
+  -resolvers value
+    	List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
   -root-certs value
     	TLS root certificate files (comma separated list)
   -targets string
@@ -118,6 +120,7 @@ examples:
   vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
   cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
+
 ```
 
 #### `-cpus`
@@ -269,6 +272,10 @@ If no time unit is provided, 1s is used.
 Specifies the max number of redirects followed on each request. The
 default is 10. When the value is -1, redirects are not followed but
 the response is marked as successful.
+
+#### `-resolvers`
+Specifies custom DNS resolver addresses to use for name resolution instead of
+the ones configured by the operating system.
 
 #### `-root-certs`
 Specifies the trusted TLS root CAs certificate files as a comma separated
