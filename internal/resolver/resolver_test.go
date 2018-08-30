@@ -18,8 +18,7 @@ const (
 	fakeDomain = "acme.notadomain"
 )
 
-func TestResolveMiekg(t *testing.T) {
-
+func TestResolver(t *testing.T) {
 	dns.HandleFunc(".", func(w dns.ResponseWriter, r *dns.Msg) {
 		m := &dns.Msg{}
 		m.SetReply(r)
