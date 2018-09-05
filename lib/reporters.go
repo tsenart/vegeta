@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	timeutils "github.com/daluu/golibs/time"
 	"github.com/lucasb-eyer/go-colorful"
 )
 
@@ -69,7 +70,7 @@ func NewTextReporter(m *Metrics) Reporter {
 		if _, err = fmt.Fprintf(tw, fmtstr,
 			m.Requests, m.Rate,
 			m.Duration+m.Wait, m.Duration, m.Wait,
-			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P90, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
+			timeutils.FormatDuration(m.Latencies.Mean, 3), timeutils.FormatDuration(m.Latencies.P50, 3), timeutils.FormatDuration(m.Latencies.P90, 3), timeutils.FormatDuration(m.Latencies.P95, 3), timeutils.FormatDuration(m.Latencies.P99, 3), timeutils.FormatDuration(m.Latencies.Max, 3),
 			m.BytesIn.Total, m.BytesIn.Mean,
 			m.BytesOut.Total, m.BytesOut.Mean,
 			m.Success*100,

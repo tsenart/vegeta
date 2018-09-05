@@ -53,6 +53,10 @@
   branch = "master"
   name = "golang.org/x/net"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/daluu/golibs/time"
+
 [prune]
   go-tests = true
   unused-packages = true
