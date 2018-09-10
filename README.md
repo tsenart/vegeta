@@ -33,7 +33,7 @@ CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Gith
 As for the library, new versions are tagged with `lib/vMAJOR.MINOR.PATCH` but not published as a release.
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## Usage manual
 ```console
