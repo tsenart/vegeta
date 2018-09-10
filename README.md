@@ -282,8 +282,8 @@ Specifies the trusted TLS root CAs certificate files as a comma separated
 list. If unspecified, the default system CAs certificates will be used.
 
 #### `-targets`
-Specifies the attack targets in a line separated file, defaulting to stdin.
-The format should be as follows, combining any or all of the following:
+Specifies the file from which to read targets, defaulting to stdin.
+See the [`-format`](#-format) section to learn about the different target formats.
 
 #### `-timeout`
 Specifies the timeout for each request. The default is 0 which disables
