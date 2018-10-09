@@ -69,8 +69,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 
 	a.client = http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			Dial:  a.dialer.Dial,
+			Proxy:                 http.ProxyFromEnvironment,
+			Dial:                  a.dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -318,6 +318,8 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}
 
 	if res.Body, err = ioutil.ReadAll(body); err != nil {
+		return &res
+	} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
 		return &res
 	}
 

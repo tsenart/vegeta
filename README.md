@@ -75,7 +75,7 @@ attack command:
   -lazy
     	Read targets lazily
   -max-body value
-    	Maximum number of bytes to be read from response bodies. [-1 = no limit] (default -1)
+    	Maximum number of bytes to capture from response bodies. [-1 = no limit] (default -1)
   -name string
     	Attack name
   -output string
@@ -120,7 +120,6 @@ examples:
   vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
   cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
-
 ```
 
 #### `-cpus`
@@ -243,8 +242,9 @@ footprint.
 The trade-off is one of added latency in each hit against the targets.
 
 #### `-max-body`
-Specifies the maximum number of bytes to be read from the body of each
-response. Set to -1 for no limit. It knows how to intepret values like these:
+Specifies the maximum number of bytes to capture from the body of each
+response. Remaining unread bytes will be fully read but discarded.
+Set to -1 for no limit. It knows how to intepret values like these:
 
 * `"10 MB"` -> `10MB`
 * `"10240 g"` -> `10TB`
