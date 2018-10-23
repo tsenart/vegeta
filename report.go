@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
 )
@@ -21,6 +22,11 @@ Arguments:
 Options:
   --type    Which report type to generate (text | json | hist[buckets]).
             [default: text]
+
+  --every   Write the report to --output at every given interval (e.g 100ms)
+            The default of 0 means the report will only be written after
+            all results have been processed. [default: 0]
+
   --output  Output file [default: stdout]
 
 Examples:
@@ -32,7 +38,8 @@ Examples:
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
 	typ := fs.String("type", "text", "Report type to generate [text, json, hist[buckets]]")
-	output := fs.String("output", "stdout", "Output file")
+	every := fs.Duration("every", 0, "Report interval")
+	output := fs.String("output", "stdout", "Output file for normal -mode")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, reportUsage)
@@ -44,11 +51,11 @@ func reportCmd() command {
 		if len(files) == 0 {
 			files = append(files, "stdin")
 		}
-		return report(files, *typ, *output)
+		return report(files, *typ, *output, *every)
 	}}
 }
 
-func report(files []string, typ, output string) error {
+func report(files []string, typ, output string, every time.Duration) error {
 	if len(typ) < 4 {
 		return fmt.Errorf("invalid report type: %s", typ)
 	}
@@ -95,11 +102,25 @@ func report(files []string, typ, output string) error {
 	sigch := make(chan os.Signal, 1)
 	signal.Notify(sigch, os.Interrupt)
 
+	var ticks <-chan time.Time
+	if every > 0 {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+
+	rc, _ := report.(vegeta.Closer)
 decode:
 	for {
 		select {
 		case <-sigch:
 			break decode
+		case <-ticks:
+			if err = clear(out); err != nil {
+				return err
+			} else if err = writeReport(rep, rc, out); err != nil {
+				return err
+			}
 		default:
 			var r vegeta.Result
 			if err = dec.Decode(&r); err != nil {
@@ -108,13 +129,24 @@ decode:
 				}
 				return err
 			}
+
 			report.Add(&r)
 		}
 	}
 
-	if c, ok := report.(vegeta.Closer); ok {
-		c.Close()
-	}
+	return writeReport(rep, rc, out)
+}
 
-	return rep.Report(out)
+func writeReport(r vegeta.Reporter, rc vegeta.Closer, out io.Writer) error {
+	if rc != nil {
+		rc.Close()
+	}
+	return r.Report(out)
+}
+
+func clear(out io.Writer) error {
+	if f, ok := out.(*os.File); ok && f == os.Stdout {
+		return clearScreen()
+	}
+	return nil
 }
