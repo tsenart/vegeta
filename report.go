@@ -39,7 +39,7 @@ func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
 	typ := fs.String("type", "text", "Report type to generate [text, json, hist[buckets]]")
 	every := fs.Duration("every", 0, "Report interval")
-	output := fs.String("output", "stdout", "Output file for normal -mode")
+	output := fs.String("output", "stdout", "Output file")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, reportUsage)
