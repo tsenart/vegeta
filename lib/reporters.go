@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
 )
@@ -74,7 +75,15 @@ func NewTextReporter(m *Metrics) Reporter {
 			return err
 		}
 
-		for code, count := range m.StatusCodes {
+		codes := make([]string, 0, len(m.StatusCodes))
+		for code := range m.StatusCodes {
+			codes = append(codes, code)
+		}
+
+		sort.Strings(codes)
+
+		for _, code := range codes {
+			count := m.StatusCodes[code]
 			if _, err = fmt.Fprintf(tw, "%s:%d  ", code, count); err != nil {
 				return err
 			}
