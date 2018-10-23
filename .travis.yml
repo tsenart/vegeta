@@ -3,7 +3,7 @@ sudo: false
 go:
   - tip
 install:
-  - go get -v github.com/golang/lint/golint
+  - go get -v golang.org/x/lint/golint
   - go get -d -t -v ./...
   - go build -v ./...
 script:
