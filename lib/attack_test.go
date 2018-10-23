@@ -39,21 +39,21 @@ func TestAttackDuration(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 	)
 	defer server.Close()
+
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	atk := NewAttacker()
-	time.AfterFunc(2*time.Second, func() { t.Fatal("Timed out") })
-
 	rate := Rate{Freq: 100, Per: time.Second}
-	hits := uint64(0)
-	for range atk.Attack(tr, rate, 0, "") {
-		if hits++; hits == 100 {
-			atk.Stop()
-			break
-		}
-	}
 
-	if got, want := hits, uint64(rate.Freq); got != want {
-		t.Fatalf("got: %v, want: %v", got, want)
+	var m Metrics
+	for res := range atk.Attack(tr, rate, rate.Per, "") {
+		m.Add(res)
+	}
+	m.Close()
+
+	if got, want := m.Requests, uint64(rate.Freq); got != want {
+		t.Errorf("got %v hits, want: %v", got, want)
+	} else if got, want := m.Duration.Round(time.Second), time.Second; got != want {
+		t.Errorf("got duration %s, want %s", got, want)
 	}
 }
 
