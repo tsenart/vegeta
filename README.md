@@ -110,6 +110,8 @@ plot command:
     	Title and header of the resulting HTML page (default "Vegeta Plot")
 
 report command:
+  -every duration
+    	Report interval
   -output string
     	Output file (default "stdout")
   -type string
@@ -308,6 +310,11 @@ Arguments:
 Options:
   --type    Which report type to generate (text | json | hist[buckets]).
             [default: text]
+
+  --every   Write the report to --output at every given interval (e.g 100ms)
+            The default of 0 means the report will only be written after
+            all results have been processed. [default: 0]
+
   --output  Output file [default: stdout]
 
 Examples:
