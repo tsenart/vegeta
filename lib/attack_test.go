@@ -208,8 +208,8 @@ func TestResponseBodyCapture(t *testing.T) {
 func TestResponseHeaderCapture(t *testing.T) {
 	t.Parallel()
 
-	key := "X-test"
-	value := "vegeta"
+	const key = "X-test"
+	const value = "vegeta"
 
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
