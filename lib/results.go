@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/gob"
 	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"time"
@@ -30,6 +31,7 @@ type Result struct {
 	BytesIn   uint64        `json:"bytes_in"`
 	Error     string        `json:"error"`
 	Body      []byte        `json:"body"`
+	Header    http.Header   `json:"header"`
 }
 
 // End returns the time at which a Result ended.

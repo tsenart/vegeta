@@ -205,6 +205,25 @@ func TestResponseBodyCapture(t *testing.T) {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
 }
+func TestResponseHeaderCapture(t *testing.T) {
+	t.Parallel()
+
+	key := "X-test"
+	value := "vegeta"
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(key, value)
+		}),
+	)
+	defer server.Close()
+	atk := NewAttacker()
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	res := atk.hit(tr, "")
+	if v := res.Header.Get(key); v != value {
+		t.Fatalf("got: %v, want: %v", v, value)
+	}
+}
 
 func TestProxyOption(t *testing.T) {
 	t.Parallel()

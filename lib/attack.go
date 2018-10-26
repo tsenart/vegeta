@@ -323,6 +323,8 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &res
 	}
 
+	res.Header = r.Header
+
 	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(res.Body))
 
