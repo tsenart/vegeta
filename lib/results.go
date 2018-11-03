@@ -6,10 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/textproto"
+	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mailru/easyjson/jlexer"
@@ -47,7 +52,8 @@ func (r Result) Equal(other Result) bool {
 		r.BytesIn == other.BytesIn &&
 		r.BytesOut == other.BytesOut &&
 		r.Error == other.Error &&
-		bytes.Equal(r.Body, other.Body)
+		bytes.Equal(r.Body, other.Body) &&
+		reflect.DeepEqual(r.Header, other.Header)
 }
 
 // Results is a slice of Result type elements.
@@ -150,6 +156,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.BytesIn, 10),
 			r.Error,
 			base64.StdEncoding.EncodeToString(r.Body),
+			headerToString(r.Header),
 			r.Attack,
 			strconv.FormatUint(r.Seq, 10),
 		})
@@ -167,7 +174,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
 func NewCSVDecoder(rd io.Reader) Decoder {
 	dec := csv.NewReader(rd)
-	dec.FieldsPerRecord = 9
+	dec.FieldsPerRecord = 10
 	dec.TrimLeadingSpace = true
 
 	return func(r *Result) error {
@@ -205,8 +212,10 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 		r.Error = rec[5]
 		r.Body, err = base64.StdEncoding.DecodeString(rec[6])
 
-		r.Attack = rec[7]
-		if r.Seq, err = strconv.ParseUint(rec[8], 10, 64); err != nil {
+		r.Header = stringToHeader(rec[7])
+
+		r.Attack = rec[8]
+		if r.Seq, err = strconv.ParseUint(rec[9], 10, 64); err != nil {
 			return err
 		}
 
@@ -240,4 +249,41 @@ func NewJSONDecoder(r io.Reader) Decoder {
 		(*jsonResult)(r).decode(&jl)
 		return jl.Error()
 	}
+}
+
+func headerToString(header http.Header) string {
+	headersCopy := []string{}
+
+	for name, values := range header {
+
+		header := fmt.Sprint(name, ":")
+		for _, value := range values {
+			header = fmt.Sprint(header, value)
+		}
+
+		headersCopy = append(headersCopy, header)
+	}
+
+	result := strings.Join(headersCopy, "\r\n")
+	result = result + "\r\n"
+
+	return result
+}
+
+func stringToHeader(headers string) http.Header {
+	if len(headers) > 0 {
+		reader := bufio.NewReader(strings.NewReader(headers + "\r\n"))
+		tp := textproto.NewReader(reader)
+
+		mimeHeader, err := tp.ReadMIMEHeader()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		header := http.Header(mimeHeader)
+
+		return header
+	}
+
+	return nil
 }

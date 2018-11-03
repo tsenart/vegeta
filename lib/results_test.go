@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"math/rand"
+	"net/http"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -65,7 +66,7 @@ func TestResultEncoding(t *testing.T) {
 		t.Run(tc.encoding, func(t *testing.T) {
 			t.Parallel()
 
-			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, body []byte, attack, e string) bool {
+			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, body []byte, header http.Header, attack, e string) bool {
 				want := Result{
 					Attack:    attack,
 					Seq:       seq,
@@ -76,6 +77,7 @@ func TestResultEncoding(t *testing.T) {
 					BytesOut:  bsOut,
 					Error:     e,
 					Body:      body,
+					Header:    header,
 				}
 
 				var buf bytes.Buffer
