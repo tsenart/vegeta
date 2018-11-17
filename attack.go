@@ -40,6 +40,7 @@ func attackCmd() command {
 	fs.BoolVar(&opts.h2c, "h2c", false, "Send HTTP/2 requests without TLS encryption")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
+	fs.BoolVar(&opts.requestId, "requestId", false, "Generate X-Request-ID")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
@@ -77,6 +78,7 @@ type attackOpts struct {
 	h2c         bool
 	insecure    bool
 	lazy        bool
+	requestId   bool
 	duration    time.Duration
 	timeout     time.Duration
 	rate        vegeta.Rate
@@ -135,7 +137,7 @@ func attack(opts *attackOpts) (err error) {
 	case vegeta.JSONTargetFormat:
 		tr = vegeta.NewJSONTargeter(src, body, hdr)
 	case vegeta.HTTPTargetFormat:
-		tr = vegeta.NewHTTPTargeter(src, body, hdr)
+		tr = vegeta.NewHTTPTargeter(src, body, hdr, opts.requestId)
 	default:
 		return fmt.Errorf("format %q isn't one of [%s]",
 			opts.format, strings.Join(vegeta.TargetFormats, ", "))
@@ -171,6 +173,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.HTTP2(opts.http2),
 		vegeta.H2C(opts.h2c),
 		vegeta.MaxBody(opts.maxBody),
+		opts.requestId
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

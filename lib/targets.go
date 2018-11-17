@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -30,7 +31,7 @@ type Target struct {
 
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
-func (t *Target) Request() (*http.Request, error) {
+func (t *Target) Request(withRequestId bool) (*http.Request, error) {
 	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
 	if err != nil {
 		return nil, err
@@ -41,6 +42,9 @@ func (t *Target) Request() (*http.Request, error) {
 	}
 	if host := req.Header.Get("Host"); host != "" {
 		req.Host = host
+	}
+	if withRequestId {
+		req.Header.Add("X-Request-ID", fmt.Sprintf("vegeta-%x", rand.Int31()))
 	}
 	return req, nil
 }

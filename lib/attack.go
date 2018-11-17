@@ -24,6 +24,7 @@ type Attacker struct {
 	redirects int
 	seqmu     sync.Mutex
 	seq       uint64
+	withRequestId bool
 }
 
 const (
@@ -301,7 +302,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &res
 	}
 
-	req, err := tgt.Request()
+	req, err := tgt.Request(a.withRequestId)
 	if err != nil {
 		return &res
 	}
