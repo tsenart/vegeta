@@ -1,6 +1,7 @@
 package lttb
 
 import (
+	"sync"
 	"fmt"
 	"reflect"
 	"testing"
@@ -11,56 +12,58 @@ import (
 )
 
 func TestDownsample(t *testing.T) {
+	t.Parallel()
+
 	for _, threshold := range []int{0, len(points[0]), len(points[0]) + 1} {
-		threshold := threshold
-		t.Run(fmt.Sprintf("threshold-%d", threshold), func(t *testing.T) {
-			t.Parallel()
+		have, err := Downsample(len(points[0]), threshold, newIterator(points[0]))
+		if err != nil {
+			t.Fatalf("threshold-%d: got err: %v", threshold, err)
+		}
 
-			have, err := Downsample(len(points[0]), threshold, newIterator(points[0]))
-			if err != nil {
-				t.Fatalf("got err: %v", err)
-			}
-
-			want := points[0]
-			if diff := cmp.Diff(have, want, cmp.AllowUnexported(Point{})); diff != "" {
-				t.Error(diff)
-			}
-		})
+		want := points[0]
+		if diff := cmp.Diff(have, want, cmp.AllowUnexported(Point{})); diff != "" {
+			t.Errorf("threshold-%d: %s", threshold, diff)
+		}
 	}
 
 	for i := 1; i < 3; i++ {
 		threshold := i
-		t.Run(fmt.Sprintf("bad-threshold-%d", threshold), func(t *testing.T) {
-			t.Parallel()
-
-			_, err := Downsample(len(points[0]), threshold, newIterator(points[0]))
-			if have, want := fmt.Sprint(err), "lttb: min threshold is 3"; have != want {
-				t.Errorf("have err: %v, want %v", have, want)
-			}
-		})
+		_, err := Downsample(len(points[0]), threshold, newIterator(points[0]))
+		if have, want := fmt.Sprint(err), "lttb: min threshold is 3"; have != want {
+			t.Errorf("threshold-%d: have err: %v, want %v", threshold, have, want)
+		}
 	}
 
+	var wg sync.WaitGroup
 	for i, ps := range points {
 		for threshold := 3; threshold < len(ps); threshold++ {
-			ps, threshold := ps, threshold
-			t.Run(fmt.Sprintf("points=%d len=%d threshold=%d", i, len(ps), threshold), func(t *testing.T) {
-				t.Parallel()
+			wg.Add(1)
+			i, ps, threshold := i, ps, threshold
+			go func() {
+				defer wg.Done()
+
+				msg := func(fmtstr string, args ...interface{}) string {
+					return fmt.Sprintf(
+						"points=%d len=%d threshold=%d: "+fmtstr,
+						append([]interface{}{i, len(ps), threshold}, args...)...,
+					)
+				}
 
 				ours, err := Downsample(len(ps), threshold, newIterator(ps))
 				if err != nil {
-					t.Fatalf("error: %v", err)
+					t.Fatal(msg("error: %v", err))
 				}
 
 				if have, want := len(ours), threshold; have != want {
-					t.Errorf("len(samples) != threshold: have %d, want %d", have, want)
+					t.Error(msg("len(samples) != threshold: have %d, want %d", have, want))
 				}
 
 				if have, want := ours[0], ps[0]; have != want {
-					t.Errorf("samples[0] != data[0]: have %v, want %v", have, want)
+					t.Error(msg("samples[0] != data[0]: have %v, want %v", have, want))
 				}
 
 				if have, want := ours[len(ours)-1], ps[len(ps)-1]; have != want {
-					t.Errorf("samples[-1] != data[-1]: have %v, want %v", have, want)
+					t.Error(msg("samples[-1] != data[-1]: have %v, want %v", have, want))
 				}
 
 				// Test LTTB algorithm's equivalence to dgrisky/go-lttb
@@ -69,11 +72,13 @@ func TestDownsample(t *testing.T) {
 				theirs := *(*[]Point)(unsafe.Pointer(&out))
 
 				if !reflect.DeepEqual(ours, theirs) {
-					t.Error(cmp.Diff(ours, theirs, cmp.AllowUnexported(Point{})))
+					t.Error(msg(cmp.Diff(ours, theirs, cmp.AllowUnexported(Point{}))))
 				}
-			})
+			}()
 		}
 	}
+
+	wg.Wait()
 }
 
 func BenchmarkLTTB(b *testing.B) {
