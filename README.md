@@ -30,7 +30,8 @@ After [v8.0.0](https://github.com/tsenart/vegeta/tree/v8.0.0), the two component
 are versioned separately to better isolate breaking changes to each.
 
 CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/tsenart/vegeta/releases).
-As for the library, new versions are tagged with `lib/vMAJOR.MINOR.PATCH` but not published as a release.
+As for the library, new versions are tagged with both `lib/vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH`.
+The latter tag is required for compatibility with `go mod`.
 
 ## Contributing
 See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
@@ -518,6 +519,9 @@ echo 'GET http://localhost:8080' | \
 The library versioning follows [SemVer v2.0.0](https://semver.org/spec/v2.0.0.html).
 Since [lib/v9.0.0](https://github.com/tsenart/vegeta/tree/lib/v9.0.0), the library and cli
 are versioned separately to better isolate breaking changes to each component.
+
+See [Versioning](#Versioning) for more details on git tag naming schemes and compatibility
+with `go mod`.
 
 ```go
 package main
