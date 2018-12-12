@@ -1,0 +1,21 @@
+name: vegeta
+version: '1.0'
+summary: HTTP load testing tool and library 
+description: |
+  HTTP load testing tool and library. It's over 9000!
+grade: stable
+confinement: strict
+base: core18
+parts:
+  vegeta:
+    plugin: go
+    source: https://github.com/tsenart/vegeta.git
+    go-importpath: github.com/tsenart/vegeta
+    build-packages:
+      - build-essential
+apps:
+  vegeta:
+    command: bin/vegeta
+    plugs:
+      - home
+      - network
