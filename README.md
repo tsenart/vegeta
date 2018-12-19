@@ -337,7 +337,7 @@ requested rate.
 
 ### `report` command
 
-```
+```console
 Usage: vegeta report [options] [<file>...]
 
 Outputs a report of attack results.
@@ -380,6 +380,34 @@ Get http://localhost:6060: write tcp 127.0.0.1:6060: broken pipe
 Get http://localhost:6060: net/http: transport closed before response was received
 Get http://localhost:6060: http: can't write HTTP request on broken connection
 ```
+
+The `Requests` row shows:
+
+- The `total` number of issued requests.
+- The real request `rate` sustained during the attack.
+
+The `Duration` row shows:
+
+- The `attack` time taken issuing all requests (`total` - `wait`)
+- The `wait` time waiting for the response to the last issued request (`total` - `attack`)
+- The `total` time taken in the attack (`attack` + `wait`)
+
+Latency is the amount of time taken for a response to a request to be read (including the `-max-body` bytes from the response body).
+
+- `mean` is the [arithmetic mean / average](https://en.wikipedia.org/wiki/Arithmetic_mean) of the latencies of all requests in an attack.
+- `50`, `95`, `99` are the 50th, 95th an 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
+- `max` is the maximum latency of all requests in an attack.
+
+The `Bytes In` and `Bytes Out` rows shows:
+
+- The `total` number of bytes sent (out) or received (in) with the request or response bodies.
+- The `mean` number of bytes sent (out) or received (in) with the request or response bodies.
+
+The `Success` ratio shows the percentage of requests whose responses didn't error and had status codes between **200** and **400** (non-inclusive).
+
+The `Status Codes` row shows a histogram of status codes. `0` status codes mean a request failed to be sent.
+
+The `Error Set` shows a unique set of errors returned by all issued requests. These include requests that got non-successful response status code.
 
 #### `report -type=json`
 
