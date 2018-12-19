@@ -58,14 +58,11 @@ func TestResolver(t *testing.T) {
 	done := make(chan struct{})
 
 	ds := dns.Server{
-		Addr:         "127.0.0.1:0",
-		Net:          "udp",
-		UDPSize:      dns.MinMsgSize,
-		ReadTimeout:  2 * time.Second,
-		WriteTimeout: 2 * time.Second,
-		// Unsafe instructs the server to disregard any sanity checks and directly hand the message to
-		// the handler. It will specifically not check if the query has the QR bit not set.
-		Unsafe:            false,
+		Addr:              "127.0.0.1:0",
+		Net:               "udp",
+		UDPSize:           dns.MinMsgSize,
+		ReadTimeout:       2 * time.Second,
+		WriteTimeout:      2 * time.Second,
 		NotifyStartedFunc: func() { close(done) },
 	}
 
