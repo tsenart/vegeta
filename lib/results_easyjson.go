@@ -1,5 +1,6 @@
 // This file has been modified from the original generated code to make it work with
 // type alias jsonResult so that the methods aren't exposed in Result.
+
 package vegeta
 
 import (
@@ -11,7 +12,7 @@ import (
 
 type jsonResult Result
 
-func (out *jsonResult) decode(in *jlexer.Lexer) {
+func (r *jsonResult) decode(in *jlexer.Lexer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -31,29 +32,29 @@ func (out *jsonResult) decode(in *jlexer.Lexer) {
 		}
 		switch key {
 		case "attack":
-			out.Attack = string(in.String())
+			r.Attack = string(in.String())
 		case "seq":
-			out.Seq = uint64(in.Uint64())
+			r.Seq = uint64(in.Uint64())
 		case "code":
-			out.Code = uint16(in.Uint16())
+			r.Code = uint16(in.Uint16())
 		case "timestamp":
 			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Timestamp).UnmarshalJSON(data))
+				in.AddError((r.Timestamp).UnmarshalJSON(data))
 			}
 		case "latency":
-			out.Latency = time.Duration(in.Int64())
+			r.Latency = time.Duration(in.Int64())
 		case "bytes_out":
-			out.BytesOut = uint64(in.Uint64())
+			r.BytesOut = uint64(in.Uint64())
 		case "bytes_in":
-			out.BytesIn = uint64(in.Uint64())
+			r.BytesIn = uint64(in.Uint64())
 		case "error":
-			out.Error = string(in.String())
+			r.Error = string(in.String())
 		case "body":
 			if in.IsNull() {
 				in.Skip()
-				out.Body = nil
+				r.Body = nil
 			} else {
-				out.Body = in.Bytes()
+				r.Body = in.Bytes()
 			}
 		default:
 			in.SkipRecursive()
@@ -66,7 +67,7 @@ func (out *jsonResult) decode(in *jlexer.Lexer) {
 	}
 }
 
-func (in jsonResult) encode(out *jwriter.Writer) {
+func (r jsonResult) encode(out *jwriter.Writer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -78,7 +79,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Attack))
+		out.String(string(r.Attack))
 	}
 	{
 		const prefix string = ",\"seq\":"
@@ -88,7 +89,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.Seq))
+		out.Uint64(uint64(r.Seq))
 	}
 	{
 		const prefix string = ",\"code\":"
@@ -98,7 +99,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint16(uint16(in.Code))
+		out.Uint16(uint16(r.Code))
 	}
 	{
 		const prefix string = ",\"timestamp\":"
@@ -108,7 +109,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Raw((in.Timestamp).MarshalJSON())
+		out.Raw((r.Timestamp).MarshalJSON())
 	}
 	{
 		const prefix string = ",\"latency\":"
@@ -118,7 +119,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int64(int64(in.Latency))
+		out.Int64(int64(r.Latency))
 	}
 	{
 		const prefix string = ",\"bytes_out\":"
@@ -128,7 +129,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.BytesOut))
+		out.Uint64(uint64(r.BytesOut))
 	}
 	{
 		const prefix string = ",\"bytes_in\":"
@@ -138,7 +139,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.BytesIn))
+		out.Uint64(uint64(r.BytesIn))
 	}
 	{
 		const prefix string = ",\"error\":"
@@ -148,7 +149,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Error))
+		out.String(string(r.Error))
 	}
 	{
 		const prefix string = ",\"body\":"
@@ -158,7 +159,7 @@ func (in jsonResult) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Base64Bytes(in.Body)
+		out.Base64Bytes(r.Body)
 	}
 	out.RawByte('}')
 }

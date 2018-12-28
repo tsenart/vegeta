@@ -96,7 +96,11 @@ func main() {
 }
 
 // Set at linking time
-var Version, Commit, Date string
+var (
+	Commit  string
+	Date    string
+	Version string
+)
 
 const examples = `
 examples:

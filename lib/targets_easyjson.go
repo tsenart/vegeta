@@ -12,7 +12,7 @@ import (
 
 type jsonTarget Target
 
-func (out *jsonTarget) decode(in *jlexer.Lexer) {
+func (t *jsonTarget) decode(in *jlexer.Lexer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -32,15 +32,15 @@ func (out *jsonTarget) decode(in *jlexer.Lexer) {
 		}
 		switch key {
 		case "method":
-			out.Method = string(in.String())
+			t.Method = string(in.String())
 		case "url":
-			out.URL = string(in.String())
+			t.URL = string(in.String())
 		case "body":
 			if in.IsNull() {
 				in.Skip()
-				out.Body = nil
+				t.Body = nil
 			} else {
-				out.Body = in.Bytes()
+				t.Body = in.Bytes()
 			}
 		case "header":
 			if in.IsNull() {
@@ -48,9 +48,9 @@ func (out *jsonTarget) decode(in *jlexer.Lexer) {
 			} else {
 				in.Delim('{')
 				if !in.IsDelim('}') {
-					out.Header = make(http.Header)
+					t.Header = make(http.Header)
 				} else {
-					out.Header = nil
+					t.Header = nil
 				}
 				for !in.IsDelim('}') {
 					key := string(in.String())
@@ -78,7 +78,7 @@ func (out *jsonTarget) decode(in *jlexer.Lexer) {
 						}
 						in.Delim(']')
 					}
-					(out.Header)[key] = v2
+					(t.Header)[key] = v2
 					in.WantComma()
 				}
 				in.Delim('}')
@@ -94,7 +94,7 @@ func (out *jsonTarget) decode(in *jlexer.Lexer) {
 	}
 }
 
-func (in jsonTarget) encode(out *jwriter.Writer) {
+func (t jsonTarget) encode(out *jwriter.Writer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -106,7 +106,7 @@ func (in jsonTarget) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Method))
+		out.String(string(t.Method))
 	}
 	{
 		const prefix string = ",\"url\":"
@@ -116,9 +116,9 @@ func (in jsonTarget) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.URL))
+		out.String(string(t.URL))
 	}
-	if len(in.Body) != 0 {
+	if len(t.Body) != 0 {
 		const prefix string = ",\"body\":"
 		if first {
 			first = false
@@ -126,9 +126,9 @@ func (in jsonTarget) encode(out *jwriter.Writer) {
 		} else {
 			out.RawString(prefix)
 		}
-		out.Base64Bytes(in.Body)
+		out.Base64Bytes(t.Body)
 	}
-	if len(in.Header) != 0 {
+	if len(t.Header) != 0 {
 		const prefix string = ",\"header\":"
 		if first {
 			first = false
@@ -139,7 +139,7 @@ func (in jsonTarget) encode(out *jwriter.Writer) {
 		{
 			out.RawByte('{')
 			v6First := true
-			for v6Name, v6Value := range in.Header {
+			for v6Name, v6Value := range t.Header {
 				if v6First {
 					v6First = false
 				} else {

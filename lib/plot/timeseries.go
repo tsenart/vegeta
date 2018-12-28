@@ -26,7 +26,7 @@ func newTimeSeries(attack, label string) *timeSeries {
 	}
 }
 
-var errMonotonicTimestamp = errors.New("timeseries: non monotonically increasing timestamp.")
+var errMonotonicTimestamp = errors.New("timeseries: non monotonically increasing timestamp")
 
 func (ts *timeSeries) add(t uint64, v float64) error {
 	if ts.prev > t {
