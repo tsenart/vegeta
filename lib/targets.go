@@ -269,6 +269,10 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 				return ErrNoTargets
 			}
 			line = strings.TrimSpace(sc.Text())
+
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
 			if len(line) != 0 {
 				break
 			}
