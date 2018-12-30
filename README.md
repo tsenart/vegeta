@@ -236,7 +236,7 @@ X-Account-ID: 99
 @/path/to/newthing.json
 ```
 
-###### FYI: Add comments to the targets
+###### Add comments to the targets
 Lines started with from '#' are ignored.
 
 ```
