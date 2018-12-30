@@ -1,9 +1,9 @@
 package lttb
 
 import (
-	"sync"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"unsafe"
 

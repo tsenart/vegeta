@@ -279,8 +279,8 @@ func TestClient(t *testing.T) {
 	client := &http.Client{
 		Timeout: time.Duration(1 * time.Nanosecond),
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			Dial:                  dialer.Dial,
+			Proxy: http.ProxyFromEnvironment,
+			Dial:  dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
