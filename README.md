@@ -236,6 +236,14 @@ X-Account-ID: 99
 @/path/to/newthing.json
 ```
 
+###### Add comments to the targets
+Lines starting with # are ignored.
+
+```
+# get a dragon ball
+GET http://goku:9090/path/to/dragon?item=ball
+```
+
 #### `-h2c`
 
 Specifies that HTTP2 requests are to be sent over TCP without TLS encryption.
