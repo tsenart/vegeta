@@ -237,7 +237,8 @@ X-Account-ID: 99
 ```
 
 ###### Add comments to the targets
-Lines starting with # are ignored.
+
+Lines starting with `#` are ignored.
 
 ```
 # get a dragon ball
