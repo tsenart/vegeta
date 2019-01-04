@@ -273,11 +273,6 @@ func TestNewHTTPTargeter(t *testing.T) {
 		errors.New("bad header"): `
 			GET http://:6060
 			: 1234`,
-		errors.New("bad method"): `
-			? a comment test
-			GET http://:6060
-			X-Header: 1
-			X-Header: 2`,
 	} {
 		src := bytes.NewBufferString(strings.TrimSpace(def))
 		read := NewHTTPTargeter(src, []byte{}, http.Header{})
