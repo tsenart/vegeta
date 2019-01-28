@@ -535,6 +535,17 @@ Examples:
   vegeta plot results.50qps.bin results.100qps.bin > plot.html
 ```
 
+## Usage: Generated targets
+
+Apart from accepting a static list of targets, Vegeta can be used together with another program that generates them in a streaming fashion. Here's an example of that using the `jq` utility that generates targets with an incrementing id in their body.
+
+```console
+jq -ncM 'while(true; .+1) | {method: "POST", url: "http://:6060", body: {id: .} | @base64 }' | \
+  vegeta attack -rate=50/s -lazy -format=json -duration=30s | \
+  tee results.bin | \
+  vegeta report
+```
+
 ## Usage: Distributed attacks
 
 Whenever your load test can't be conducted due to Vegeta hitting machine limits
