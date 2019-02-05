@@ -79,7 +79,7 @@ func report(files []string, typ, output string, every time.Duration) error {
 
 	switch typ[:4] {
 	case "plot":
-		return fmt.Errorf("The plot reporter has been deprecated and succeeded by the vegeta plot command")
+		return fmt.Errorf("the plot reporter has been deprecated and succeeded by the vegeta plot command")
 	case "text":
 		var m vegeta.Metrics
 		rep, report = vegeta.NewTextReporter(&m), &m
