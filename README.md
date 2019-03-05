@@ -51,7 +51,7 @@ Usage: vegeta [global flags] <command> [command flags]
 
 global flags:
   -cpus int
-    	Number of CPUs to use (default 8)
+    	Number of CPUs to use (defaults to the number of CPUs you have)
   -profile string
     	Enable profiling of [cpu, heap]
   -version
@@ -533,6 +533,17 @@ Examples:
   cat results.50qps.bin | vegeta plot > plot.50qps.html
   echo "GET http://:80" | vegeta attack -name=100qps -rate=100 -duration=5s > results.100qps.bin
   vegeta plot results.50qps.bin results.100qps.bin > plot.html
+```
+
+## Usage: Generated targets
+
+Apart from accepting a static list of targets, Vegeta can be used together with another program that generates them in a streaming fashion. Here's an example of that using the `jq` utility that generates targets with an incrementing id in their body.
+
+```console
+jq -ncM 'while(true; .+1) | {method: "POST", url: "http://:6060", body: {id: .} | @base64 }' | \
+  vegeta attack -rate=50/s -lazy -format=json -duration=30s | \
+  tee results.bin | \
+  vegeta report
 ```
 
 ## Usage: Distributed attacks
