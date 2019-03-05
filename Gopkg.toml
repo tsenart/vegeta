@@ -72,7 +72,3 @@
 [[constraint]]
   branch = "master"
   name = "github.com/mailru/easyjson"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/gavv/monotime"

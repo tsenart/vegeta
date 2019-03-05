@@ -42,14 +42,6 @@
   revision = "318fcdf10a77c2df09d83777e41f5e18d236ec9d"
 
 [[projects]]
-  branch = "master"
-  digest = "1:fbc02c2b3b78e6bc30228f3bae582f1fcea74a050cbdbf42f24eff12bef8eab4"
-  name = "github.com/gavv/monotime"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "6f8212e8d10df7383609d3c377ca08884d8f3ec0"
-
-[[projects]]
   digest = "1:2e3c336fc7fde5c984d2841455a658a6d626450b1754a854b3b32e7a8f49a07a"
   name = "github.com/google/go-cmp"
   packages = [
@@ -72,23 +64,16 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:84a5a2b67486d5d67060ac393aa255d05d24ed5ee41daecd5635ec22657b6492"
+  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
   name = "github.com/mailru/easyjson"
   packages = [
+    ".",
     "buffer",
     "jlexer",
     "jwriter",
   ]
   pruneopts = "UT"
   revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
-
-[[projects]]
-  digest = "1:1b46adc9e3d878cdf38a164cfdac2e19340f4d2662aa5bee88062f6ee08ac9df"
-  name = "github.com/miekg/dns"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "8fc2e5773bbd308ca2fcc962fd8d25c1bd0f6743"
-  version = "v1.1.4"
 
 [[projects]]
   branch = "master"
@@ -127,40 +112,16 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d5891c5bca9c62e5d394ca26491d2b710a1dc08cedeb0ca8f9ac4c3305120b02"
-  name = "golang.org/x/crypto"
-  packages = [
-    "ed25519",
-    "ed25519/internal/edwards25519",
-  ]
-  pruneopts = "UT"
-  revision = "ffb98f73852f696ea2bb21a617a5c4b3e067a439"
-
-[[projects]]
-  branch = "master"
-  digest = "1:eb816361177713f91e2f624d3fa496a7a0eadb60f1a283036fe55ccc9e84b205"
+  digest = "1:dca4094c3be476189bd5854752edbd1bd3d15e61d9570dd9133744bb1ecd599d"
   name = "golang.org/x/net"
   packages = [
-    "bpf",
     "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
-    "internal/iana",
-    "internal/socket",
-    "ipv4",
-    "ipv6",
   ]
   pruneopts = "UT"
   revision = "c39426892332e1bb5ec0a434a079bf82f5d30c54"
-
-[[projects]]
-  branch = "master"
-  digest = "1:d0e9a312c4610a508569ab25e54d34600b1a96d19b1866ece104ffdf1c1b9d2c"
-  name = "golang.org/x/sys"
-  packages = ["unix"]
-  pruneopts = "UT"
-  revision = "cd391775e71e684db52b63df9affd58269495083"
 
 [[projects]]
   digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
@@ -194,12 +155,11 @@
     "github.com/c2h5oh/datasize",
     "github.com/dgryski/go-gk",
     "github.com/dgryski/go-lttb",
-    "github.com/gavv/monotime",
     "github.com/google/go-cmp/cmp",
     "github.com/influxdata/tdigest",
+    "github.com/mailru/easyjson",
     "github.com/mailru/easyjson/jlexer",
     "github.com/mailru/easyjson/jwriter",
-    "github.com/miekg/dns",
     "github.com/shurcooL/vfsgen",
     "github.com/streadway/quantile",
     "github.com/tsenart/go-tsz",

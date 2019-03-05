@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gavv/monotime"
 	"golang.org/x/net/http2"
 )
 
@@ -26,7 +25,6 @@ type Attacker struct {
 	seqmu     sync.Mutex
 	seq       uint64
 	began     time.Time
-	monotonic time.Duration
 }
 
 const (
@@ -59,11 +57,10 @@ var (
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	a := &Attacker{
-		stopch:    make(chan struct{}),
-		workers:   DefaultWorkers,
-		maxBody:   DefaultMaxBody,
-		monotonic: monotime.Now(),
-		began:     time.Now(),
+		stopch:  make(chan struct{}),
+		workers: DefaultWorkers,
+		maxBody: DefaultMaxBody,
+		began:   time.Now(),
 	}
 
 	a.dialer = &net.Dialer{
@@ -296,7 +293,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}()
 
 	a.seqmu.Lock()
-	res.Timestamp = a.began.Add(monotime.Since(a.monotonic))
+	res.Timestamp = a.began.Add(time.Since(a.began))
 	res.Seq = a.seq
 	a.seq++
 	a.seqmu.Unlock()
