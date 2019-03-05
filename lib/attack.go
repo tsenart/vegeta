@@ -24,6 +24,7 @@ type Attacker struct {
 	redirects int
 	seqmu     sync.Mutex
 	seq       uint64
+	began     time.Time
 }
 
 const (
@@ -59,6 +60,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		stopch:  make(chan struct{}),
 		workers: DefaultWorkers,
 		maxBody: DefaultMaxBody,
+		began:   time.Now(),
 	}
 
 	a.dialer = &net.Dialer{
@@ -69,8 +71,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 
 	a.client = http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			Dial:  a.dialer.Dial,
+			Proxy:                 http.ProxyFromEnvironment,
+			Dial:                  a.dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -291,7 +293,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}()
 
 	a.seqmu.Lock()
-	res.Timestamp = time.Now()
+	res.Timestamp = a.began.Add(time.Since(a.began))
 	res.Seq = a.seq
 	a.seq++
 	a.seqmu.Unlock()
