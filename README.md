@@ -51,7 +51,7 @@ Usage: vegeta [global flags] <command> [command flags]
 
 global flags:
   -cpus int
-    	Number of CPUs to use (default 8)
+    	Number of CPUs to use (defaults to the number of CPUs you have)
   -profile string
     	Enable profiling of [cpu, heap]
   -version
