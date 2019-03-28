@@ -71,8 +71,8 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 
 	a.client = http.Client{
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			Dial:                  a.dialer.Dial,
+			Proxy: http.ProxyFromEnvironment,
+			Dial:  a.dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -327,6 +327,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 
 	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(res.Body))
+	res.ContentLength = r.ContentLength
 
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)

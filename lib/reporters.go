@@ -59,6 +59,7 @@ func NewTextReporter(m *Metrics) Reporter {
 		"Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n" +
 		"Bytes In\t[total, mean]\t%d, %.2f\n" +
 		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
+		"Content-Length\t[total, mean]\t%d, %.2f\n" +
 		"Success\t[ratio]\t%.2f%%\n" +
 		"Status Codes\t[code:count]\t"
 
@@ -70,6 +71,7 @@ func NewTextReporter(m *Metrics) Reporter {
 			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
 			m.BytesIn.Total, m.BytesIn.Mean,
 			m.BytesOut.Total, m.BytesOut.Mean,
+			m.ContentLength.Total, m.ContentLength.Mean,
 			m.Success*100,
 		); err != nil {
 			return err
