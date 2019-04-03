@@ -102,8 +102,12 @@ attack command:
     	Targets file (default "stdin")
   -timeout duration
     	Requests timeout (default 30s)
+  -unix-socket string
+    	Connect over a unix socket. This overrides the host address in target URLs
   -workers uint
     	Initial number of workers (default 10)
+
+
 
 encode command:
   -output string
