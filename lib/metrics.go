@@ -12,8 +12,8 @@ import (
 type Metrics struct {
 	// Latencies holds computed request latency metrics.
 	Latencies LatencyMetrics `json:"latencies"`
-	// ContentLength holds value of response content-length
-	ContentLength ByteMetrics `json:"content_length"`
+	// BodySize holds value of response content-length
+	BodySize ByteMetrics `json:"body_size"`
 	// BytesIn holds computed incoming byte metrics.
 	BytesIn ByteMetrics `json:"bytes_in"`
 	// BytesOut holds computed outgoing byte metrics.
@@ -53,8 +53,8 @@ func (m *Metrics) Add(r *Result) {
 	m.BytesOut.Total += r.BytesOut
 	m.BytesIn.Total += r.BytesIn
 
-	if r.ContentLength != -1 {
-		m.ContentLength.Total += uint64(r.ContentLength)
+	if r.BodySize != -1 {
+		m.BodySize.Total += uint64(r.BodySize)
 	}
 
 	m.Latencies.Add(r.Latency)
@@ -95,7 +95,7 @@ func (m *Metrics) Close() {
 	m.Wait = m.End.Sub(m.Latest)
 	m.BytesIn.Mean = float64(m.BytesIn.Total) / float64(m.Requests)
 	m.BytesOut.Mean = float64(m.BytesOut.Total) / float64(m.Requests)
-	m.ContentLength.Mean = float64(m.ContentLength.Total) / float64(m.Requests)
+	m.BodySize.Mean = float64(m.BodySize.Total) / float64(m.Requests)
 	m.Success = float64(m.success) / float64(m.Requests)
 	m.Latencies.Mean = time.Duration(float64(m.Latencies.Total) / float64(m.Requests))
 	m.Latencies.P50 = m.Latencies.Quantile(0.50)

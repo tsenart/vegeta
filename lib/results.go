@@ -21,16 +21,16 @@ func init() {
 
 // Result contains the results of a single Target hit.
 type Result struct {
-	Attack        string        `json:"attack"`
-	Seq           uint64        `json:"seq"`
-	Code          uint16        `json:"code"`
-	Timestamp     time.Time     `json:"timestamp"`
-	Latency       time.Duration `json:"latency"`
-	BytesOut      uint64        `json:"bytes_out"`
-	BytesIn       uint64        `json:"bytes_in"`
-	ContentLength int64         `json:"content_length"`
-	Error         string        `json:"error"`
-	Body          []byte        `json:"body"`
+	Attack    string        `json:"attack"`
+	Seq       uint64        `json:"seq"`
+	Code      uint16        `json:"code"`
+	Timestamp time.Time     `json:"timestamp"`
+	Latency   time.Duration `json:"latency"`
+	BytesOut  uint64        `json:"bytes_out"`
+	BytesIn   uint64        `json:"bytes_in"`
+	BodySize  int64         `json:"body_size"`
+	Error     string        `json:"error"`
+	Body      []byte        `json:"body"`
 }
 
 // End returns the time at which a Result ended.
@@ -45,7 +45,7 @@ func (r Result) Equal(other Result) bool {
 		r.Latency == other.Latency &&
 		r.BytesIn == other.BytesIn &&
 		r.BytesOut == other.BytesOut &&
-		r.ContentLength == other.ContentLength &&
+		r.BodySize == other.BodySize &&
 		r.Error == other.Error &&
 		bytes.Equal(r.Body, other.Body)
 }
@@ -137,7 +137,7 @@ func (enc Encoder) Encode(r *Result) error { return enc(r) }
 
 // NewCSVEncoder returns an Encoder that dumps the given *Result as a CSV
 // record. The columns are: UNIX timestamp in ns since epoch,
-// HTTP status code, request latency in ns, bytes out, bytes in, content-length
+// HTTP status code, request latency in ns, bytes out, bytes in, body size
 // response body, and lastly the error.
 func NewCSVEncoder(w io.Writer) Encoder {
 	enc := csv.NewWriter(w)
@@ -148,7 +148,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatInt(r.Latency.Nanoseconds(), 10),
 			strconv.FormatUint(r.BytesOut, 10),
 			strconv.FormatUint(r.BytesIn, 10),
-			strconv.FormatInt(r.ContentLength, 10),
+			strconv.FormatInt(r.BodySize, 10),
 			r.Error,
 			base64.StdEncoding.EncodeToString(r.Body),
 			r.Attack,
@@ -203,7 +203,7 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 			return err
 		}
 
-		if r.ContentLength, err = strconv.ParseInt(rec[5], 10, 64); err != nil {
+		if r.BodySize, err = strconv.ParseInt(rec[5], 10, 64); err != nil {
 			return err
 		}
 
@@ -221,8 +221,8 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 	}
 }
 
-//NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
-//object.
+// NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
+// object.
 func NewJSONEncoder(w io.Writer) Encoder {
 	var jw jwriter.Writer
 	return func(r *Result) error {

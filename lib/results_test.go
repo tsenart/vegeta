@@ -67,16 +67,16 @@ func TestResultEncoding(t *testing.T) {
 
 			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, cLength int64, body []byte, attack, e string) bool {
 				want := Result{
-					Attack:        attack,
-					Seq:           seq,
-					Code:          code,
-					Timestamp:     time.Unix(int64(ts), 0),
-					Latency:       latency,
-					BytesIn:       bsIn,
-					BytesOut:      bsOut,
-					ContentLength: cLength,
-					Error:         e,
-					Body:          body,
+					Attack:    attack,
+					Seq:       seq,
+					Code:      code,
+					Timestamp: time.Unix(int64(ts), 0),
+					Latency:   latency,
+					BytesIn:   bsIn,
+					BytesOut:  bsOut,
+					BodySize:  cLength,
+					Error:     e,
+					Body:      body,
 				}
 
 				var buf bytes.Buffer
