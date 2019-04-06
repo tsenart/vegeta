@@ -173,7 +173,8 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.MaxBody(opts.maxBody),
 	)
 
-	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
+	rater := vegeta.NewFixedRater(opts.rate, opts.duration)
+	res := atk.Attack(tr, rater, opts.name)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
