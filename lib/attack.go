@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -204,6 +205,17 @@ func H2C(enabled bool) func(*Attacker) {
 // read from response bodies. Set to -1 to disable any limits.
 func MaxBody(n int64) func(*Attacker) {
 	return func(a *Attacker) { a.maxBody = n }
+}
+
+// UnixSocket changes the dialer for the attacker to use the specified unix socket file
+func UnixSocket(socket string) func(*Attacker) {
+	return func(a *Attacker) {
+		if tr, ok := a.client.Transport.(*http.Transport); socket != "" && ok {
+			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", socket)
+			}
+		}
+	}
 }
 
 // Client returns a functional option that allows you to bring your own http.Client
