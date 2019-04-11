@@ -374,13 +374,14 @@ Examples:
 #### `report -type=text`
 
 ```console
-Requests      [total, rate]             1200, 120.00
-Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
-Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
-Bytes In      [total, mean]             3714690, 3095.57
-Bytes Out     [total, mean]             0, 0.00
-Success       [ratio]                   55.42%
-Status Codes  [code:count]              0:535  200:665
+Requests                  [total, rate]             1200, 120.00
+Duration                  [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
+Latencies                 [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
+Bytes In                  [total, mean]             3714690, 3095.57
+Bytes Out                 [total, mean]             0, 0.00
+Response Body Length      [total, mean]             3714690, 3095.57
+Success                   [ratio]                   55.42%
+Status Codes              [code:count]              0:535  200:665
 Error Set:
 Get http://localhost:6060: dial tcp 127.0.0.1:6060: connection refused
 Get http://localhost:6060: read tcp 127.0.0.1:6060: connection reset by peer
@@ -412,6 +413,11 @@ The `Bytes In` and `Bytes Out` rows shows:
 - The `total` number of bytes sent (out) or received (in) with the request or response bodies.
 - The `mean` number of bytes sent (out) or received (in) with the request or response bodies.
 
+The `Response Body Length` row shows:
+
+- The `total` number of bytes in the content-length header of responses.
+- The `mean` number of bytes in the content-length header of responses.
+
 The `Success` ratio shows the percentage of requests whose responses didn't error and had status codes between **200** and **400** (non-inclusive).
 
 The `Status Codes` row shows a histogram of status codes. `0` status codes mean a request failed to be sent.
@@ -437,6 +443,10 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
   "bytes_out": {
     "total": 0,
     "mean": 0
+  },
+  "response_body_length": {
+    "total": 606700,
+    "mean": 6067
   },
   "earliest": "2015-09-19T14:45:50.645818631+02:00",
   "latest": "2015-09-19T14:45:51.635818575+02:00",

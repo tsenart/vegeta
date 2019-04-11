@@ -47,8 +47,8 @@ func (r *jsonResult) decode(in *jlexer.Lexer) {
 			r.BytesOut = uint64(in.Uint64())
 		case "bytes_in":
 			r.BytesIn = uint64(in.Uint64())
-		case "body_size":
-			r.BodySize = int64(in.Int64())
+		case "response_body_length":
+			r.ResponseBodyLength = int64(in.Int64())
 		case "error":
 			r.Error = string(in.String())
 		case "body":
@@ -143,14 +143,14 @@ func (r jsonResult) encode(out *jwriter.Writer) {
 		out.Uint64(uint64(r.BytesIn))
 	}
 	{
-		const prefix string = ",\"body_size\":"
+		const prefix string = ",\"response_body_length\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int64(int64(r.BodySize))
+		out.Int64(int64(r.ResponseBodyLength))
 	}
 	{
 		const prefix string = ",\"error\":"
