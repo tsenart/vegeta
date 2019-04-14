@@ -5,10 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -267,6 +270,56 @@ func TestMaxBody(t *testing.T) {
 	}
 }
 
+func TestUnixSocket(t *testing.T) {
+	t.Parallel()
+	body := []byte("IT'S A UNIX SYSTEM, I KNOW THIS")
+
+	socketDir, err := ioutil.TempDir("", "vegata")
+	if err != nil {
+		t.Fatal("Failed to create socket dir", err)
+	}
+	defer os.RemoveAll(socketDir)
+	socketFile := filepath.Join(socketDir, "test.sock")
+
+	unixListener, err := net.Listen("unix", socketFile)
+
+	if err != nil {
+		t.Fatal("Failed to listen on unix socket", err)
+	}
+
+	server := http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(body)
+		}),
+	}
+	defer server.Close()
+
+	go server.Serve(unixListener)
+
+	start := time.Now()
+	for {
+		if time.Since(start) > 1*time.Second {
+			t.Fatal("Server didn't listen on unix socket in time")
+		}
+		_, err := os.Stat(socketFile)
+		if err == nil {
+			break
+		} else if os.IsNotExist(err) {
+			time.Sleep(10 * time.Millisecond)
+		} else {
+			t.Fatal("unexpected error from unix socket", err)
+		}
+	}
+
+	atk := NewAttacker(UnixSocket(socketFile))
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://anyserver/"})
+	res := atk.hit(tr, "")
+	if !bytes.Equal(res.Body, body) {
+		t.Fatalf("got: %s, want: %s", string(res.Body), string(body))
+	}
+}
+
 func TestClient(t *testing.T) {
 	t.Parallel()
 
@@ -279,8 +332,8 @@ func TestClient(t *testing.T) {
 	client := &http.Client{
 		Timeout: time.Duration(1 * time.Nanosecond),
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			Dial:  dialer.Dial,
+			Proxy:                 http.ProxyFromEnvironment,
+			Dial:                  dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
