@@ -276,8 +276,7 @@ func TestUnixSocket(t *testing.T) {
 
 	socketDir, err := ioutil.TempDir("", "vegata")
 	if err != nil {
-		t.Error("Failed to create socket dir", err)
-		return
+		t.Fatal("Failed to create socket dir", err)
 	}
 	defer os.RemoveAll(socketDir)
 	socketFile := filepath.Join(socketDir, "test.sock")
@@ -285,8 +284,7 @@ func TestUnixSocket(t *testing.T) {
 	unixListener, err := net.Listen("unix", socketFile)
 
 	if err != nil {
-		t.Error("Failed to listen on unix socket", err)
-		return
+		t.Fatal("Failed to listen on unix socket", err)
 	}
 
 	server := http.Server{
@@ -301,8 +299,7 @@ func TestUnixSocket(t *testing.T) {
 	start := time.Now()
 	for {
 		if time.Since(start) > 1*time.Second {
-			t.Error("Server didn't listen on unix socket in time")
-			return
+			t.Fatal("Server didn't listen on unix socket in time")
 		}
 		_, err := os.Stat(socketFile)
 		if err == nil {
@@ -310,8 +307,7 @@ func TestUnixSocket(t *testing.T) {
 		} else if os.IsNotExist(err) {
 			time.Sleep(10 * time.Millisecond)
 		} else {
-			t.Error("unexpected error from unix socket", err)
-			return
+			t.Fatal("unexpected error from unix socket", err)
 		}
 	}
 
@@ -320,8 +316,7 @@ func TestUnixSocket(t *testing.T) {
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://anyserver/"})
 	res := atk.hit(tr, "")
 	if !bytes.Equal(res.Body, body) {
-		t.Errorf("got: %s, want: %s", string(res.Body), string(body))
-		return
+		t.Fatalf("got: %s, want: %s", string(res.Body), string(body))
 	}
 }
 
