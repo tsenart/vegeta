@@ -332,8 +332,8 @@ func TestClient(t *testing.T) {
 	client := &http.Client{
 		Timeout: time.Duration(1 * time.Nanosecond),
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			Dial:                  dialer.Dial,
+			Proxy: http.ProxyFromEnvironment,
+			Dial:  dialer.Dial,
 			ResponseHeaderTimeout: DefaultTimeout,
 			TLSClientConfig:       DefaultTLSConfig,
 			TLSHandshakeTimeout:   10 * time.Second,
@@ -354,60 +354,5 @@ func TestClient(t *testing.T) {
 	resp := atk.hit(tr, "TEST")
 	if !strings.Contains(resp.Error, "Client.Timeout exceeded while awaiting headers") {
 		t.Errorf("Expected timeout error")
-	}
-}
-
-func TestRateInterval(t *testing.T) {
-	t.Parallel()
-	began := time.Now()
-
-	for i, tt := range []struct {
-		freq  int
-		per   time.Duration
-		count uint64
-		since time.Duration
-		want  time.Duration
-	}{
-		// 1 hit/sec, 0 hits sent, 1s elapsed => -1s until next hit
-		// (time.Sleep will return immediately in this case)
-		{1, time.Second, 0, time.Second, -time.Second},
-		// 1 hit/sec, 1 hit sent, 1s elapsed => 0s until next hit
-		{1, time.Second, 1, time.Second, 0},
-		// 1 hit/sec, 2 hits sent, 1s elapsed => 1s until next hit
-		{1, time.Second, 2, time.Second, time.Second},
-		// 1 hit/sec, 10 hits sent, 1s elapsed => 9s until next hit
-		{1, time.Second, 10, time.Second, 9 * time.Second},
-		// 1 hit/sec, 10 hits sent, 10s elapsed => 0s until next hit
-		{1, time.Second, 10, 10 * time.Second, 0},
-		// 2 hit/sec, 9 hits sent, 4.4s elapsed => 100ms until next hit
-		{2, time.Second, 9, (44 * time.Second) / 10, 100 * time.Millisecond},
-	} {
-		r := Rate{Freq: tt.freq, Per: tt.per}
-		got := r.interval(began, began.Add(tt.since), tt.count)
-		if got != tt.want {
-			t.Errorf("%d: %v.Interval(%v, %d) = %v; want %v",
-				i, r, tt.since, tt.count, got, tt.want)
-		}
-	}
-}
-
-func TestRateHits(t *testing.T) {
-	for i, tt := range []struct {
-		freq int
-		per  time.Duration
-		du   time.Duration
-		want uint64
-	}{
-		{1, time.Second, 0, 0},
-		{1, time.Second, time.Second, 1},
-		{2, time.Second, time.Second, 2},
-		{1, time.Second, 10 * time.Second, 10},
-		{100, time.Second, 100 * time.Second, 100 * 100},
-	} {
-		r := Rate{Freq: tt.freq, Per: tt.per}
-		got := r.Hits(tt.du)
-		if got != tt.want {
-			t.Errorf("%d: %v.Hits(%v) = %d; want %d", i, r, tt.du, got, tt.want)
-		}
 	}
 }

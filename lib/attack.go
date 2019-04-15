@@ -223,58 +223,6 @@ func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
 }
 
-// Rater defines the rate of hits during an Attack.
-type Rater interface {
-	// Interval returns the time the attacker needs to sleep
-	// before the next hit is sent to the target.
-	Interval(began time.Time, count uint64) time.Duration
-	// Hits takes the desired attack duration and returns the
-	// number of hits sent in that duration while attacking.
-	Hits(attackDuration time.Duration) uint64
-	// IsZero returns true if the rater is zero-valued.
-	IsZero() bool
-}
-
-// Rate sends a constant rate of hits to the target.
-type Rate struct {
-	Freq int           // Frequency (number of occurrences) per ...
-	Per  time.Duration // Time unit, usually 1s
-}
-
-// IsZero returns true if either Freq or Per are zero valued.
-func (r Rate) IsZero() bool {
-	return r.Freq == 0 || r.Per == 0
-}
-
-// Interval implements part of the Rater interface. It calculates the time
-// between each hit from r.Per / r.Freq and multiplies this by the count of
-// hits already elapsed to determine the absolute time when the next hit should
-// occur. It returns the Duration until that time.
-func (r Rate) Interval(began time.Time, count uint64) time.Duration {
-	return r.interval(began, time.Now(), count)
-}
-
-func (r Rate) interval(began, now time.Time, count uint64) time.Duration {
-	delta := time.Duration(count * uint64(r.Per.Nanoseconds()/int64(r.Freq)))
-	return began.Add(delta).Sub(now)
-}
-
-// Hits implements part of the Rater interface. It returns the number of hits
-// the attacker is expected to send when applying this Rate over the provided
-// Duration.
-func (r Rate) Hits(du time.Duration) uint64 {
-	if du == 0 || r.IsZero() {
-		return 0
-	}
-	return uint64(du) / (uint64(r.Per.Nanoseconds() / int64(r.Freq)))
-}
-
-// String returns a pretty-printed description of the rate, e.g.:
-//   Rate{1 hits/1s} for Rate{Freq:1, Per: time.Second}
-func (r Rate) String() string {
-	return fmt.Sprintf("Rate{%d hits/%s}", r.Freq, r.Per)
-}
-
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate specified for the given duration. When the duration is zero the attack
 // runs until Stop is called. Results are sent to the returned channel as soon
