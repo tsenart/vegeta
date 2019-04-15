@@ -6,6 +6,48 @@ import (
 	"time"
 )
 
+func TestFixedRater(t *testing.T) {
+	t.Parallel()
+	began := time.Now()
+
+	for i, tt := range []struct {
+		freq    int
+		per     time.Duration
+		hits    int
+		du      time.Duration
+		elapsed time.Duration
+		wait    time.Duration
+	}{
+		// Total duration has elapsed.
+		{1, time.Second, 2, time.Second, time.Second, -1},
+		// 1 hit/sec, 0 hits sent, 1s elapsed => 0s until next hit
+		// (time.Sleep will return immediately in this case)
+		{1, time.Second, 0, 0, time.Second, 0},
+		// 1 hit/sec, 1 hit sent, 1s elapsed => 0s until next hit
+		{1, time.Second, 1, 0, time.Second, 0},
+		// 1 hit/sec, 2 hits sent, 1s elapsed => 1s until next hit
+		{1, time.Second, 2, 0, time.Second, time.Second},
+		// 1 hit/sec, 10 hits sent, 1s elapsed => 9s until next hit
+		{1, time.Second, 10, 0, time.Second, 9 * time.Second},
+		// 1 hit/sec, 10 hits sent, 10s elapsed => 0s until next hit
+		{1, time.Second, 10, 0, 10 * time.Second, 0},
+		// 2 hit/sec, 9 hits sent, 4.4s elapsed => 100ms until next hit
+		{2, time.Second, 9, 0, (44 * time.Second) / 10, 100 * time.Millisecond},
+	} {
+		rt := Rate{Freq: tt.freq, Per: tt.per}
+		r := NewFixedRater(rt, tt.du)
+
+		for i := 0; i < tt.hits-1; i++ {
+			r.Wait(began, time.Now())
+		}
+
+		wait := r.Wait(began, began.Add(tt.elapsed))
+		if have, want := wait, tt.wait; have != want {
+			t.Errorf("test case %d: %+v: have %v, want %v", i, r, have, want)
+		}
+	}
+}
+
 var quarterPeriods = map[string]float64{
 	"MeanUp":   MeanUp,
 	"Peak":     Peak,
