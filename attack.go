@@ -95,7 +95,7 @@ type attackOpts struct {
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(opts *attackOpts) (err error) {
-	if opts.rate.IsZero() {
+	if opts.rate.Freq <= 0 || opts.rate.Per <= 0 {
 		return errZeroRate
 	}
 
@@ -176,8 +176,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 	)
 
-	rater := vegeta.NewFixedRater(opts.rate, opts.duration)
-	res := atk.Attack(tr, rater, opts.name)
+	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)

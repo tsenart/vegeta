@@ -218,85 +218,15 @@ func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
 }
 
-// A Rater defines the rate of hits during an Attack by
-// returning the duration an Attacker should wait until hiting
-// the next Target. When a negative value time is returned,
-// an Attacker will stop.
-type Rater interface {
-	Wait(began, now time.Time) time.Duration
-}
-
-// A RaterFunc is a function adapter type that implements the
-// Rater interface.
-type RaterFunc func(began, now time.Time) time.Duration
-
-// Wait implements the Rater interface.
-func (f RaterFunc) Wait(began, now time.Time) time.Duration {
-	return f(began, now)
-}
-
-// A FixedRater is a Rater that produces hits at a fixed rate
-// for a given duration. It is not safe for concurrent use.
-type FixedRater struct {
-	rate  Rate
-	hits  uint64
-	count uint64
-}
-
-// NewFixedRater returns a new FixedRater with the given Rate and duration.
-// When duration is zero, the rater will never stop.
-func NewFixedRater(rate Rate, du time.Duration) *FixedRater {
-	r := FixedRater{rate: rate}
-	if du != 0 && !rate.IsZero() {
-		r.hits = uint64(du) /
-			(uint64(rate.Per.Nanoseconds() / int64(rate.Freq)))
-	}
-	return &r
-}
-
-// Wait is an utility method that calls the rater function itself.
-// It's meant to aid readability.
-func (r *FixedRater) Wait(began, now time.Time) time.Duration {
-	if r.hits != 0 && r.count == r.hits {
-		return -1
-	}
-
-	r.count++
-	interval := uint64(r.rate.Per.Nanoseconds() / int64(r.rate.Freq))
-	delta := time.Duration(r.count * interval)
-
-	if wait := began.Add(delta).Sub(now); wait > 0 {
-		return wait
-	}
-
-	return 0
-}
-
-// Rate sends a constant rate of hits to the target.
-type Rate struct {
-	Freq int           // Frequency (number of occurrences) per ...
-	Per  time.Duration // Time unit, usually 1s
-}
-
-// IsZero returns true if either Freq or Per are zero valued.
-func (r Rate) IsZero() bool {
-	return r.Freq == 0 || r.Per == 0
-}
-
-// String returns a pretty-printed description of the rate, e.g.:
-//   Rate{1 hits/1s} for Rate{Freq:1, Per: time.Second}
-func (r Rate) String() string {
-	return fmt.Sprintf("Rate{%d hits/%s}", r.Freq, r.Per)
-}
-
 // Attack reads its Targets from the passed Targeter and attacks them at
 // the rate produced by the given Rater. Results are sent to the returned
 // channel as soon as they arrive and will have their Attack field set to
 // the given name.
-func (a *Attacker) Attack(tr Targeter, r Rater, name string) <-chan *Result {
+func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan struct{})
+	count := uint64(0)
 	for i := uint64(0); i < a.workers; i++ {
 		workers.Add(1)
 		go a.attack(tr, name, &workers, ticks, results)
@@ -308,14 +238,16 @@ func (a *Attacker) Attack(tr Targeter, r Rater, name string) <-chan *Result {
 		defer close(ticks)
 		began := time.Now()
 		for {
-			wait := r.Wait(began, time.Now())
-			if wait < 0 {
+			elapsed := time.Since(began)
+			wait, stop := p.Pace(elapsed, count)
+			if stop || du > 0 && elapsed > du {
 				return
 			}
 			time.Sleep(wait)
 
 			select {
 			case ticks <- struct{}{}:
+				count++
 			case <-a.stopch:
 				return
 			default: // all workers are blocked. start one more and try again
