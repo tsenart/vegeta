@@ -267,8 +267,7 @@ func (r *FixedRater) Wait(began, now time.Time) time.Duration {
 	}
 
 	r.count++
-	interval := uint64(r.rate.Per.Nanoseconds() / int64(r.rate.Freq))
-	delta := time.Duration(r.count * interval)
+	delta := time.Duration(r.count) * r.rate.Interval()
 
 	if wait := began.Add(delta).Sub(now); wait > 0 {
 		return wait
@@ -281,6 +280,11 @@ func (r *FixedRater) Wait(began, now time.Time) time.Duration {
 type Rate struct {
 	Freq int           // Frequency (number of occurrences) per ...
 	Per  time.Duration // Time unit, usually 1s
+}
+
+// Interval returns the duration this rate represents.
+func (r Rate) Interval() time.Duration {
+	return time.Duration(r.Per.Nanoseconds() / int64(r.Freq))
 }
 
 // IsZero returns true if either Freq or Per are zero valued.
