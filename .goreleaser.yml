@@ -8,6 +8,8 @@ builds:
   - amd64
   - arm64
   - arm
+  goarm:
+  - 7
   env:
   - CGO_ENABLED=0
   flags:
