@@ -94,11 +94,14 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 		}
 		rep, report = vegeta.NewJSONReporter(&m), &m
 	case "hist":
-		if len(typ) < 6 {
-			return fmt.Errorf("bad buckets: '%s'", typ[4:])
-		}
 		var hist vegeta.Histogram
-		if err := hist.Buckets.UnmarshalText([]byte(typ[4:])); err != nil {
+		if bucketsStr == "" { // Old way
+			if len(typ) < 6 {
+				return fmt.Errorf("bad buckets: '%s'", typ[4:])
+			}
+			bucketsStr = typ[4:]
+		}
+		if err := hist.Buckets.UnmarshalText([]byte(bucketsStr)); err != nil {
 			return err
 		}
 		rep, report = vegeta.NewHistogramReporter(&hist), &hist
