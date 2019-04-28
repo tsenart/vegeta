@@ -290,6 +290,8 @@ func (p *Plot) data() (dataPoints, []string, error) {
 		labels[i+1] = s.attack + ": " + s.label
 	}
 
+	sort.Sort(data)
+
 	return data, labels, nil
 }
 
@@ -313,6 +315,17 @@ func (cw *countingWriter) Write(p []byte) (int, error) {
 }
 
 type dataPoints [][]float64
+
+func (ps dataPoints) Len() int { return len(ps) }
+
+func (ps dataPoints) Less(i, j int) bool {
+	// Sort by X axis (seconds elapsed)
+	return ps[i][0] < ps[j][0]
+}
+
+func (ps dataPoints) Swap(i, j int) {
+	ps[i], ps[j] = ps[j], ps[i]
+}
 
 func (ps dataPoints) Append(buf []byte) []byte {
 	buf = append(buf, "[\n  "...)
