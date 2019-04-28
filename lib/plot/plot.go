@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -200,10 +201,6 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 
 	data := dp.Append(make([]byte, 0, sz))
 
-	// TODO: Improve colors to be more intutive
-	// Green pallette for OK series
-	// Red pallette for Error series
-
 	opts := dygraphsOpts{
 		Title:       p.title,
 		Labels:      labels,
@@ -213,6 +210,7 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 		ShowRoller:  true,
 		LogScale:    true,
 		StrokeWidth: 1.3,
+		Colors:      labelColors(labels[1:]),
 	}
 
 	optsJSON, err := json.MarshalIndent(&opts, "    ", " ")
@@ -240,6 +238,46 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 	})
 
 	return cw.n, err
+}
+
+var (
+	reds = []string{
+		"#EE7860",
+		"#DD624E",
+		"#CA4E3E",
+		"#B63A30",
+		"#9F2823",
+		"#881618",
+		"#6F050E",
+	}
+	greens = []string{
+		"#A6DA83",
+		"#84C068",
+		"#64A550",
+		"#488A3A",
+		"#2F7027",
+		"#185717",
+		"#053E0A",
+	}
+)
+
+func labelColors(labels []string) []string {
+	colors := make([]string, 0, len(labels))
+
+	var red, green int
+	for _, label := range labels {
+		var color string
+		if strings.Contains(label, "ERROR") {
+			color = reds[red%len(reds)]
+			red++
+		} else {
+			color = greens[green%len(greens)]
+			green++
+		}
+		colors = append(colors, color)
+	}
+
+	return colors
 }
 
 // See http://dygraphs.com/data.html
