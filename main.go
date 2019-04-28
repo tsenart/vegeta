@@ -26,8 +26,8 @@ func main() {
 	version := fs.Bool("version", false, "Print version and exit")
 
 	fs.Usage = func() {
-		fmt.Println("Usage: vegeta [global flags] <command> [command flags]")
-		fmt.Printf("\nglobal flags:\n")
+		fmt.Fprintln(fs.Output(), "Usage: vegeta [global flags] <command> [command flags]")
+		fmt.Fprintf(fs.Output(), "\nglobal flags:\n")
 		fs.PrintDefaults()
 
 		names := make([]string, 0, len(commands))
@@ -38,12 +38,13 @@ func main() {
 		sort.Strings(names)
 		for _, name := range names {
 			if cmd := commands[name]; cmd.fs != nil {
-				fmt.Printf("\n%s command:\n", name)
+				fmt.Fprintf(fs.Output(),"\n%s command:\n", name)
+				cmd.fs.SetOutput(fs.Output())
 				cmd.fs.PrintDefaults()
 			}
 		}
 
-		fmt.Println(examples)
+		fmt.Fprintln(fs.Output(), examples)
 	}
 
 	fs.Parse(os.Args[1:])
