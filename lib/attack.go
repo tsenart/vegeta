@@ -67,17 +67,15 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	a.dialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
-		Timeout:   DefaultTimeout,
 	}
 
 	a.client = http.Client{
+		Timeout: DefaultTimeout,
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			Dial:                  a.dialer.Dial,
-			ResponseHeaderTimeout: DefaultTimeout,
-			TLSClientConfig:       DefaultTLSConfig,
-			TLSHandshakeTimeout:   10 * time.Second,
-			MaxIdleConnsPerHost:   DefaultConnections,
+			Proxy:               http.ProxyFromEnvironment,
+			Dial:                a.dialer.Dial,
+			TLSClientConfig:     DefaultTLSConfig,
+			MaxIdleConnsPerHost: DefaultConnections,
 		},
 	}
 
@@ -132,13 +130,10 @@ func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
 }
 
 // Timeout returns a functional option which sets the maximum amount of time
-// an Attacker will wait for a request to be responded to.
+// an Attacker will wait for a request to be responded to and completely read.
 func Timeout(d time.Duration) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.ResponseHeaderTimeout = d
-		a.dialer.Timeout = d
-		tr.Dial = a.dialer.Dial
+		a.client.Timeout = d
 	}
 }
 
