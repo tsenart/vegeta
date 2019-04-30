@@ -62,3 +62,165 @@ func TestConstantPacer(t *testing.T) {
 		}
 	}
 }
+
+// Stolen from https://github.com/google/go-cmp/cmp/cmpopts/equate.go
+// to avoid an unwieldy dependency. Both fraction and margin set at 1e-6.
+func floatEqual(x, y float64) bool {
+	relMarg := 1e-6 * math.Min(math.Abs(x), math.Abs(y))
+	return math.Abs(x-y) <= math.Max(1e-6, relMarg)
+}
+
+// A similar function to the above because SinePacer.Pace has discrete
+// inputs and outputs but uses floats internally, and sometimes the
+// floating point imprecision leaks out :-(
+func durationEqual(x, y time.Duration) bool {
+	diff := x - y
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= time.Microsecond
+}
+
+var quarterPeriods = map[string]float64{
+	"MeanUp":   MeanUp,
+	"Peak":     Peak,
+	"MeanDown": MeanDown,
+	"Trough":   Trough,
+}
+
+// qpahm == Quarter Period Amp-Hit Multiplier
+// These are multipliers that help us integrate our rate equation
+// in steps of 𝛑/2 without needing to resort to trig functions.
+// This relies on integral in each quarter period being:
+//   (Mean * Period) / 4 ± (Amp * Period) / 2𝛑
+//
+// Put another way, the two shaded areas in the graph below contain
+// an equal number of hits -- (Amp * Period) / 2𝛑, or ampHits().
+//
+//  Mean -|         ,-'''-.
+//  +Amp  |      ,-'xxx|   `-.
+//        |    ,'xxxxxx|      `.
+//        |  ,'xxxxxxxx|        `.
+//        | /xxxxxxxxxx|          \
+//        |/xxxxxxxxxxx|           \
+//  Mean -+-------------------------\--------------------------> t
+//        |                          \           |xxxxxxxxxxx/
+//        |                           \          |xxxxxxxxxx/
+//        |                            `.        |xxxxxxxx,'
+//        |                              `.      |xxxxxx,'
+//  Mean  |                                `-.   |xxx,-'
+//  -Amp -|                                   `-,,,-'
+//
+// The four multipliers are how many multiples of ampHits() away from
+// Mean*t the integral is after 1, 2, 3 and 4 quarter-periods respectively.
+var qpahm = map[float64][]float64{
+	MeanUp:   {1, 2, 1, 0},
+	Peak:     {1, 0, -1, 0},
+	MeanDown: {-1, -2, -1, 0},
+	Trough:   {-1, 0, 1, 0},
+}
+
+// Helper struct type to make creating SinePacers easier
+type sineTest struct {
+	period int // Period, in seconds
+	mean   int // Mean request rate, in hits/sec
+	amp    int // Amplitude, in hits/sec
+}
+
+func (st sineTest) Pacer(startAt float64) SinePacer {
+	return SinePacer{
+		Period:  time.Duration(st.period) * time.Second,
+		Mean:    Rate{st.mean, time.Second},
+		Amp:     Rate{st.amp, time.Second},
+		StartAt: startAt,
+	}
+}
+
+// See comment for qpahm above for why this is useful.
+func (st sineTest) ampHits() float64 {
+	return float64(st.amp) * float64(st.period) / (2 * math.Pi)
+}
+
+func TestSinePacerHits(t *testing.T) {
+	tests := []sineTest{
+		// {period in secs, mean hits/sec, amp hits/sec}
+		{20 * 60, 100, 90},
+		{60, 1000, 10},
+		{1, 10, 7},
+		{1, 1, 0},
+		{1e6, 10, 7},
+		{60, 1000, 999},
+	}
+
+	for ti, tt := range tests {
+		for name, startAt := range quarterPeriods {
+			sp := tt.Pacer(startAt)
+			// See comment for qpahm (quarter-period ampHits multiplier) above.
+			for i, mult := range qpahm[startAt] {
+				periods := i + 1
+				want := float64(tt.mean*periods*tt.period)/4 + tt.ampHits()*mult
+				if got := sp.hits(time.Duration(periods) * sp.Period / 4); !floatEqual(got, want) {
+					t.Errorf("%d(%s): %+v.hits(%d/4 period) = %g, want %g",
+						ti, name, sp, i+1, got, want)
+				}
+			}
+		}
+	}
+
+	// TestSinePacerInvalid takes care of most of the sad path.
+	sp := sineTest{1, 1, 0}.Pacer(0)
+	if got := sp.hits(-1); got != 0 {
+		t.Errorf("%d: %+v.hits(-1) = %g, want 0", len(tests), sp, got)
+	}
+}
+
+func TestSinePacerInvalid(t *testing.T) {
+	tests := []sineTest{
+		// {period in secs, mean hits/sec, amp hits/sec}
+		{0, 100, 90},   // Zero period
+		{60, 0, 90},    // Zero mean
+		{60, 100, 110}, // Amp > mean
+		{-10, 100, 90}, // Negative period
+		{60, -10, 90},  // Negative mean
+	}
+
+	for ti, tt := range tests {
+		sp := tt.Pacer(0)
+		if got := sp.hits(sp.Period); got != 0 {
+			t.Errorf("%d: %+v.hits(%s) = %g, want 0",
+				ti, sp, sp.Period, got)
+		}
+	}
+}
+
+// This function tests SinePacer behaviour when the Amplitude is zero,
+// which is ... much more predictable than otherwise.
+func TestSinePacerPace_Flat(t *testing.T) {
+	st := sineTest{1, 1, 0}
+	tests := []struct {
+		et   time.Duration
+		c    uint64
+		wait time.Duration
+		stop bool
+	}{
+		{0, 0, time.Second, false},
+		{0, 1, 2 * time.Second, false},
+		{time.Second / 100, 0, 99 * time.Second / 100, false},
+		{time.Second / 2, 0, time.Second / 2, false},
+		{64 * time.Second / 100, 0, 36 * time.Second / 100, false},
+		{99 * time.Second / 100, 0, time.Second / 100, false},
+		{time.Second, 1, time.Second, false},
+		{time.Second, 0, 0, false},
+	}
+
+	for i, test := range tests {
+		for name, sa := range quarterPeriods {
+			p := st.Pacer(sa)
+			wait, stop := p.Pace(test.et, test.c)
+			if !durationEqual(wait, test.wait) || stop != test.stop {
+				t.Errorf("%d(%s): wait(%v) = (%v, %v), want (%v, %v)",
+					i, name, test.et, wait, stop, test.wait, test.stop)
+			}
+		}
+	}
+}
