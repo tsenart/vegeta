@@ -219,14 +219,13 @@ func Client(c *http.Client) func(*Attacker) {
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at
-// the rate produced by the given Rater. Results are sent to the returned
-// channel as soon as they arrive and will have their Attack field set to
-// the given name.
+// the rate specified by the Pacer. When the duration is zero the attack
+// runs until Stop is called. Results are sent to the returned channel as soon
+// as they arrive and will have their Attack field set to the given name.
 func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
 	var workers sync.WaitGroup
 	results := make(chan *Result)
 	ticks := make(chan struct{})
-	count := uint64(0)
 	for i := uint64(0); i < a.workers; i++ {
 		workers.Add(1)
 		go a.attack(tr, name, &workers, ticks, results)
@@ -236,15 +235,17 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 		defer close(results)
 		defer workers.Wait()
 		defer close(ticks)
-		began := time.Now()
+		began, count := time.Now(), uint64(0)
 		for {
 			elapsed := time.Since(began)
+			if du > 0 && elapsed > du {
+				return
+			}
 			wait, stop := p.Pace(elapsed, count)
-			if stop || du > 0 && elapsed > du {
+			if stop {
 				return
 			}
 			time.Sleep(wait)
-
 			select {
 			case ticks <- struct{}{}:
 				count++
