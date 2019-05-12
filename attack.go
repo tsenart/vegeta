@@ -95,7 +95,7 @@ type attackOpts struct {
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(opts *attackOpts) (err error) {
-	if opts.rate.IsZero() {
+	if opts.rate.Per <= 0 || opts.rate.Freq <= 0 {
 		return errZeroRate
 	}
 
