@@ -285,17 +285,18 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		err error
 	)
 
-	defer func() {
-		if err != nil {
-			res.Error = err.Error()
-		}
-	}()
-
 	a.seqmu.Lock()
 	res.Timestamp = a.began.Add(time.Since(a.began))
 	res.Seq = a.seq
 	a.seq++
 	a.seqmu.Unlock()
+
+	defer func() {
+		res.Latency = time.Since(res.Timestamp)
+		if err != nil {
+			res.Error = err.Error()
+		}
+	}()
 
 	if err = tr(&tgt); err != nil {
 		a.Stop()
@@ -324,7 +325,6 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &res
 	}
 
-	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(res.Body))
 
 	if req.ContentLength != -1 {

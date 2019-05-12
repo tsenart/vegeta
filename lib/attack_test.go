@@ -117,9 +117,14 @@ func TestTimeout(t *testing.T) {
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, "")
+
 	want := "Client.Timeout exceeded while awaiting headers"
 	if got := res.Error; !strings.Contains(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
+	}
+
+	if res.Latency == 0 {
+		t.Fatal("Latency wasn't captured with a timed-out result")
 	}
 }
 
