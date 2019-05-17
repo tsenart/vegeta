@@ -381,9 +381,8 @@ Examples:
 Requests                  [total, rate]             1200, 120.00
 Duration                  [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
 Latencies                 [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
-Bytes In                  [total, mean]             3714690, 3095.57
-Bytes Out                 [total, mean]             0, 0.00
-Response Body Length      [total, mean]             3714690, 3095.57
+Bytes In                  [total, avg, rx, rx:avg]  3714690, 3095.57, 3714690, 3095.57
+Bytes Out                 [total, avg]              0, 0.00
 Success                   [ratio]                   55.42%
 Status Codes              [code:count]              0:535  200:665
 Error Set:
@@ -412,15 +411,17 @@ Latency is the amount of time taken for a response to a request to be read (incl
 - `50`, `95`, `99` are the 50th, 95th an 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
 - `max` is the maximum latency of all requests in an attack.
 
-The `Bytes In` and `Bytes Out` rows shows:
+The `Bytes In`
 
 - The `total` number of bytes sent (out) or received (in) with the request or response bodies.
-- The `mean` number of bytes sent (out) or received (in) with the request or response bodies.
+- The `avg` number of bytes sent (out) or received (in) with the request or response bodies.
+- The `rx` total number of bytes in the content-length header of responses.
+- The `rx:avg` average number of bytes in the content-length header of responses.
+ 
+The `Bytes Out` row shows:
 
-The `Response Body Length` row shows:
-
-- The `total` number of bytes in the content-length header of responses.
-- The `mean` number of bytes in the content-length header of responses.
+- The `total` number of bytes sent (out) or received (in) with the request or response bodies.
+- The `avg` number of bytes sent (out) or received (in) with the request or response bodies.
 
 The `Success` ratio shows the percentage of requests whose responses didn't error and had status codes between **200** and **400** (non-inclusive).
 
@@ -466,6 +467,10 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
   "errors": []
 }
 ```
+
+The `mean` field for `bytes_in` and `bytes_out` correspond to the `avg` field in the text report.  The 
+`response_body_length` correspond to the `rx` and `rx:avg` of the `bytes_in` field on the text report.
+
 
 #### `report -type=hist`
 

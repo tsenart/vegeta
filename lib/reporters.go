@@ -57,9 +57,8 @@ func NewTextReporter(m *Metrics) Reporter {
 	const fmtstr = "Requests\t[total, rate]\t%d, %.2f\n" +
 		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
 		"Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n" +
-		"Bytes In\t[total, mean]\t%d, %.2f\n" +
-		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
-		"Response Body Length\t[total, mean]\t%d, %.2f\n" +
+		"Bytes In\t[total, avg, rx, rx:avg]\t%d, %.2f, %d, %.2f\n" +
+		"Bytes Out\t[total, avg]\t%d, %.2f\n" +
 		"Success\t[ratio]\t%.2f%%\n" +
 		"Status Codes\t[code:count]\t"
 
@@ -69,9 +68,8 @@ func NewTextReporter(m *Metrics) Reporter {
 			m.Requests, m.Rate,
 			m.Duration+m.Wait, m.Duration, m.Wait,
 			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
-			m.BytesIn.Total, m.BytesIn.Mean,
+			m.BytesIn.Total, m.BytesIn.Mean, m.ResponseBodyLength.Total, m.ResponseBodyLength.Mean,
 			m.BytesOut.Total, m.BytesOut.Mean,
-			m.ResponseBodyLength.Total, m.ResponseBodyLength.Mean,
 			m.Success*100,
 		); err != nil {
 			return err
