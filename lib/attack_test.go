@@ -117,9 +117,14 @@ func TestTimeout(t *testing.T) {
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	res := atk.hit(tr, "")
-	want := "net/http: timeout awaiting response headers"
-	if got := res.Error; !strings.HasSuffix(got, want) {
+
+	want := "Client.Timeout exceeded while awaiting headers"
+	if got := res.Error; !strings.Contains(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
+	}
+
+	if res.Latency == 0 {
+		t.Fatal("Latency wasn't captured with a timed-out result")
 	}
 }
 
@@ -326,18 +331,15 @@ func TestClient(t *testing.T) {
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
 		KeepAlive: 30 * time.Second,
-		Timeout:   DefaultTimeout,
 	}
 
 	client := &http.Client{
 		Timeout: time.Duration(1 * time.Nanosecond),
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			Dial:                  dialer.Dial,
-			ResponseHeaderTimeout: DefaultTimeout,
-			TLSClientConfig:       DefaultTLSConfig,
-			TLSHandshakeTimeout:   10 * time.Second,
-			MaxIdleConnsPerHost:   DefaultConnections,
+			Proxy:               http.ProxyFromEnvironment,
+			Dial:                dialer.Dial,
+			TLSClientConfig:     DefaultTLSConfig,
+			MaxIdleConnsPerHost: DefaultConnections,
 		},
 	}
 
