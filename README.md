@@ -363,6 +363,8 @@ Options:
   --type    Which report type to generate (text | json | hist[buckets]).
             [default: text]
 
+  --buckets Histogram buckets, e.g.: '[0,1ms,10ms]'
+
   --every   Write the report to --output at every given interval (e.g 100ms)
             The default of 0 means the report will only be written after
             all results have been processed. [default: 0]
@@ -434,6 +436,7 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
     "99th": 3530000,
     "max": 3660505
   },
+  "buckets": {"0":9952,"1000000":40,"2000000":6,"3000000":0,"4000000":0,"5000000":2},
   "bytes_in": {
     "total": 606700,
     "mean": 6067
@@ -456,6 +459,13 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
   "errors": []
 }
 ```
+
+In the `buckets` field, each key is a nanosecond value representing the lower bound of a bucket.
+The upper bound is implied by the next higher bucket.
+Upper bounds are non-inclusive.
+The highest bucket is the overflow bucket; it has no upper bound.
+The values are counts of how many requests fell into that particular bucket.
+If the `-buckets` parameter is not present, the `buckets` field is omitted.
 
 #### `report -type=hist`
 

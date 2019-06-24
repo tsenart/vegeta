@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"time"
@@ -33,6 +34,25 @@ func (h *Histogram) Add(r *Result) {
 
 	h.Total++
 	h.Counts[i]++
+}
+
+// MarshalJSON returns a JSON encoding of the buckets and their counts.
+func (h *Histogram) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Custom marshalling to guarantee order.
+	buf.WriteString("{")
+	for i := range h.Buckets {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		if _, err := fmt.Fprintf(&buf, "\"%d\": %d", h.Buckets[i], h.Counts[i]); err != nil {
+			return nil, err
+		}
+	}
+	buf.WriteString("}")
+
+	return buf.Bytes(), nil
 }
 
 // Nth returns the nth bucket represented as a string.
