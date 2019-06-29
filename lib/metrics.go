@@ -12,6 +12,8 @@ import (
 type Metrics struct {
 	// Latencies holds computed request latency metrics.
 	Latencies LatencyMetrics `json:"latencies"`
+	// Histogram, only if requested
+	Histogram *Histogram `json:"buckets,omitempty"`
 	// BytesIn holds computed incoming byte metrics.
 	BytesIn ByteMetrics `json:"bytes_in"`
 	// BytesOut holds computed outgoing byte metrics.
@@ -74,6 +76,10 @@ func (m *Metrics) Add(r *Result) {
 			m.errors[r.Error] = struct{}{}
 			m.Errors = append(m.Errors, r.Error)
 		}
+	}
+
+	if m.Histogram != nil {
+		m.Histogram.Add(r)
 	}
 }
 

@@ -213,7 +213,7 @@ var logarithmic = []float64{
 func NewHDRHistogramPlotReporter(m *Metrics) Reporter {
 	return func(w io.Writer) error {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
-		_, err := fmt.Fprintf(tw, "Value\tPercentile\tTotalCount\t1/(1-Percentile)\n")
+		_, err := fmt.Fprintf(tw, "Value(ms)\tPercentile\tTotalCount\t1/(1-Percentile)\n")
 		if err != nil {
 			return err
 		}
