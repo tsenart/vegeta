@@ -97,8 +97,9 @@ func report(files []string, typ, output string, every time.Duration) error {
 				return err
 			}
 			rep, report = vegeta.NewHistogramReporter(&hist), &hist
+		default:
+			return fmt.Errorf("unknown report type: %q", typ)
 		}
-		return fmt.Errorf("unknown report type: %q", typ)
 	}
 
 	sigch := make(chan os.Signal, 1)

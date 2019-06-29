@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 )
 
 // A Report represents the state a Reporter uses to write out its reports.
@@ -110,8 +111,6 @@ func NewJSONReporter(m *Metrics) Reporter {
 	}
 }
 
-var hdrHeader = []byte("Value    Percentile    TotalCount    1/(1-Percentile)\n\n")
-
 var logarithmic = []float64{
 	0.00,
 	0.100,
@@ -213,25 +212,36 @@ var logarithmic = []float64{
 // in a format plottable by http://hdrhistogram.github.io/HdrHistogram/plotFiles.html.
 func NewHDRHistogramPlotReporter(m *Metrics) Reporter {
 	return func(w io.Writer) error {
-		if _, err := w.Write(hdrHeader); err != nil {
+		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+		_, err := fmt.Fprintf(tw, "Value\tPercentile\tTotalCount\t1/(1-Percentile)\n")
+		if err != nil {
 			return err
 		}
 
-		const fmtstr = "%f    %f        %d            %f\n"
-		total := m.Requests
-
+		total := float64(m.Requests)
 		for _, q := range logarithmic {
-			value := m.Latencies.Quantile(q).Seconds() * 1000 // milliseconds
+			value := milliseconds(m.Latencies.Quantile(q))
 			oneBy := oneByQuantile(q)
-			count := int64((q * float64(total)) + 0.5) // Count at quantile
-			_, err := fmt.Fprintf(w, fmtstr, value, q, count, oneBy)
+			count := int64((q * total) + 0.5) // Count at quantile
+			_, err = fmt.Fprintf(tw, "%f\t%f\t%d\t%f\n", value, q, count, oneBy)
 			if err != nil {
 				return err
 			}
 		}
 
-		return nil
+		return tw.Flush()
 	}
+}
+
+// milliseconds converts the given duration to a number of
+// fractional milliseconds. Splitting the integer and fraction
+// ourselves guarantees that converting the returned float64 to an
+// integer rounds the same way that a pure integer conversion would have,
+// even in cases where, say, float64(d.Nanoseconds())/1e9 would have rounded
+// differently.
+func milliseconds(d time.Duration) float64 {
+	msec, nsec := d/time.Millisecond, d%time.Millisecond
+	return float64(msec) + float64(nsec)/1e6
 }
 
 func oneByQuantile(q float64) float64 {
