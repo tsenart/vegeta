@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,15 +18,16 @@ import (
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer    *net.Dialer
-	client    http.Client
-	stopch    chan struct{}
-	workers   uint64
-	maxBody   int64
-	redirects int
-	seqmu     sync.Mutex
-	seq       uint64
-	began     time.Time
+	dialer     *net.Dialer
+	client     http.Client
+	stopch     chan struct{}
+	workers    uint64
+	maxWorkers uint64
+	maxBody    int64
+	redirects  int
+	seqmu      sync.Mutex
+	seq        uint64
+	began      time.Time
 }
 
 const (
@@ -40,6 +42,8 @@ const (
 	DefaultConnections = 10000
 	// DefaultWorkers is the default initial number of workers used to carry an attack.
 	DefaultWorkers = 10
+	// DefaultMaxWorkers is the default maximum number of workers used to carry an attack.
+	DefaultMaxWorkers = math.MaxUint64
 	// DefaultMaxBody is the default max number of bytes to be read from response bodies.
 	// Defaults to no limit.
 	DefaultMaxBody = int64(-1)
@@ -58,10 +62,11 @@ var (
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	a := &Attacker{
-		stopch:  make(chan struct{}),
-		workers: DefaultWorkers,
-		maxBody: DefaultMaxBody,
-		began:   time.Now(),
+		stopch:     make(chan struct{}),
+		workers:    DefaultWorkers,
+		maxWorkers: DefaultMaxWorkers,
+		maxBody:    DefaultMaxBody,
+		began:      time.Now(),
 	}
 
 	a.dialer = &net.Dialer{
@@ -91,6 +96,12 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 // to sustain the requested rate in the face of slow responses and errors.
 func Workers(n uint64) func(*Attacker) {
 	return func(a *Attacker) { a.workers = n }
+}
+
+// MaxWorkers returns a functional option which sets the maximum number of workers
+// an Attacker can use to hit its targets.
+func MaxWorkers(n uint64) func(*Attacker) {
+	return func(a *Attacker) { a.maxWorkers = n }
 }
 
 // Connections returns a functional option which sets the number of maximum idle
@@ -223,37 +234,59 @@ func Client(c *http.Client) func(*Attacker) {
 // runs until Stop is called. Results are sent to the returned channel as soon
 // as they arrive and will have their Attack field set to the given name.
 func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
-	var workers sync.WaitGroup
+	var wg sync.WaitGroup
+
+	workers := a.workers
+	if workers > a.maxWorkers {
+		workers = a.maxWorkers
+	}
+
 	results := make(chan *Result)
 	ticks := make(chan struct{})
-	for i := uint64(0); i < a.workers; i++ {
-		workers.Add(1)
-		go a.attack(tr, name, &workers, ticks, results)
+	for i := uint64(0); i < workers; i++ {
+		wg.Add(1)
+		go a.attack(tr, name, &wg, ticks, results)
 	}
 
 	go func() {
 		defer close(results)
-		defer workers.Wait()
+		defer wg.Wait()
 		defer close(ticks)
+
 		began, count := time.Now(), uint64(0)
 		for {
 			elapsed := time.Since(began)
 			if du > 0 && elapsed > du {
 				return
 			}
+
 			wait, stop := p.Pace(elapsed, count)
 			if stop {
 				return
 			}
+
 			time.Sleep(wait)
+
+			if workers < a.maxWorkers {
+				select {
+				case ticks <- struct{}{}:
+					count++
+					continue
+				case <-a.stopch:
+					return
+				default:
+					// all workers are blocked. start one more and try again
+					workers++
+					wg.Add(1)
+					go a.attack(tr, name, &wg, ticks, results)
+				}
+			}
+
 			select {
 			case ticks <- struct{}{}:
 				count++
 			case <-a.stopch:
 				return
-			default: // all workers are blocked. start one more and try again
-				workers.Add(1)
-				go a.attack(tr, name, &workers, ticks, results)
 			}
 		}
 	}()
