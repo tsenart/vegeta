@@ -43,6 +43,7 @@ func attackCmd() command {
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
+	fs.Uint64Var(&opts.maxWorkers, "max-workers", vegeta.DefaultMaxWorkers, "Maximum number of workers")
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
@@ -82,6 +83,7 @@ type attackOpts struct {
 	timeout     time.Duration
 	rate        vegeta.Rate
 	workers     uint64
+	maxWorkers  uint64
 	connections int
 	redirects   int
 	maxBody     int64
@@ -168,6 +170,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.LocalAddr(*opts.laddr.IPAddr),
 		vegeta.TLSConfig(tlsc),
 		vegeta.Workers(opts.workers),
+		vegeta.MaxWorkers(opts.maxWorkers),
 		vegeta.KeepAlive(opts.keepalive),
 		vegeta.Connections(opts.connections),
 		vegeta.HTTP2(opts.http2),
