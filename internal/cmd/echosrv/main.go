@@ -1,15 +1,19 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"sync/atomic"
 	"time"
 )
 
 func main() {
+	sleep := flag.Duration("sleep", 0, "Time to sleep per request")
+
+	flag.Parse()
+
 	count := uint64(0)
 	go func(last time.Time) {
 		ticks := time.Tick(time.Second)
@@ -20,8 +24,10 @@ func main() {
 		}
 	}(time.Now())
 
-	http.ListenAndServe(os.Args[1], http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddUint64(&count, 1)
+	http.ListenAndServe(flag.Arg(0), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer atomic.AddUint64(&count, 1)
+		time.Sleep(*sleep)
+
 		bs, _ := httputil.DumpRequest(r, true)
 		w.Write(bs)
 	}))
