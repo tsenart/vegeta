@@ -380,7 +380,7 @@ Examples:
 #### `report -type=text`
 
 ```console
-Requests      [total, rate]             1200, 120.00
+Requests      [total, rate, throughput] 1200, 120.00, 65.87
 Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
 Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
 Bytes In      [total, mean]             3714690, 3095.57
@@ -399,7 +399,8 @@ Get http://localhost:6060: http: can't write HTTP request on broken connection
 The `Requests` row shows:
 
 - The `total` number of issued requests.
-- The real request `rate` sustained during the attack.
+- The real request `rate` sustained during the `attack` period.
+- The `throughput` of successful requests over the `total` period.
 
 The `Duration` row shows:
 
@@ -452,6 +453,7 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
   "wait": 3507222,
   "requests": 100,
   "rate": 101.01010672380401,
+  "throughput": 101.00012489812,
   "success": 1,
   "status_codes": {
     "200": 100
@@ -591,14 +593,7 @@ The `report` command accepts multiple result files.
 It'll read and sort them by timestamp before generating reports.
 
 ```console
-$ vegeta report 10.0.1.1.bin 10.0.2.1.bin 10.0.3.1.bin
-Requests      [total, rate]         3600000, 60000.00
-Latencies     [mean, 95, 99, max]   223.340085ms, 326.913687ms, 416.537743ms, 7.788103259s
-Bytes In      [total, mean]         3714690, 3095.57
-Bytes Out     [total, mean]         0, 0.00
-Success       [ratio]               100.0%
-Status Codes  [code:count]          200:3600000
-Error Set:
+vegeta report *.bin
 ```
 
 ## Usage: Real-time Analysis
