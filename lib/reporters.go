@@ -55,7 +55,7 @@ func NewHistogramReporter(h *Histogram) Reporter {
 // NewTextReporter returns a Reporter that writes out Metrics as aligned,
 // formatted text.
 func NewTextReporter(m *Metrics) Reporter {
-	const fmtstr = "Requests\t[total, rate]\t%d, %.2f\n" +
+	const fmtstr = "Requests\t[total, rate, throughput]\t%d, %.2f, %.2f\n" +
 		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
 		"Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n" +
 		"Bytes In\t[total, mean]\t%d, %.2f\n" +
@@ -66,7 +66,7 @@ func NewTextReporter(m *Metrics) Reporter {
 	return func(w io.Writer) (err error) {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
 		if _, err = fmt.Fprintf(tw, fmtstr,
-			m.Requests, m.Rate,
+			m.Requests, m.Rate, m.Throughput,
 			m.Duration+m.Wait, m.Duration, m.Wait,
 			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
 			m.BytesIn.Total, m.BytesIn.Mean,
