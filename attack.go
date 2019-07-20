@@ -74,6 +74,7 @@ type attackOpts struct {
 	bodyf       string
 	certf       string
 	keyf        string
+	find        string
 	rootCerts   csl
 	http2       bool
 	h2c         bool
@@ -179,22 +180,45 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 	)
 
-	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
+	attack := vegeta.Attack{
+		Name:     opts.name,
+		Targeter: tr,
+		Pacer: vegeta.LinearPacer{
+			StartAt: opts.rate,
+			Slope:   0.5,
+		},
+		Duration: opts.duration,
+		Results:  make(chan *vegeta.Result),
+	}
+
+	// TODO: Parse find to generate needed attacks
+
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 
+	go atk.Run(&attack)
+
+	var m vegeta.Metrics
 	for {
 		select {
 		case <-sig:
 			atk.Stop()
 			return nil
-		case r, ok := <-res:
+		case r, ok := <-attack.Results:
 			if !ok {
 				return nil
 			}
+
 			if err = enc.Encode(r); err != nil {
 				return err
+			}
+
+			m.Add(r)
+
+			if m.Latencies.Quantile(0.99) >= 100*time.Millisecond {
+				atk.Stop()
+				m.Close()
 			}
 		}
 	}
