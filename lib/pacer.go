@@ -43,10 +43,13 @@ func (cp ConstantPacer) String() string {
 
 // Pace determines the length of time to sleep until the next hit is sent.
 func (cp ConstantPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bool) {
-	if cp.Per <= 0 || cp.Freq <= 0 {
-		// If pacer configuration is invalid, stop the attack.
+	switch {
+	case cp.Per == 0 || cp.Freq == 0:
+		return 0, false // Zero value = infinite rate
+	case cp.Per < 0 || cp.Freq < 0:
 		return 0, true
 	}
+
 	expectedHits := uint64(cp.Freq) * uint64(elapsed/cp.Per)
 	if hits < expectedHits {
 		// Running behind, send next hit immediately.

@@ -37,11 +37,11 @@ func TestConstantPacer(t *testing.T) {
 
 		// :-( SAD PATH TESTS :-(
 		// Zero frequency.
-		{0, time.Second, time.Second, 0, 0, true},
+		{0, time.Second, time.Second, 0, 0, false},
 		// Zero per.
-		{1, 0, time.Second, 0, 0, true},
+		{1, 0, time.Second, 0, 0, false},
 		// Zero frequency + per.
-		{0, 0, time.Second, 0, 0, true},
+		{0, 0, time.Second, 0, 0, false},
 		// Negative frequency.
 		{-1, time.Second, time.Second, 0, 0, true},
 		// Negative per.

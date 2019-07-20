@@ -97,8 +97,8 @@ type attackOpts struct {
 // attack validates the attack arguments, sets up the
 // required resources, launches the attack and writes the results
 func attack(opts *attackOpts) (err error) {
-	if opts.rate.Per <= 0 || opts.rate.Freq <= 0 {
-		return errZeroRate
+	if opts.maxWorkers == vegeta.DefaultMaxWorkers && opts.rate.Freq == 0 {
+		return fmt.Errorf("-rate=0 requires setting -max-workers")
 	}
 
 	if len(opts.resolvers) > 0 {

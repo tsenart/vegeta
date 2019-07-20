@@ -79,6 +79,10 @@ func (f *rateFlag) Set(v string) (err error) {
 		return err
 	}
 
+	if f.Freq == 0 {
+		return nil
+	}
+
 	switch ps[1] {
 	case "ns", "us", "µs", "ms", "s", "m", "h":
 		ps[1] = "1" + ps[1]
