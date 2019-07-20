@@ -434,6 +434,8 @@ The `Error Set` shows a unique set of errors returned by all issued requests. Th
 
 #### `report -type=json`
 
+All duration like fields are in nanoseconds.
+
 ```json
 {
   "latencies": {
