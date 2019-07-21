@@ -18,9 +18,6 @@ builds:
   ldflags:
     - -s -w -extldflags "-static" -X main.Version={{.Version}} -X main.Commit={{.Commit}} -X main.Date={{.Date}}"
 
-git:
-  tags_prefix: "cli/"
-
 release:
   name_template: "v{{.Version}}"
 
