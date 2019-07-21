@@ -51,87 +51,87 @@ Usage: vegeta [global flags] <command> [command flags]
 
 global flags:
   -cpus int
-        Number of CPUs to use (defaults to the number of CPUs you have)
+    	Number of CPUs to use (defaults to the number of CPUs you have)
   -profile string
-        Enable profiling of [cpu, heap]
+    	Enable profiling of [cpu, heap]
   -version
-        Print version and exit
+    	Print version and exit
 
 attack command:
   -body string
-        Requests body file
+    	Requests body file
   -cert string
-        TLS client PEM encoded certificate file
+    	TLS client PEM encoded certificate file
   -connections int
-        Max open idle connections per target host (default 10000)
+    	Max open idle connections per target host (default 10000)
   -duration duration
-        Duration of the test [0 = forever]
+    	Duration of the test [0 = forever]
   -format string
-        Targets format [http, json] (default "http")
+    	Targets format [http, json] (default "http")
   -h2c
-        Send HTTP/2 requests without TLS encryption
+    	Send HTTP/2 requests without TLS encryption
   -header value
-        Request header
+    	Request header
   -http2
-        Send HTTP/2 requests when supported by the server (default true)
+    	Send HTTP/2 requests when supported by the server (default true)
   -insecure
-        Ignore invalid server TLS certificates
+    	Ignore invalid server TLS certificates
   -keepalive
-        Use persistent connections (default true)
+    	Use persistent connections (default true)
   -key string
-        TLS client PEM encoded private key file
+    	TLS client PEM encoded private key file
   -laddr value
-        Local IP address (default 0.0.0.0)
+    	Local IP address (default 0.0.0.0)
   -lazy
-        Read targets lazily
+    	Read targets lazily
   -max-body value
-        Maximum number of bytes to capture from response bodies. [-1 = no limit] (default -1)
+    	Maximum number of bytes to capture from response bodies. [-1 = no limit] (default -1)
   -max-workers uint
-        Maximum number of workers (default 18446744073709551615)
+    	Maximum number of workers (default 18446744073709551615)
   -name string
-        Attack name
+    	Attack name
   -output string
-        Output file (default "stdout")
+    	Output file (default "stdout")
   -rate value
-        Number of requests per time unit (default 50/1s)
+    	Number of requests per time unit [0 = infinity] (default 50/1s)
   -redirects int
-        Number of redirects to follow. -1 will not follow but marks as success (default 10)
+    	Number of redirects to follow. -1 will not follow but marks as success (default 10)
   -resolvers value
-        List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
+    	List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
   -root-certs value
-        TLS root certificate files (comma separated list)
+    	TLS root certificate files (comma separated list)
   -targets string
-        Targets file (default "stdin")
+    	Targets file (default "stdin")
   -timeout duration
-        Requests timeout (default 30s)
+    	Requests timeout (default 30s)
   -unix-socket string
-        Connect over a unix socket. This overrides the host address in target URLs
+    	Connect over a unix socket. This overrides the host address in target URLs
   -workers uint
-        Initial number of workers (default 10)
+    	Initial number of workers (default 10)
 
 encode command:
   -output string
-        Output file (default "stdout")
+    	Output file (default "stdout")
   -to string
-        Output encoding [csv, gob, json] (default "json")
+    	Output encoding [csv, gob, json] (default "json")
 
 plot command:
   -output string
-        Output file (default "stdout")
+    	Output file (default "stdout")
   -threshold int
-        Threshold of data points above which series are downsampled. (default 4000)
+    	Threshold of data points above which series are downsampled. (default 4000)
   -title string
-        Title and header of the resulting HTML page (default "Vegeta Plot")
+    	Title and header of the resulting HTML page (default "Vegeta Plot")
 
 report command:
   -buckets string
-        Histogram buckets, e.g.: "[0,1ms,10ms]"
+    	Histogram buckets, e.g.: "[0,1ms,10ms]"
   -every duration
-        Report interval
+    	Report interval
   -output string
-        Output file (default "stdout")
+    	Output file (default "stdout")
   -type string
-        Report type to generate [text, json, hist[buckets], hdrplot] (default "text")
+    	Report type to generate [text, json, hist[buckets], hdrplot] (default "text")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -317,6 +317,13 @@ Specifies the request rate per time unit to issue against
 the targets. The actual request rate can vary slightly due to things like
 garbage collection, but overall it should stay very close to the specified.
 If no time unit is provided, 1s is used.
+
+A `-rate` of `0` or `infinity` means vegeta will send requests as fast as possible.
+Use together with `-max-workers` to model a fixed set of concurrent users sending
+requests serially (i.e. waiting for a response before sending the next request).
+
+Setting `-max-workers` to a very high number while setting `-rate=0` can result in
+vegeta consuming too many resources and crashing. Use with care.
 
 #### `-redirects`
 

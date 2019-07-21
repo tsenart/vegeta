@@ -66,6 +66,10 @@ func (l csl) String() string { return strings.Join(l, ",") }
 type rateFlag struct{ *vegeta.Rate }
 
 func (f *rateFlag) Set(v string) (err error) {
+	if v == "infinity" {
+		return nil
+	}
+
 	ps := strings.SplitN(v, "/", 2)
 	switch len(ps) {
 	case 1:
@@ -77,6 +81,10 @@ func (f *rateFlag) Set(v string) (err error) {
 	f.Freq, err = strconv.Atoi(ps[0])
 	if err != nil {
 		return err
+	}
+
+	if f.Freq == 0 {
+		return nil
 	}
 
 	switch ps[1] {
