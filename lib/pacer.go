@@ -217,3 +217,63 @@ func (sp SinePacer) hits(t time.Duration) float64 {
 	}
 	return sp.Mean.hitsPerNs()*float64(t) + sp.ampHits()*(math.Cos(sp.StartAt)-math.Cos(sp.radians(t)))
 }
+
+// LinearPacer paces an attack by starting at a given request rate
+// and increasing linearly with the given slope.
+type LinearPacer struct {
+	StartAt Rate
+	Slope   float64
+}
+
+// Pace determines the length of time to sleep until the next hit is sent.
+func (p LinearPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bool) {
+	switch {
+	case p.StartAt.Per == 0 || p.StartAt.Freq == 0:
+		return 0, false // Zero value = infinite rate
+	case p.StartAt.Per < 0 || p.StartAt.Freq < 0:
+		return 0, true
+	}
+
+	expectedHits := p.hits(elapsed)
+	if hits == 0 || hits < uint64(expectedHits) {
+		// Running behind, send next hit immediately.
+		return 0, false
+	}
+
+	rate := p.rate(elapsed)
+	interval := math.Round(1e9 / rate)
+
+	if n := uint64(interval); n != 0 && math.MaxInt64/n < hits {
+		// We would overflow wait if we continued, so stop the attack.
+		return 0, true
+	}
+
+	delta := float64(hits+1) - expectedHits
+	wait := time.Duration(interval * delta)
+
+	return wait, false
+}
+
+// hits returns the number of hits that have been sent during an attack
+// lasting t nanoseconds. It returns a float so we can tell exactly how
+// much we've missed our target by when solving numerically in Pace.
+func (p LinearPacer) hits(t time.Duration) float64 {
+	if t < 0 {
+		return 0
+	}
+
+	a := p.Slope
+	b := p.StartAt.hitsPerNs() * 1e9
+	x := t.Seconds()
+
+	return (a*math.Pow(x, 2))/2 + b*x
+}
+
+// rate calculates the instantaneous rate of attack at
+// t nanoseconds after the attack began.
+func (p LinearPacer) rate(t time.Duration) float64 {
+	a := p.Slope
+	x := t.Seconds()
+	b := p.StartAt.hitsPerNs() * 1e9
+	return a*x + b
+}
