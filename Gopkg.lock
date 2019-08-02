@@ -64,16 +64,23 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
+  digest = "1:84a5a2b67486d5d67060ac393aa255d05d24ed5ee41daecd5635ec22657b6492"
   name = "github.com/mailru/easyjson"
   packages = [
-    ".",
     "buffer",
     "jlexer",
     "jwriter",
   ]
   pruneopts = "UT"
   revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+
+[[projects]]
+  digest = "1:66def2f80d5127123c81ffa876242c12d3b7b06188f6645d79b3cc4acba637b3"
+  name = "github.com/miekg/dns"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b13675009d59c97f3721247d9efa8914e1866a5b"
+  version = "v1.1.15"
 
 [[projects]]
   branch = "master"
@@ -112,16 +119,40 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:dca4094c3be476189bd5854752edbd1bd3d15e61d9570dd9133744bb1ecd599d"
+  digest = "1:cd7e85fc3687e062714febdee3e8efeb00a413a2a620d28908fd0258261d2353"
+  name = "golang.org/x/crypto"
+  packages = [
+    "ed25519",
+    "ed25519/internal/edwards25519",
+  ]
+  pruneopts = "UT"
+  revision = "4def268fd1a49955bfb3dda92fe3db4f924f2285"
+
+[[projects]]
+  branch = "master"
+  digest = "1:eb816361177713f91e2f624d3fa496a7a0eadb60f1a283036fe55ccc9e84b205"
   name = "golang.org/x/net"
   packages = [
+    "bpf",
     "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
+    "internal/iana",
+    "internal/socket",
+    "ipv4",
+    "ipv6",
   ]
   pruneopts = "UT"
   revision = "c39426892332e1bb5ec0a434a079bf82f5d30c54"
+
+[[projects]]
+  branch = "master"
+  digest = "1:fdfd985fe7956d77128572032636b5c1b7b58a81acd7089e96923e2f9539c573"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  pruneopts = "UT"
+  revision = "cbf593c0f2f39034e9104bbf77e2ec7c48c98fc5"
 
 [[projects]]
   digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
@@ -157,9 +188,9 @@
     "github.com/dgryski/go-lttb",
     "github.com/google/go-cmp/cmp",
     "github.com/influxdata/tdigest",
-    "github.com/mailru/easyjson",
     "github.com/mailru/easyjson/jlexer",
     "github.com/mailru/easyjson/jwriter",
+    "github.com/miekg/dns",
     "github.com/shurcooL/vfsgen",
     "github.com/streadway/quantile",
     "github.com/tsenart/go-tsz",

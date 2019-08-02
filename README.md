@@ -1,4 +1,4 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.svg?branch=master)](http://travis-ci.org/tsenart/vegeta) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
+# Vegeta [![Build Status](https://secure.travis-ci.org/an63/vegeta.svg?branch=master)](http://travis-ci.org/an63/vegeta) [![Go Report Card](https://goreportcard.com/badge/github.com/an63/vegeta)](https://goreportcard.com/report/github.com/an63/vegeta) [![GoDoc](https://godoc.org/github.com/an63/vegeta?status.svg)](https://godoc.org/github.com/an63/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/an63/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
@@ -10,7 +10,7 @@ It can be used both as a command line utility and a library.
 
 ### Pre-compiled executables
 
-Get them [here](http://github.com/tsenart/vegeta/releases).
+Get them [here](http://github.com/an63/vegeta/releases).
 
 ### Homebrew on Mac OS X
 
@@ -26,17 +26,17 @@ You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 
 ```shell
-$ go get -u github.com/tsenart/vegeta
+$ go get -u github.com/an63/vegeta
 ```
 
 ## Versioning
 
 Both the library and the CLI are versioned with [SemVer v2.0.0](https://semver.org/spec/v2.0.0.html).
 
-After [v8.0.0](https://github.com/tsenart/vegeta/tree/v8.0.0), the two components
+After [v8.0.0](https://github.com/an63/vegeta/tree/v8.0.0), the two components
 are versioned separately to better isolate breaking changes to each.
 
-CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/tsenart/vegeta/releases).
+CLI releases are tagged with `cli/vMAJOR.MINOR.PATCH` and published on the [Github releases page](https://github.com/an63/vegeta/releases).
 As for the library, new versions are tagged with both `lib/vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH`.
 The latter tag is required for compatibility with `go mod`.
 
@@ -736,7 +736,7 @@ echo 'GET http://localhost:8080' | \
 ## Usage (Library)
 
 The library versioning follows [SemVer v2.0.0](https://semver.org/spec/v2.0.0.html).
-Since [lib/v9.0.0](https://github.com/tsenart/vegeta/tree/lib/v9.0.0), the library and cli
+Since [lib/v9.0.0](https://github.com/an63/vegeta/tree/lib/v9.0.0), the library and cli
 are versioned separately to better isolate breaking changes to each component.
 
 See [Versioning](#Versioning) for more details on git tag naming schemes and compatibility
@@ -749,7 +749,7 @@ import (
   "fmt"
   "time"
 
-  vegeta "github.com/tsenart/vegeta/lib"
+  vegeta "github.com/an63/vegeta/lib"
 )
 
 func main() {

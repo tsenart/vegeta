@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/an63/vegeta/lib"
 )
 
 const reportUsage = `Usage: vegeta report [options] [<file>...]

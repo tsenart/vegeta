@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	vegeta "github.com/tsenart/vegeta/lib"
+	vegeta "github.com/an63/vegeta/lib"
 )
 
 // headers is the http.Header used in each target request

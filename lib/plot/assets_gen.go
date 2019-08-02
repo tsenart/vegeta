@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/shurcooL/vfsgen"
-	"github.com/tsenart/vegeta/lib/plot"
+	"github.com/an63/vegeta/lib/plot"
 )
 
 func main() {

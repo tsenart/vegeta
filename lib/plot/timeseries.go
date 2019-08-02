@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/an63/vegeta/lib/lttb"
 	tsz "github.com/tsenart/go-tsz"
-	"github.com/tsenart/vegeta/lib/lttb"
 )
 
 // An in-memory timeSeries of points with high compression of
