@@ -1,4 +1,6 @@
 language: go
+services:
+  - docker
 sudo: false
 go:
   - tip
@@ -6,7 +8,19 @@ install:
   - go get -v golang.org/x/lint/golint
   - go get -d -t -v ./...
   - go build -v ./...
-script:
-  - go vet ./...
-  - $HOME/gopath/bin/golint -set_exit_status $(go list ./... | grep -v /vendor/)
-  - go test -v ./...
+jobs:
+  include:
+    - stage: Test
+      script:
+        - go vet ./...
+        - $HOME/gopath/bin/golint -set_exit_status $(go list ./... | grep -v /vendor/)
+        - go test -v ./...
+    - stage: Fuzz regression
+      go: 1.12.x
+      dist: bionic
+      script: ./fuzzit.sh local-regression
+    - stage: Fuzz
+      if: branch = master AND type IN (push)
+      go: 1.12.x
+      dist: bionic
+      script: ./fuzzit.sh fuzzing
