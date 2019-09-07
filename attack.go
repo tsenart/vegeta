@@ -22,11 +22,11 @@ import (
 func attackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
 	opts := &attackOpts{
-		headers: headers{http.Header{}},
+		headers:      headers{http.Header{}},
 		proxyHeaders: headers{http.Header{}},
-		laddr:   localAddr{&vegeta.DefaultLocalAddr},
-		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
-		maxBody: vegeta.DefaultMaxBody,
+		laddr:        localAddr{&vegeta.DefaultLocalAddr},
+		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
+		maxBody:      vegeta.DefaultMaxBody,
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -133,9 +133,9 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	var (
-		tr  vegeta.Targeter
-		src = files[opts.targetsf]
-		hdr = opts.headers.Header
+		tr       vegeta.Targeter
+		src      = files[opts.targetsf]
+		hdr      = opts.headers.Header
 		proxyHdr = opts.proxyHeaders.Header
 	)
 
@@ -181,7 +181,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.H2C(opts.h2c),
 		vegeta.MaxBody(opts.maxBody),
 		vegeta.UnixSocket(opts.unixSocket),
-		vegeta.ProxyHdr(&proxyHdr),
+		vegeta.ProxyHeader(proxyHdr),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

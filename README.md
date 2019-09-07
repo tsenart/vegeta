@@ -92,8 +92,8 @@ attack command:
     	Attack name
   -output string
     	Output file (default "stdout")
-  -proxy-headers value
-    	Headers for the CONNECT request
+  -proxy-header value
+    	Header for the CONNECT request
   -rate value
     	Number of requests per time unit [0 = infinity] (default 50/1s)
   -redirects int

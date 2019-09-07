@@ -229,12 +229,13 @@ func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
 }
 
-// ProxyHdr returns a functional option that allows you to add your own
+// ProxyHeader returns a functional option that allows you to add your own
 // Proxy CONNECT headers
-func ProxyHdr(h *http.Header) func(*Attacker) {
+func ProxyHeader(h http.Header) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.ProxyConnectHeader = *h
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.ProxyConnectHeader = h
+		}
 	}
 }
 
