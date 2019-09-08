@@ -22,10 +22,11 @@ import (
 func attackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
 	opts := &attackOpts{
-		headers: headers{http.Header{}},
-		laddr:   localAddr{&vegeta.DefaultLocalAddr},
-		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
-		maxBody: vegeta.DefaultMaxBody,
+		headers:      headers{http.Header{}},
+		proxyHeaders: headers{http.Header{}},
+		laddr:        localAddr{&vegeta.DefaultLocalAddr},
+		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
+		maxBody:      vegeta.DefaultMaxBody,
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -49,6 +50,7 @@ func attackCmd() command {
 	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
 	fs.Var(&opts.headers, "header", "Request header")
+	fs.Var(&opts.proxyHeaders, "proxy-header", "Proxy CONNECT header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
@@ -67,31 +69,32 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	name        string
-	targetsf    string
-	format      string
-	outputf     string
-	bodyf       string
-	certf       string
-	keyf        string
-	rootCerts   csl
-	http2       bool
-	h2c         bool
-	insecure    bool
-	lazy        bool
-	duration    time.Duration
-	timeout     time.Duration
-	rate        vegeta.Rate
-	workers     uint64
-	maxWorkers  uint64
-	connections int
-	redirects   int
-	maxBody     int64
-	headers     headers
-	laddr       localAddr
-	keepalive   bool
-	resolvers   csl
-	unixSocket  string
+	name         string
+	targetsf     string
+	format       string
+	outputf      string
+	bodyf        string
+	certf        string
+	keyf         string
+	rootCerts    csl
+	http2        bool
+	h2c          bool
+	insecure     bool
+	lazy         bool
+	duration     time.Duration
+	timeout      time.Duration
+	rate         vegeta.Rate
+	workers      uint64
+	maxWorkers   uint64
+	connections  int
+	redirects    int
+	maxBody      int64
+	headers      headers
+	proxyHeaders headers
+	laddr        localAddr
+	keepalive    bool
+	resolvers    csl
+	unixSocket   string
 }
 
 // attack validates the attack arguments, sets up the
@@ -130,9 +133,10 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	var (
-		tr  vegeta.Targeter
-		src = files[opts.targetsf]
-		hdr = opts.headers.Header
+		tr       vegeta.Targeter
+		src      = files[opts.targetsf]
+		hdr      = opts.headers.Header
+		proxyHdr = opts.proxyHeaders.Header
 	)
 
 	switch opts.format {
@@ -177,6 +181,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.H2C(opts.h2c),
 		vegeta.MaxBody(opts.maxBody),
 		vegeta.UnixSocket(opts.unixSocket),
+		vegeta.ProxyHeader(proxyHdr),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

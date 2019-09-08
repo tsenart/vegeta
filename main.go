@@ -38,7 +38,7 @@ func main() {
 		sort.Strings(names)
 		for _, name := range names {
 			if cmd := commands[name]; cmd.fs != nil {
-				fmt.Fprintf(fs.Output(),"\n%s command:\n", name)
+				fmt.Fprintf(fs.Output(), "\n%s command:\n", name)
 				cmd.fs.SetOutput(fs.Output())
 				cmd.fs.PrintDefaults()
 			}
