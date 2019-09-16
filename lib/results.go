@@ -30,6 +30,8 @@ type Result struct {
 	BytesIn   uint64        `json:"bytes_in"`
 	Error     string        `json:"error"`
 	Body      []byte        `json:"body"`
+	Method    string        `json:"method"`
+	URL       string        `json:"url"`
 }
 
 // End returns the time at which a Result ended.
@@ -45,7 +47,9 @@ func (r Result) Equal(other Result) bool {
 		r.BytesIn == other.BytesIn &&
 		r.BytesOut == other.BytesOut &&
 		r.Error == other.Error &&
-		bytes.Equal(r.Body, other.Body)
+		bytes.Equal(r.Body, other.Body) &&
+		r.Method == other.Method &&
+		r.URL == other.URL
 }
 
 // Results is a slice of Result type elements.
@@ -150,8 +154,9 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			base64.StdEncoding.EncodeToString(r.Body),
 			r.Attack,
 			strconv.FormatUint(r.Seq, 10),
+			r.Method,
+			r.URL,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -163,9 +168,9 @@ func NewCSVEncoder(w io.Writer) Encoder {
 }
 
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
-func NewCSVDecoder(rd io.Reader) Decoder {
-	dec := csv.NewReader(rd)
-	dec.FieldsPerRecord = 9
+func NewCSVDecoder(r io.Reader) Decoder {
+	dec := csv.NewReader(r)
+	dec.FieldsPerRecord = 11
 	dec.TrimLeadingSpace = true
 
 	return func(r *Result) error {
@@ -208,16 +213,23 @@ func NewCSVDecoder(rd io.Reader) Decoder {
 			return err
 		}
 
+		r.Method = rec[9]
+		r.URL = rec[10]
+
 		return err
 	}
 }
+
+//go:generate easyjson -no_std_marshalers -output_filename results_easyjson.go results.go
+//easyjson:json
+type jsonResult Result
 
 // NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
 // object.
 func NewJSONEncoder(w io.Writer) Encoder {
 	var jw jwriter.Writer
 	return func(r *Result) error {
-		(*jsonResult)(r).encode(&jw)
+		(*jsonResult)(r).MarshalEasyJSON(&jw)
 		if jw.Error != nil {
 			return jw.Error
 		}
@@ -232,10 +244,10 @@ func NewJSONDecoder(r io.Reader) Decoder {
 	rd := bufio.NewReader(r)
 	return func(r *Result) (err error) {
 		var jl jlexer.Lexer
-		if jl.Data, err = rd.ReadSlice('\n'); err != nil {
+		if jl.Data, err = rd.ReadBytes('\n'); err != nil {
 			return err
 		}
-		(*jsonResult)(r).decode(&jl)
+		(*jsonResult)(r).UnmarshalEasyJSON(&jl)
 		return jl.Error()
 	}
 }
