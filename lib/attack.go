@@ -346,6 +346,9 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &res
 	}
 
+	res.Method = tgt.Method
+	res.URL = tgt.URL
+
 	req, err := tgt.Request()
 	if err != nil {
 		return &res
