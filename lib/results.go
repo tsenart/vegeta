@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
+	"encoding/json"
 	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"time"
@@ -32,6 +34,7 @@ type Result struct {
 	Body      []byte        `json:"body"`
 	Method    string        `json:"method"`
 	URL       string        `json:"url"`
+	Header    http.Header   `json:"header"`
 }
 
 // End returns the time at which a Result ended.
@@ -39,6 +42,14 @@ func (r *Result) End() time.Time { return r.Timestamp.Add(r.Latency) }
 
 // Equal returns true if the given Result is equal to the receiver.
 func (r Result) Equal(other Result) bool {
+	headerIsEqual := true
+	for headerKey := range r.Header {
+		if r.Header.Get(headerKey) != other.Header.Get(headerKey) {
+			headerIsEqual = false
+			break
+		}
+	}
+
 	return r.Attack == other.Attack &&
 		r.Seq == other.Seq &&
 		r.Code == other.Code &&
@@ -49,7 +60,8 @@ func (r Result) Equal(other Result) bool {
 		r.Error == other.Error &&
 		bytes.Equal(r.Body, other.Body) &&
 		r.Method == other.Method &&
-		r.URL == other.URL
+		r.URL == other.URL &&
+		headerIsEqual
 }
 
 // Results is a slice of Result type elements.
@@ -144,7 +156,12 @@ func (enc Encoder) Encode(r *Result) error { return enc(r) }
 func NewCSVEncoder(w io.Writer) Encoder {
 	enc := csv.NewWriter(w)
 	return func(r *Result) error {
-		err := enc.Write([]string{
+		header, err := json.Marshal(r.Header)
+		if err != nil {
+			return err
+		}
+
+		err = enc.Write([]string{
 			strconv.FormatInt(r.Timestamp.UnixNano(), 10),
 			strconv.FormatUint(uint64(r.Code), 10),
 			strconv.FormatInt(r.Latency.Nanoseconds(), 10),
@@ -156,6 +173,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.Seq, 10),
 			r.Method,
 			r.URL,
+			string(header),
 		})
 		if err != nil {
 			return err
@@ -170,7 +188,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
 func NewCSVDecoder(r io.Reader) Decoder {
 	dec := csv.NewReader(r)
-	dec.FieldsPerRecord = 11
+	dec.FieldsPerRecord = 12
 	dec.TrimLeadingSpace = true
 
 	return func(r *Result) error {
@@ -215,6 +233,13 @@ func NewCSVDecoder(r io.Reader) Decoder {
 
 		r.Method = rec[9]
 		r.URL = rec[10]
+
+		var header http.Header
+		if err = json.Unmarshal([]byte(rec[11]), &header); err != nil {
+			return err
+		}
+
+		r.Header = header
 
 		return err
 	}
