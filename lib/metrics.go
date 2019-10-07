@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"math"
 	"strconv"
 	"time"
 
@@ -136,6 +137,8 @@ type LatencyMetrics struct {
 	P99 time.Duration `json:"99th"`
 	// Max is the maximum observed request latency.
 	Max time.Duration `json:"max"`
+	// Min is the minimum observed request latency.
+	Min time.Duration `json:"min"`
 
 	estimator estimator
 }
@@ -145,6 +148,9 @@ func (l *LatencyMetrics) Add(latency time.Duration) {
 	l.init()
 	if l.Total += latency; latency > l.Max {
 		l.Max = latency
+	}
+	if latency < l.Min || l.Min == 0 {
+		l.Min = latency
 	}
 	l.estimator.Add(float64(latency))
 }
@@ -157,6 +163,7 @@ func (l LatencyMetrics) Quantile(nth float64) time.Duration {
 
 func (l *LatencyMetrics) init() {
 	if l.estimator == nil {
+		l.Min = time.Duration(math.MaxInt64)
 		// This compression parameter value is the recommended value
 		// for normal uses as per http://javadox.com/com.tdunning/t-digest/3.0/com/tdunning/math/stats/TDigest.html
 		l.estimator = newTdigestEstimator(100)
