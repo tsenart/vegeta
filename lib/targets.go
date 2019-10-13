@@ -26,7 +26,7 @@ type Target struct {
 	URL        string      `json:"url"`
 	Body       []byte      `json:"body,omitempty"`
 	Header     http.Header `json:"header,omitempty"`
-	Proto      string      `json:"method"`
+	Proto      string      `json:"proto"`
 	RawData    string      `json:"raw_data"`
 	ServerIP   string      `json:"server_ip"`
 	ServerPort string      `json:"server_port"`
