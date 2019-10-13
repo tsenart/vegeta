@@ -346,39 +346,75 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &res
 	}
 
-	res.Method = tgt.Method
-	res.URL = tgt.URL
+	if tgt.Proto == "TCP" {
+		ipPort := fmt.Sprintf("%s:%s", tgt.ServerIP, tgt.ServerPort)
+		conn, err := a.dialer.Dial("tcp", ipPort)
+		if err != nil {
+			fmt.Println("# ERR: could not connect to server: ", err)
+		}
+		defer conn.Close()
 
-	req, err := tgt.Request()
-	if err != nil {
-		return &res
-	}
+		fmt.Fprintf(conn, tgt.RawData)
 
-	r, err := a.client.Do(req)
-	if err != nil {
-		return &res
-	}
-	defer r.Body.Close()
+		buf := make([]byte, 0, 4096)
+		bufTmp := make([]byte, 256)
+		for {
+			n, err := conn.Read(bufTmp)
+			if err != nil {
+				if err != io.EOF {
+					fmt.Println("read error:", err)
+					res.Error = "read err"
+				}
+				break
+			}
+			buf = append(buf, bufTmp[:n]...)
+		}
 
-	body := io.Reader(r.Body)
-	if a.maxBody >= 0 {
-		body = io.LimitReader(r.Body, a.maxBody)
-	}
+		if res.Error == "" {
+			res.Code = 200
+		} else {
+			res.Code = 500
+		}
+		res.BytesIn = uint64(len(tgt.RawData))
+		res.BytesOut = uint64(len(buf))
+		res.Body = buf
 
-	if res.Body, err = ioutil.ReadAll(body); err != nil {
-		return &res
-	} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
-		return &res
-	}
+	} else {
 
-	res.BytesIn = uint64(len(res.Body))
+		res.Method = tgt.Method
+		res.URL = tgt.URL
 
-	if req.ContentLength != -1 {
-		res.BytesOut = uint64(req.ContentLength)
-	}
+		req, err := tgt.Request()
+		if err != nil {
+			return &res
+		}
 
-	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
-		res.Error = r.Status
+		r, err := a.client.Do(req)
+		if err != nil {
+			return &res
+		}
+		defer r.Body.Close()
+
+		body := io.Reader(r.Body)
+		if a.maxBody >= 0 {
+			body = io.LimitReader(r.Body, a.maxBody)
+		}
+
+		if res.Body, err = ioutil.ReadAll(body); err != nil {
+			return &res
+		} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
+			return &res
+		}
+
+		res.BytesIn = uint64(len(res.Body))
+
+		if req.ContentLength != -1 {
+			res.BytesOut = uint64(req.ContentLength)
+		}
+
+		if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
+			res.Error = r.Status
+		}
 	}
 
 	return &res

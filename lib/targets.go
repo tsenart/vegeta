@@ -22,10 +22,14 @@ import (
 //
 //go:generate go run ../internal/cmd/jsonschema/main.go -type=Target -output=target.schema.json
 type Target struct {
-	Method string      `json:"method"`
-	URL    string      `json:"url"`
-	Body   []byte      `json:"body,omitempty"`
-	Header http.Header `json:"header,omitempty"`
+	Method     string      `json:"method"`
+	URL        string      `json:"url"`
+	Body       []byte      `json:"body,omitempty"`
+	Header     http.Header `json:"header,omitempty"`
+	Proto      string      `json:"method"`
+	RawData    string      `json:"raw_data"`
+	ServerIP   string      `json:"server_ip"`
+	ServerPort string      `json:"server_port"`
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -270,7 +274,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			}
 			line = strings.TrimSpace(sc.Text())
 
-			if len(line) != 0 && line[0] != '#'{
+			if len(line) != 0 && line[0] != '#' {
 				break
 			}
 		}
