@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lucas-clemente/quic-go/http3"
 	"golang.org/x/net/http2"
 )
 
@@ -175,8 +176,17 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 // Attacker to use with its requests.
 func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.TLSClientConfig = c
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.TLSClientConfig = c
+			return
+		}
+		if tr, ok := a.client.Transport.(*http3.RoundTripper); ok {
+			tr.TLSClientConfig = c
+			return
+		}
+
+		// panic if the protocol was not matched to be updated.
+		panic("valid transport not found")
 	}
 }
 
@@ -192,15 +202,23 @@ func HTTP2(enabled bool) func(*Attacker) {
 	}
 }
 
+func HTTP3(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if enabled {
+			a.client.Transport = &http3.RoundTripper{}
+		}
+	}
+}
+
 // H2C returns a functional option which enables H2C support on requests
 // performed by an Attacker
 func H2C(enabled bool) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr := a.client.Transport.(*http.Transport); enabled {
+		if tr, ok := a.client.Transport.(*http.Transport); ok && enabled {
 			a.client.Transport = &http2.Transport{
 				AllowHTTP: true,
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return tr.Dial(network, addr)
+					return tr.DialContext(context.TODO(), network, addr)
 				},
 			}
 		}
