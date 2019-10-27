@@ -19,7 +19,11 @@ jobs:
     - name: Test
       run: go test -race -v ./...
     - name: Fuzz regression
+      env:
+        FUZZIT_API_KEY: ${{ secrets.FUZZIT_API_KEY }}
       run: ./fuzzit.sh local-regression
     - name: Fuzz
       if: github.event_name == 'push' && github.ref == 'master'
+      env:
+        FUZZIT_API_KEY: ${{ secrets.FUZZIT_API_KEY }}
       run: ./fuzzit.sh fuzzing
