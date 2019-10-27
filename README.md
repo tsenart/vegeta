@@ -62,6 +62,8 @@ attack command:
     	Requests body file
   -cert string
     	TLS client PEM encoded certificate file
+  -chunked
+    	Send body with chunked transfer encoding
   -connections int
     	Max open idle connections per target host (default 10000)
   -duration duration
@@ -167,6 +169,10 @@ request unless overridden per attack target, see `-targets`.
 
 Specifies the PEM encoded TLS client certificate file to be used with HTTPS requests.
 If `-key` isn't specified, it will be set to the value of this flag.
+
+#### `-chunked`
+
+Specifies whether to send request bodies with the chunked transfer encoding.
 
 #### `-connections`
 

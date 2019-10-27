@@ -270,7 +270,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			}
 			line = strings.TrimSpace(sc.Text())
 
-			if len(line) != 0 && line[0] != '#'{
+			if len(line) != 0 && line[0] != '#' {
 				break
 			}
 		}

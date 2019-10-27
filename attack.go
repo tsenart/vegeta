@@ -34,6 +34,7 @@ func attackCmd() command {
 		fmt.Sprintf("Targets format [%s]", strings.Join(vegeta.TargetFormats, ", ")))
 	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
 	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
+	fs.BoolVar(&opts.chunked, "chunked", false, "Send body with chunked transfer encoding")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
 	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
@@ -81,6 +82,7 @@ type attackOpts struct {
 	h2c          bool
 	insecure     bool
 	lazy         bool
+	chunked      bool
 	duration     time.Duration
 	timeout      time.Duration
 	rate         vegeta.Rate
@@ -182,6 +184,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.MaxBody(opts.maxBody),
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
+		vegeta.ChunkedBody(opts.chunked),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
