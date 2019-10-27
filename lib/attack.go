@@ -28,6 +28,7 @@ type Attacker struct {
 	seqmu      sync.Mutex
 	seq        uint64
 	began      time.Time
+	chunked    bool
 }
 
 const (
@@ -111,6 +112,12 @@ func Connections(n int) func(*Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		tr.MaxIdleConnsPerHost = n
 	}
+}
+
+// ChunkedBody returns a functional option which makes the attacker send the
+// body of each request with the chunked transfer encoding.
+func ChunkedBody(b bool) func(*Attacker) {
+	return func(a *Attacker) { a.chunked = b }
 }
 
 // Redirects returns a functional option which sets the maximum
@@ -352,6 +359,10 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	req, err := tgt.Request()
 	if err != nil {
 		return &res
+	}
+
+	if a.chunked {
+		req.TransferEncoding = append(req.TransferEncoding, "chunked")
 	}
 
 	r, err := a.client.Do(req)
