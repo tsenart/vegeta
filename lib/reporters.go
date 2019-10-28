@@ -68,7 +68,7 @@ func NewTextReporter(m *Metrics) Reporter {
 		if _, err = fmt.Fprintf(tw, fmtstr,
 			m.Requests, m.Rate, m.Throughput,
 			m.Duration+m.Wait, m.Duration, m.Wait,
-			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
+			m.Latencies.Mean, m.Latencies.P50, m.Latencies.P90, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
 			m.BytesIn.Total, m.BytesIn.Mean,
 			m.BytesOut.Total, m.BytesOut.Mean,
 			m.Success*100,
