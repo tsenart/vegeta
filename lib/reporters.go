@@ -57,7 +57,7 @@ func NewHistogramReporter(h *Histogram) Reporter {
 func NewTextReporter(m *Metrics) Reporter {
 	const fmtstr = "Requests\t[total, rate, throughput]\t%d, %.2f, %.2f\n" +
 		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
-		"Latencies\t[mean, 50, 95, 99, max]\t%s, %s, %s, %s, %s\n" +
+		"Latencies\t[mean, 50, 90, 95, 99, max]\t%s, %s, %s, %s, %s, %s\n" +
 		"Bytes In\t[total, mean]\t%d, %.2f\n" +
 		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
 		"Success\t[ratio]\t%.2f%%\n" +
