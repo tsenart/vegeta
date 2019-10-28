@@ -300,6 +300,8 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		for sc.Scan() {
 			if line = strings.TrimSpace(sc.Text()); line == "" {
 				break
+			} else if strings.HasPrefix(line, "#") {
+				continue
 			} else if strings.HasPrefix(line, "@") {
 				if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
 					return fmt.Errorf("bad body: %s", err)

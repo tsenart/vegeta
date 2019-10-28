@@ -250,13 +250,15 @@ X-Account-ID: 99
 @/path/to/newthing.json
 ```
 
-###### Add comments to the targets
+###### Add comments
 
 Lines starting with `#` are ignored.
 
 ```
 # get a dragon ball
 GET http://goku:9090/path/to/dragon?item=ball
+# specify a test accout
+X-Account-ID: 99
 ```
 
 #### `-h2c`
