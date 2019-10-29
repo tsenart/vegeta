@@ -435,7 +435,7 @@ The `Duration` row shows:
 Latency is the amount of time taken for a response to a request to be read (including the `-max-body` bytes from the response body).
 
 - `mean` is the [arithmetic mean / average](https://en.wikipedia.org/wiki/Arithmetic_mean) of the latencies of all requests in an attack.
-- `50`, `95`, `99` are the 50th, 95th an 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
+- `50`, `90`, `95`, `99` are the 50th, 90th, 95th and 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
 - `max` is the maximum latency of all requests in an attack.
 
 The `Bytes In` and `Bytes Out` rows shows:
@@ -459,6 +459,7 @@ All duration like fields are in nanoseconds.
     "total": 237119463,
     "mean": 2371194,
     "50th": 2854306,
+    "90th": 3228223,
     "95th": 3478629,
     "99th": 3530000,
     "max": 3660505
