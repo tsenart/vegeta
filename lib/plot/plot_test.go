@@ -60,7 +60,7 @@ func TestPlot(t *testing.T) {
 	}
 
 	if !bytes.Equal(b.Bytes(), g) {
-		t.Log(string(b.Bytes()))
+		t.Log(b.String())
 		t.Errorf("bytes do not match %q", gp)
 	}
 }

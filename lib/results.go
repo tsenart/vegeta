@@ -206,7 +206,9 @@ func NewCSVDecoder(r io.Reader) Decoder {
 		}
 
 		r.Error = rec[5]
-		r.Body, err = base64.StdEncoding.DecodeString(rec[6])
+		if r.Body, err = base64.StdEncoding.DecodeString(rec[6]); err != nil {
+			return err
+		}
 
 		r.Attack = rec[7]
 		if r.Seq, err = strconv.ParseUint(rec[8], 10, 64); err != nil {

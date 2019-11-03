@@ -329,7 +329,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	}
 }
 
-var httpMethodChecker = regexp.MustCompile("^[A-Z]+\\s")
+var httpMethodChecker = regexp.MustCompile(`^[A-Z]+\s`)
 
 // A line starts with an http method when the first word is uppercase ascii
 // followed by a space.
