@@ -398,7 +398,7 @@ Examples:
 ```console
 Requests      [total, rate, throughput] 1200, 120.00, 65.87
 Duration      [total, attack, wait]     10.094965987s, 9.949883921s, 145.082066ms
-Latencies     [mean, 50, 95, 99, max]   113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
+Latencies     [min, mean, 50, 95, 99, max]  90.438129ms, 113.172398ms, 108.272568ms, 140.18235ms, 247.771566ms, 264.815246ms
 Bytes In      [total, mean]             3714690, 3095.57
 Bytes Out     [total, mean]             0, 0.00
 Success       [ratio]                   55.42%
@@ -426,6 +426,7 @@ The `Duration` row shows:
 
 Latency is the amount of time taken for a response to a request to be read (including the `-max-body` bytes from the response body).
 
+- `min` is the minimum latency of all requests in an attack.
 - `mean` is the [arithmetic mean / average](https://en.wikipedia.org/wiki/Arithmetic_mean) of the latencies of all requests in an attack.
 - `50`, `95`, `99` are the 50th, 95th an 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
 - `max` is the maximum latency of all requests in an attack.
@@ -453,7 +454,8 @@ All duration like fields are in nanoseconds.
     "50th": 2854306,
     "95th": 3478629,
     "99th": 3530000,
-    "max": 3660505
+    "max": 3660505,
+    "min": 1949582
   },
   "buckets": {"0":9952,"1000000":40,"2000000":6,"3000000":0,"4000000":0,"5000000":2},
   "bytes_in": {
