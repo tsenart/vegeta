@@ -17,6 +17,6 @@ jobs:
         - go test -v ./...
     - stage: Fuzz regression
       script: ./fuzzit.sh local-regression
-    - stage: Fuzz
-      if: branch = master AND type IN (push)
-      script: ./fuzzit.sh fuzzing
+      # - stage: Fuzz
+      #   if: branch = master AND type IN (push)
+      #   script: ./fuzzit.sh fuzzing
