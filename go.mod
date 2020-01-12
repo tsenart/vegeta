@@ -21,11 +21,7 @@ require (
 	github.com/influxdata/tdigest v0.0.0-20180711151920-a7d76c6f093a
 	github.com/mailru/easyjson v0.7.0
 	github.com/miekg/dns v1.1.17
-	github.com/pquerna/ffjson v0.0.0-20190930134022-aa0246cd15f7 // indirect
-	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
-	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/tsenart/go-tsz v0.0.0-20180814232043-cdeb9e1e981e
-	github.com/ugorji/go v1.1.7 // indirect
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
 )
