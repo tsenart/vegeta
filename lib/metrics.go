@@ -88,11 +88,11 @@ func (m *Metrics) Add(r *Result) {
 // Close implements the Close method of the Report interface by computing
 // derived summary metrics which don't need to be run on every Add call.
 func (m *Metrics) Close() {
+	m.init()
+
 	if m.Requests == 0 {
 		return
 	}
-
-	m.init()
 
 	m.Rate = float64(m.Requests)
 	m.Throughput = float64(m.success)
