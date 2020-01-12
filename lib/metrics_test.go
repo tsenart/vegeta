@@ -48,6 +48,7 @@ func TestMetrics_Add(t *testing.T) {
 			P95:       duration("9.5005ms"),
 			P99:       duration("9.9005ms"),
 			Max:       duration("10ms"),
+			Min:       duration("1us"),
 			estimator: got.Latencies.estimator,
 		},
 		BytesIn:     ByteMetrics{Total: 10240000, Mean: 1024},

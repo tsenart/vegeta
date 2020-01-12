@@ -144,6 +144,8 @@ type LatencyMetrics struct {
 	P99 time.Duration `json:"99th"`
 	// Max is the maximum observed request latency.
 	Max time.Duration `json:"max"`
+	// Min is the minimum observed request latency.
+	Min time.Duration `json:"min"`
 
 	estimator estimator
 }
@@ -153,6 +155,9 @@ func (l *LatencyMetrics) Add(latency time.Duration) {
 	l.init()
 	if l.Total += latency; latency > l.Max {
 		l.Max = latency
+	}
+	if latency < l.Min || l.Min == 0 {
+		l.Min = latency
 	}
 	l.estimator.Add(float64(latency))
 }
