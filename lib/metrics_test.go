@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"io/ioutil"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -43,6 +44,7 @@ func TestMetrics_Add(t *testing.T) {
 			Total:     duration("50.005s"),
 			Mean:      duration("5.0005ms"),
 			P50:       duration("5.0005ms"),
+			P90:       duration("9.0005ms"),
 			P95:       duration("9.5005ms"),
 			P99:       duration("9.9005ms"),
 			Max:       duration("10ms"),
@@ -98,6 +100,18 @@ func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
 	}
 }
 
+// https://github.com/tsenart/vegeta/issues/461
+func TestMetrics_EmptyMetricsCanBeReported(t *testing.T) {
+	t.Parallel()
+
+	var m Metrics
+	m.Close()
+
+	reporter := NewJSONReporter(&m)
+	if err := reporter(ioutil.Discard); err != nil {
+		t.Error(err)
+	}
+}
 func BenchmarkMetrics(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
@@ -115,11 +129,13 @@ func BenchmarkMetrics(b *testing.B) {
 	}{
 		{"streadway/quantile", streadway.New(
 			streadway.Known(0.50, 0.01),
+			streadway.Known(0.90, 0.005),
 			streadway.Known(0.95, 0.001),
 			streadway.Known(0.99, 0.0005),
 		)},
 		{"bmizerany/perks/quantile", newBmizeranyEstimator(
 			0.50,
+			0.90,
 			0.95,
 			0.99,
 		)},

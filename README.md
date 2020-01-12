@@ -62,6 +62,8 @@ attack command:
     	Requests body file
   -cert string
     	TLS client PEM encoded certificate file
+  -chunked
+    	Send body with chunked transfer encoding
   -connections int
     	Max open idle connections per target host (default 10000)
   -duration duration
@@ -168,6 +170,10 @@ request unless overridden per attack target, see `-targets`.
 Specifies the PEM encoded TLS client certificate file to be used with HTTPS requests.
 If `-key` isn't specified, it will be set to the value of this flag.
 
+#### `-chunked`
+
+Specifies whether to send request bodies with the chunked transfer encoding.
+
 #### `-connections`
 
 Specifies the maximum number of idle open connections per target host.
@@ -244,13 +250,15 @@ X-Account-ID: 99
 @/path/to/newthing.json
 ```
 
-###### Add comments to the targets
+###### Add comments
 
 Lines starting with `#` are ignored.
 
 ```
 # get a dragon ball
 GET http://goku:9090/path/to/dragon?item=ball
+# specify a test accout
+X-Account-ID: 99
 ```
 
 #### `-h2c`
@@ -428,7 +436,7 @@ Latency is the amount of time taken for a response to a request to be read (incl
 
 - `min` is the minimum latency of all requests in an attack.
 - `mean` is the [arithmetic mean / average](https://en.wikipedia.org/wiki/Arithmetic_mean) of the latencies of all requests in an attack.
-- `50`, `95`, `99` are the 50th, 95th an 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
+- `50`, `90`, `95`, `99` are the 50th, 90th, 95th and 99th [percentiles](https://en.wikipedia.org/wiki/Percentile), respectively, of the latencies of all requests in an attack. To understand more about why these are useful, I recommend [this article](https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/) from @tylertreat.
 - `max` is the maximum latency of all requests in an attack.
 
 The `Bytes In` and `Bytes Out` rows shows:
@@ -452,6 +460,7 @@ All duration like fields are in nanoseconds.
     "total": 237119463,
     "mean": 2371194,
     "50th": 2854306,
+    "90th": 3228223,
     "95th": 3478629,
     "99th": 3530000,
     "max": 3660505,
@@ -720,7 +729,7 @@ vegeta report *.bin
 
 ## Usage: Real-time Analysis
 
-If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://github.com/rs/jplot) using [jaggr](https://github.com/rs/jaggr) to plot a vegeta report in real-time in the comfort of you terminal:
+If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://github.com/rs/jplot) using [jaggr](https://github.com/rs/jaggr) to plot a vegeta report in real-time in the comfort of your terminal:
 
 ```
 echo 'GET http://localhost:8080' | \

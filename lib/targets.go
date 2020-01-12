@@ -270,7 +270,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			}
 			line = strings.TrimSpace(sc.Text())
 
-			if len(line) != 0 && line[0] != '#'{
+			if len(line) != 0 && line[0] != '#' {
 				break
 			}
 		}
@@ -300,6 +300,8 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		for sc.Scan() {
 			if line = strings.TrimSpace(sc.Text()); line == "" {
 				break
+			} else if strings.HasPrefix(line, "#") {
+				continue
 			} else if strings.HasPrefix(line, "@") {
 				if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
 					return fmt.Errorf("bad body: %s", err)
@@ -327,7 +329,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	}
 }
 
-var httpMethodChecker = regexp.MustCompile("^[A-Z]+\\s")
+var httpMethodChecker = regexp.MustCompile(`^[A-Z]+\s`)
 
 // A line starts with an http method when the first word is uppercase ascii
 // followed by a space.

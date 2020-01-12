@@ -10,11 +10,13 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"sync/atomic"
 	"time"
 )
 
 func main() {
+	dump := flag.Bool("dump", false, "Dump HTTP requests to stdout")
 	sleep := flag.Duration("sleep", 0, "Time to sleep per request")
 	work := flag.Int("work", 0, "Artificial work load iteration count")
 
@@ -42,7 +44,13 @@ func main() {
 		}
 
 		bs, _ := httputil.DumpRequest(r, true)
-		w.Write(bs)
+
+		out := io.Writer(w)
+		if *dump {
+			out = io.MultiWriter(w, os.Stdout)
+		}
+
+		_, _ = out.Write(bs)
 	}))
 }
 
