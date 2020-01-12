@@ -10,10 +10,11 @@ clean-vegeta:
 	rm vegeta
 
 generate: vendor
+	go get -u github.com/mailru/easyjson/...
 	go generate ./...
 
 vendor:
-	dep ensure -v
+	go mod vendor
 
 clean-vendor:
 	rm -rf vendor
