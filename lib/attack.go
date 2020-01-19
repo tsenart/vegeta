@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"strconv"
+
 	"golang.org/x/net/http2"
 )
 
@@ -331,7 +333,7 @@ func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, tic
 func (a *Attacker) hit(tr Targeter, name string) *Result {
 	var (
 		res = Result{Attack: name}
-		tgt Target
+		tgt = Target{Header: make(http.Header)}
 		err error
 	)
 
@@ -347,6 +349,8 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 			res.Error = err.Error()
 		}
 	}()
+
+	tgt.Header.Set("X-Vegeta-Seq", strconv.FormatUint(res.Seq, 10))
 
 	if err = tr(&tgt); err != nil {
 		a.Stop()
