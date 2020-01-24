@@ -135,7 +135,7 @@ report command:
   -output string
     	Output file (default "stdout")
   -type string
-    	Report type to generate [text, json, hist[buckets], hdrplot] (default "text")
+    	Report type to generate [text, json, bench, hist[buckets], hdrplot] (default "text")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -384,7 +384,7 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --type    Which report type to generate (text | json | hist[buckets] | hdrplot).
+  --type    Which report type to generate (text | json | bench | hist[buckets] | hdrplot).
             [default: text]
 
   --buckets Histogram buckets, e.g.: '[0,1ms,10ms]'
@@ -497,6 +497,26 @@ Upper bounds are non-inclusive.
 The highest bucket is the overflow bucket; it has no upper bound.
 The values are counts of how many requests fell into that particular bucket.
 If the `-buckets` parameter is not present, the `buckets` field is omitted.
+
+#### `report -type=bench`
+
+Prints the stats in the Golang benchmark output format.
+
+```console
+cat results.bin | vegeta report -type=bench
+BenchmarkLatencyMin    20  282180062 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatencyMean   20  308899516 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatency50     20  305960939 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatency90     20  338107426 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatency95     20  343791374 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatency99     20  347099896 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkLatencyMax    20  347099896 ns/op  5907059.00 B-in/op  0.00 B-out/op
+BenchmarkSuccessRatio  20  100.00 pct
+PASS
+
+ok  vegeta  19.287882003s
+```
+
 
 #### `report -type=hist`
 
