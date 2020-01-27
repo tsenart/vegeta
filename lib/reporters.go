@@ -105,33 +105,38 @@ func NewTextReporter(m *Metrics) Reporter {
 }
 
 // NewBenchReporter returns a Reporter that writes out Metrics in the golang benchmark format
-func NewBenchReporter(m *Metrics) Reporter {
-	const fmtstr = "BenchmarkLatencyMin\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatencyMean\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatency50\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatency90\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatency95\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatency99\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkLatencyMax\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
-		"BenchmarkSuccessRatio\t%d\t%.2f pct\n"
+// name is a name to differentiate benchmarks (optional)
+func NewBenchReporter(m *Metrics, name string) Reporter {
+	const fmtstr = "Benchmark%sLatencyMin\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatencyMean\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency50\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency90\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency95\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency99\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatencyMax\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sSuccessRatio\t%d\t%.2f pct\n"
 
 	return func(w io.Writer) (err error) {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
 		if _, err = fmt.Fprintf(tw, fmtstr,
-			m.Requests, m.Latencies.Min.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.Mean.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.P50.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.P90.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.P95.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.P99.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Latencies.Max.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
-			m.Requests, m.Success*100,
+			name, m.Requests, m.Latencies.Min.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.Mean.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P50.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P90.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P95.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P99.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.Max.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Success*100,
 		); err != nil {
 			return err
 		}
 
+		if name == "" {
+			name = "default"
+		}
+
 		if len(m.Errors) == 0 {
-			if _, err = fmt.Fprintf(tw, "PASS\n\nok\tvegeta\t%s\n", m.Duration+m.Wait); err != nil {
+			if _, err = fmt.Fprintf(tw, "PASS\n\nok\tvegeta/%s\t%s\n", strings.ToLower(name), m.Duration+m.Wait); err != nil {
 				return err
 			}
 		} else {
@@ -160,7 +165,7 @@ func NewBenchReporter(m *Metrics) Reporter {
 					return err
 				}
 			}
-			if _, err = fmt.Fprintf(tw, "FAIL\tvegeta\t%s\n", m.Duration+m.Wait); err != nil {
+			if _, err = fmt.Fprintf(tw, "FAIL\tvegeta/%s\t%s\n", strings.ToLower(name), m.Duration+m.Wait); err != nil {
 				return err
 			}
 		}

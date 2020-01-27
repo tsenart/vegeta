@@ -135,7 +135,7 @@ report command:
   -output string
     	Output file (default "stdout")
   -type string
-    	Report type to generate [text, json, bench, hist[buckets], hdrplot] (default "text")
+    	Report type to generate [text, json, bench<name>, hist[buckets], hdrplot] (default "text")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
@@ -384,7 +384,7 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --type    Which report type to generate (text | json | bench | hist[buckets] | hdrplot).
+  --type    Which report type to generate (text | json | bench<name> | hist[buckets] | hdrplot).
             [default: text]
 
   --buckets Histogram buckets, e.g.: '[0,1ms,10ms]'
@@ -514,7 +514,28 @@ BenchmarkLatencyMax    20  347099896 ns/op  5907059.00 B-in/op  0.00 B-out/op
 BenchmarkSuccessRatio  20  100.00 pct
 PASS
 
-ok  vegeta  19.287882003s
+ok  vegeta/default  19.287882003s
+```
+
+Here is an example using a custom name, where requests have failed.
+
+```console
+cat results.bin | vegeta report -type=benchOtherWorkload
+BenchmarkOtherWorkloadLatencyMin    20  978908 ns/op   19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatencyMean   20  1373258 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatency50     20  1332893 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatency90     20  1622428 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatency95     20  2256465 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatency99     20  2866936 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadLatencyMax    20  2866936 ns/op  19.00 B-in/op  0.00 B-out/op
+BenchmarkOtherWorkloadSuccessRatio  20  0.00 pct
+FAIL
+Error codes:
+404:20  
+FAIL
+Errors seen:
+404 Not Found
+FAIL  vegeta/otherworkload  19.001229827s
 ```
 
 

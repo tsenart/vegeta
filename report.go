@@ -21,7 +21,7 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --type    Which report type to generate (text | json | bench | hist[buckets] | hdrplot).
+  --type    Which report type to generate (text | json | bench<name> | hist[buckets] | hdrplot).
             [default: text]
 
   --every   Write the report to --output at every given interval (e.g 100ms)
@@ -38,7 +38,7 @@ Examples:
 
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	typ := fs.String("type", "text", "Report type to generate [text, json, bench, hist[buckets], hdrplot]")
+	typ := fs.String("type", "text", "Report type to generate [text, json, bench<name>, hist[buckets], hdrplot]")
 	every := fs.Duration("every", 0, "Report interval")
 	output := fs.String("output", "stdout", "Output file")
 	buckets := fs.String("buckets", "", "Histogram buckets, e.g.: \"[0,1ms,10ms]\"")
@@ -94,14 +94,15 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 			}
 		}
 		rep, report = vegeta.NewJSONReporter(&m), &m
-	case "bench":
-		var m vegeta.Metrics
-		rep, report = vegeta.NewBenchReporter(&m), &m
 	case "hdrplot":
 		var m vegeta.Metrics
 		rep, report = vegeta.NewHDRHistogramPlotReporter(&m), &m
 	default:
 		switch {
+		case strings.HasPrefix(typ, "bench"):
+			name := typ[5:]
+			var m vegeta.Metrics
+			rep, report = vegeta.NewBenchReporter(&m, name), &m
 		case strings.HasPrefix(typ, "hist"):
 			var hist vegeta.Histogram
 			if bucketsStr == "" { // Old way
