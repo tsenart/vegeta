@@ -32,6 +32,7 @@ type Result struct {
 	Body      []byte        `json:"body"`
 	Method    string        `json:"method"`
 	URL       string        `json:"url"`
+	Headers   string        `json:"headers"`
 }
 
 // End returns the time at which a Result ended.
@@ -49,7 +50,8 @@ func (r Result) Equal(other Result) bool {
 		r.Error == other.Error &&
 		bytes.Equal(r.Body, other.Body) &&
 		r.Method == other.Method &&
-		r.URL == other.URL
+		r.URL == other.URL &&
+		r.Headers == other.Headers
 }
 
 // Results is a slice of Result type elements.
@@ -156,6 +158,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.Seq, 10),
 			r.Method,
 			r.URL,
+			base64.StdEncoding.EncodeToString([]byte(r.Headers)),
 		})
 		if err != nil {
 			return err
@@ -170,7 +173,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
 func NewCSVDecoder(r io.Reader) Decoder {
 	dec := csv.NewReader(r)
-	dec.FieldsPerRecord = 11
+	dec.FieldsPerRecord = 12
 	dec.TrimLeadingSpace = true
 
 	return func(r *Result) error {
@@ -217,6 +220,13 @@ func NewCSVDecoder(r io.Reader) Decoder {
 
 		r.Method = rec[9]
 		r.URL = rec[10]
+		if len(rec) > 11 {
+			var hdr []byte
+			if hdr, err = base64.StdEncoding.DecodeString(rec[11]); err != nil {
+				return err
+			}
+			r.Headers = string(hdr)
+		}
 
 		return err
 	}

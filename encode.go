@@ -26,15 +26,18 @@ automatically.
 
 The CSV encoder doesn't write a header. The columns written by it are:
 
-  1. Unix timestamp in nanoseconds since epoch
-  2. HTTP status code
-  3. Request latency in nanoseconds
-  4. Bytes out
-  5. Bytes in
-  6. Error
-  7. Base64 encoded response body
-  8. Attack name
-  9. Sequence number of request
+   1. Unix timestamp in nanoseconds since epoch
+   2. HTTP status code
+   3. Request latency in nanoseconds
+   4. Bytes out
+   5. Bytes in
+   6. Error
+   7. Base64 encoded response body
+   8. Attack name
+   9. Sequence number of request
+  10. Method
+  11. URL
+  12. Base64 encoded response headers
 
 Arguments:
   <file>  A file with vegeta attack results encoded with one of

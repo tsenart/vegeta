@@ -4,10 +4,11 @@ package vegeta
 
 import (
 	json "encoding/json"
+	time "time"
+
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
-	time "time"
 )
 
 // suppress unused package warning
@@ -134,6 +135,11 @@ func easyjsonBd1621b8EncodeGithubComTsenartVegetaLib(out *jwriter.Writer, in jso
 		const prefix string = ",\"url\":"
 		out.RawString(prefix)
 		out.String(string(in.URL))
+	}
+	{
+		const prefix string = ",\"headers\":"
+		out.RawString(prefix)
+		out.String(string(in.Headers))
 	}
 	out.RawByte('}')
 }
