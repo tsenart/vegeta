@@ -41,6 +41,9 @@ const (
 	// DefaultConnections is the default amount of max open idle connections per
 	// target host.
 	DefaultConnections = 10000
+	// DefaultMaxConnections is the default amount of connections per target
+	// host.
+	DefaultMaxConnections = 0
 	// DefaultWorkers is the default initial number of workers used to carry an attack.
 	DefaultWorkers = 10
 	// DefaultMaxWorkers is the default maximum number of workers used to carry an attack.
@@ -82,6 +85,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			Dial:                a.dialer.Dial,
 			TLSClientConfig:     DefaultTLSConfig,
 			MaxIdleConnsPerHost: DefaultConnections,
+			MaxConnsPerHost:     DefaultMaxConnections,
 		},
 	}
 
@@ -111,6 +115,15 @@ func Connections(n int) func(*Attacker) {
 	return func(a *Attacker) {
 		tr := a.client.Transport.(*http.Transport)
 		tr.MaxIdleConnsPerHost = n
+	}
+}
+
+// MaxConnections returns a functional option which sets the number of maximum
+// connections per target host.
+func MaxConnections(n int) func(*Attacker) {
+	return func(a *Attacker) {
+		tr := a.client.Transport.(*http.Transport)
+		tr.MaxConnsPerHost = n
 	}
 }
 

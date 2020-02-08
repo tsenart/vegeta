@@ -47,6 +47,7 @@ func attackCmd() command {
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
 	fs.Uint64Var(&opts.maxWorkers, "max-workers", vegeta.DefaultMaxWorkers, "Maximum number of workers")
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
+	fs.IntVar(&opts.maxConnections, "max-connections", vegeta.DefaultMaxConnections, "Max connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
@@ -70,33 +71,34 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	name         string
-	targetsf     string
-	format       string
-	outputf      string
-	bodyf        string
-	certf        string
-	keyf         string
-	rootCerts    csl
-	http2        bool
-	h2c          bool
-	insecure     bool
-	lazy         bool
-	chunked      bool
-	duration     time.Duration
-	timeout      time.Duration
-	rate         vegeta.Rate
-	workers      uint64
-	maxWorkers   uint64
-	connections  int
-	redirects    int
-	maxBody      int64
-	headers      headers
-	proxyHeaders headers
-	laddr        localAddr
-	keepalive    bool
-	resolvers    csl
-	unixSocket   string
+	name           string
+	targetsf       string
+	format         string
+	outputf        string
+	bodyf          string
+	certf          string
+	keyf           string
+	rootCerts      csl
+	http2          bool
+	h2c            bool
+	insecure       bool
+	lazy           bool
+	chunked        bool
+	duration       time.Duration
+	timeout        time.Duration
+	rate           vegeta.Rate
+	workers        uint64
+	maxWorkers     uint64
+	connections    int
+	maxConnections int
+	redirects      int
+	maxBody        int64
+	headers        headers
+	proxyHeaders   headers
+	laddr          localAddr
+	keepalive      bool
+	resolvers      csl
+	unixSocket     string
 }
 
 // attack validates the attack arguments, sets up the
@@ -179,6 +181,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.MaxWorkers(opts.maxWorkers),
 		vegeta.KeepAlive(opts.keepalive),
 		vegeta.Connections(opts.connections),
+		vegeta.MaxConnections(opts.maxConnections),
 		vegeta.HTTP2(opts.http2),
 		vegeta.H2C(opts.h2c),
 		vegeta.MaxBody(opts.maxBody),
