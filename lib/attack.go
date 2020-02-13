@@ -1,7 +1,6 @@
 package vegeta
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -393,9 +392,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		res.Error = r.Status
 	}
 
-	var hdr bytes.Buffer
-	r.Header.Write(&hdr)
-	res.Headers = hdr.String()
+	res.Headers = r.Header
 
 	return &res
 }

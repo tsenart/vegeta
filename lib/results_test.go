@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"math/rand"
+	"net/http"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -76,6 +77,7 @@ func TestResultEncoding(t *testing.T) {
 					BytesOut:  bsOut,
 					Error:     e,
 					Body:      body,
+					Headers:   http.Header{"Foo": []string{"bar"}},
 				}
 
 				var buf bytes.Buffer
@@ -87,6 +89,9 @@ func TestResultEncoding(t *testing.T) {
 				}
 
 				dec := tc.dec(&buf)
+				if dec == nil {
+					t.Fatal("Cannot get decoder")
+				}
 				for j := 0; j < 2; j++ {
 					var got Result
 					if err := dec(&got); err != nil {
