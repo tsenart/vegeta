@@ -345,7 +345,7 @@ func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, tic
 func (a *Attacker) hit(tr Targeter, name string) *Result {
 	var (
 		res = Result{Attack: name}
-		tgt = Target{Header: make(http.Header)}
+		tgt Target
 		err error
 	)
 
@@ -362,8 +362,6 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		}
 	}()
 
-	tgt.Header.Set("X-Vegeta-Seq", strconv.FormatUint(res.Seq, 10))
-
 	if err = tr(&tgt); err != nil {
 		a.Stop()
 		return &res
@@ -376,6 +374,12 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	if err != nil {
 		return &res
 	}
+
+	if name != "" {
+		req.Header.Set("X-Vegeta-Attack", name)
+	}
+
+	req.Header.Set("X-Vegeta-Seq", strconv.FormatUint(res.Seq, 10))
 
 	if a.chunked {
 		req.TransferEncoding = append(req.TransferEncoding, "chunked")

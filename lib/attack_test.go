@@ -3,6 +3,7 @@ package vegeta
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -360,20 +361,35 @@ func TestClient(t *testing.T) {
 	}
 }
 
-func TestSeqHeader(t *testing.T) {
+func TestVegetaHeaders(t *testing.T) {
 	t.Parallel()
 
-	var got http.Header
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(r.Header)
+		}),
+	)
 
+	defer server.Close()
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 	atk := NewAttacker()
-	for i := 0; i < 5; i++ {
-		res := atk.hit(func(trt *Target) error {
-			got = trt.Header
-			return nil
-		}, "")
 
-		if got.Get("X-Vegeta-Seq") != strconv.FormatUint(res.Seq, 10) {
-			t.Fatalf("got: %v, want: %v", got.Get("X-Vegeta-Seq"), res.Seq)
+	for seq := 0; seq < 5; seq++ {
+		attack := "big-bang"
+		res := atk.hit(tr, attack)
+
+		var hdr http.Header
+		if err := json.Unmarshal(res.Body, &hdr); err != nil {
+			t.Fatal(err)
+		}
+
+		if have, want := hdr.Get("X-Vegeta-Attack"), attack; have != want {
+			t.Errorf("X-Vegeta-Attack: have %q, want %q", have, want)
+		}
+
+		if have, want := hdr.Get("X-Vegeta-Seq"), strconv.Itoa(seq); have != want {
+			t.Errorf("X-Vegeta-Seq: have %q, want %q", have, want)
 		}
 	}
 }
