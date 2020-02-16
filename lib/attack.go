@@ -10,10 +10,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
-
-	"strconv"
 
 	"golang.org/x/net/http2"
 )
