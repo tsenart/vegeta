@@ -7,8 +7,11 @@ import (
 	"encoding/csv"
 	"encoding/gob"
 	"io"
+	"net/http"
+	"net/textproto"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mailru/easyjson/jlexer"
@@ -32,6 +35,7 @@ type Result struct {
 	Body      []byte        `json:"body"`
 	Method    string        `json:"method"`
 	URL       string        `json:"url"`
+	Headers   http.Header   `json:"headers"`
 }
 
 // End returns the time at which a Result ended.
@@ -49,7 +53,30 @@ func (r Result) Equal(other Result) bool {
 		r.Error == other.Error &&
 		bytes.Equal(r.Body, other.Body) &&
 		r.Method == other.Method &&
-		r.URL == other.URL
+		r.URL == other.URL &&
+		headerEqual(r.Headers, other.Headers)
+}
+
+func headerEqual(h1, h2 http.Header) bool {
+	if len(h1) != len(h2) {
+		return false
+	}
+	if h1 == nil || h2 == nil {
+		return h1 == nil && h2 == nil
+	}
+	for key, values1 := range h1 {
+		values2 := h2[key]
+		if len(values1) != len(values2) {
+			return false
+		}
+		for i := range values1 {
+			if values1[i] != values2[i] {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // Results is a slice of Result type elements.
@@ -156,6 +183,7 @@ func NewCSVEncoder(w io.Writer) Encoder {
 			strconv.FormatUint(r.Seq, 10),
 			r.Method,
 			r.URL,
+			base64.StdEncoding.EncodeToString(headerBytes(r.Headers)),
 		})
 		if err != nil {
 			return err
@@ -167,10 +195,19 @@ func NewCSVEncoder(w io.Writer) Encoder {
 	}
 }
 
+func headerBytes(h http.Header) []byte {
+	if h == nil {
+		return nil
+	}
+	var hdr bytes.Buffer
+	_ = h.Write(&hdr)
+	return append(hdr.Bytes(), '\r', '\n')
+}
+
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
 func NewCSVDecoder(r io.Reader) Decoder {
 	dec := csv.NewReader(r)
-	dec.FieldsPerRecord = 11
+	dec.FieldsPerRecord = 12
 	dec.TrimLeadingSpace = true
 
 	return func(r *Result) error {
@@ -217,6 +254,15 @@ func NewCSVDecoder(r io.Reader) Decoder {
 
 		r.Method = rec[9]
 		r.URL = rec[10]
+		if len(rec) > 11 {
+			pr := textproto.NewReader(bufio.NewReader(
+				base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
+			hdr, err := pr.ReadMIMEHeader()
+			if err != nil {
+				return err
+			}
+			r.Headers = http.Header(hdr)
+		}
 
 		return err
 	}

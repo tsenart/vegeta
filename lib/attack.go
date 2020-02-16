@@ -405,5 +405,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		res.Error = r.Status
 	}
 
+	res.Headers = r.Header
+
 	return &res
 }
