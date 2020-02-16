@@ -254,15 +254,14 @@ func NewCSVDecoder(r io.Reader) Decoder {
 
 		r.Method = rec[9]
 		r.URL = rec[10]
-		if len(rec) > 11 {
-			pr := textproto.NewReader(bufio.NewReader(
-				base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
-			hdr, err := pr.ReadMIMEHeader()
-			if err != nil {
-				return err
-			}
-			r.Headers = http.Header(hdr)
+
+		pr := textproto.NewReader(bufio.NewReader(
+			base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
+		hdr, err := pr.ReadMIMEHeader()
+		if err != nil {
+			return err
 		}
+		r.Headers = http.Header(hdr)
 
 		return err
 	}
