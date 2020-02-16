@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -356,5 +357,23 @@ func TestClient(t *testing.T) {
 	resp := atk.hit(tr, "TEST")
 	if !strings.Contains(resp.Error, "Client.Timeout exceeded while awaiting headers") {
 		t.Errorf("Expected timeout error")
+	}
+}
+
+func TestSeqHeader(t *testing.T) {
+	t.Parallel()
+
+	var got http.Header
+
+	atk := NewAttacker()
+	for i := 0; i < 5; i++ {
+		res := atk.hit(func(trt *Target) error {
+			got = trt.Header
+			return nil
+		}, "")
+
+		if got.Get("X-Vegeta-Seq") != strconv.FormatUint(res.Seq, 10) {
+			t.Fatalf("got: %v, want: %v", got.Get("X-Vegeta-Seq"), res.Seq)
+		}
 	}
 }
