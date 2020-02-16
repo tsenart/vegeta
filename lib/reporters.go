@@ -104,6 +104,75 @@ func NewTextReporter(m *Metrics) Reporter {
 	}
 }
 
+// NewBenchReporter returns a Reporter that writes out Metrics in the golang benchmark format
+// name is a name to differentiate benchmarks (optional)
+func NewBenchReporter(m *Metrics, name string) Reporter {
+	const fmtstr = "Benchmark%sLatencyMin\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatencyMean\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency50\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency90\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency95\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatency99\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sLatencyMax\t%d\t%d ns/op\t%.2f B-in/op\t%.2f B-out/op\n" +
+		"Benchmark%sSuccessRatio\t%d\t%.2f pct\n"
+
+	return func(w io.Writer) (err error) {
+		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+		if _, err = fmt.Fprintf(tw, fmtstr,
+			name, m.Requests, m.Latencies.Min.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.Mean.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P50.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P90.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P95.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.P99.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Latencies.Max.Nanoseconds(), m.BytesIn.Mean, m.BytesOut.Mean,
+			name, m.Requests, m.Success*100,
+		); err != nil {
+			return err
+		}
+
+		if name == "" {
+			name = "default"
+		}
+
+		if len(m.Errors) == 0 {
+			if _, err = fmt.Fprintf(tw, "PASS\n\nok\tvegeta/%s\t%s\n", strings.ToLower(name), m.Duration+m.Wait); err != nil {
+				return err
+			}
+		} else {
+			if _, err = fmt.Fprintln(tw, "FAIL\nError codes:"); err != nil {
+				return err
+			}
+			codes := make([]string, 0, len(m.StatusCodes))
+			for code := range m.StatusCodes {
+				codes = append(codes, code)
+			}
+
+			sort.Strings(codes)
+
+			for _, code := range codes {
+				count := m.StatusCodes[code]
+				if _, err = fmt.Fprintf(tw, "%s:%d  ", code, count); err != nil {
+					return err
+				}
+			}
+			if _, err = fmt.Fprintln(tw, "\nFAIL\nErrors seen:"); err != nil {
+				return err
+			}
+
+			for _, e := range m.Errors {
+				if _, err = fmt.Fprintln(tw, e); err != nil {
+					return err
+				}
+			}
+			if _, err = fmt.Fprintf(tw, "FAIL\tvegeta/%s\t%s\n", strings.ToLower(name), m.Duration+m.Wait); err != nil {
+				return err
+			}
+		}
+		return tw.Flush()
+	}
+}
+
 // NewJSONReporter returns a Reporter that writes out Metrics as JSON.
 func NewJSONReporter(m *Metrics) Reporter {
 	return func(w io.Writer) error {
