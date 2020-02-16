@@ -67,8 +67,16 @@ func NewTextReporter(m *Metrics) Reporter {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
 		if _, err = fmt.Fprintf(tw, fmtstr,
 			m.Requests, m.Rate, m.Throughput,
-			m.Duration+m.Wait, m.Duration, m.Wait,
-			m.Latencies.Min, m.Latencies.Mean, m.Latencies.P50, m.Latencies.P90, m.Latencies.P95, m.Latencies.P99, m.Latencies.Max,
+			round(m.Duration+m.Wait),
+			round(m.Duration),
+			round(m.Wait),
+			round(m.Latencies.Min),
+			round(m.Latencies.Mean),
+			round(m.Latencies.P50),
+			round(m.Latencies.P90),
+			round(m.Latencies.P95),
+			round(m.Latencies.P99),
+			round(m.Latencies.Max),
 			m.BytesIn.Total, m.BytesIn.Mean,
 			m.BytesOut.Total, m.BytesOut.Mean,
 			m.Success*100,
@@ -102,6 +110,25 @@ func NewTextReporter(m *Metrics) Reporter {
 
 		return tw.Flush()
 	}
+}
+
+var durations = [...]time.Duration{
+	time.Hour,
+	time.Minute,
+	time.Second,
+	time.Millisecond,
+	time.Microsecond,
+	time.Nanosecond,
+}
+
+// round to the next most precise unit
+func round(d time.Duration) time.Duration {
+	for i, unit := range durations {
+		if d >= unit && i < len(durations)-1 {
+			return d.Round(durations[i+1])
+		}
+	}
+	return d
 }
 
 // NewJSONReporter returns a Reporter that writes out Metrics as JSON.
