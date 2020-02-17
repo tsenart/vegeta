@@ -240,7 +240,7 @@ func (p LinearPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bo
 		return 0, false
 	}
 
-	rate := p.rate(elapsed)
+	rate := p.Rate(elapsed)
 	interval := math.Round(1e9 / rate)
 
 	if n := uint64(interval); n != 0 && math.MaxInt64/n < hits {
@@ -271,7 +271,7 @@ func (p LinearPacer) hits(t time.Duration) float64 {
 
 // rate calculates the instantaneous rate of attack at
 // t nanoseconds after the attack began.
-func (p LinearPacer) rate(t time.Duration) float64 {
+func (p LinearPacer) Rate(t time.Duration) float64 {
 	a := p.Slope
 	x := t.Seconds()
 	b := p.StartAt.hitsPerNs() * 1e9
