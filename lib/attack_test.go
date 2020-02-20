@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -195,6 +196,32 @@ func TestBadTargeterError(t *testing.T) {
 	res := atk.hit(tr, "")
 	if got, want := res.Error, io.EOF.Error(); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestTargeterHasContext(t *testing.T) {
+	t.Parallel()
+	atk := NewAttacker()
+	ctx := context.Background()
+	tr := func(tgt *Target) error {
+		tgt.SetContext(ctx)
+		return nil
+	}
+	res := atk.hit(tr, "")
+	if got, want := res.Context(), ctx; got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+}
+
+func TestTargeterDoesNotHaveContext(t *testing.T) {
+	t.Parallel()
+	atk := NewAttacker()
+	tr := func(tgt *Target) error {
+		return nil
+	}
+	res := atk.hit(tr, "")
+	if got := res.Context(); got != nil {
+		t.Fatalf("got: %v, want: %v", got, nil)
 	}
 }
 

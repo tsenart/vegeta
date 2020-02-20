@@ -3,6 +3,7 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
@@ -36,6 +37,7 @@ type Result struct {
 	Method    string        `json:"method"`
 	URL       string        `json:"url"`
 	Headers   http.Header   `json:"headers"`
+	context   context.Context
 }
 
 // End returns the time at which a Result ended.
@@ -56,6 +58,10 @@ func (r Result) Equal(other Result) bool {
 		r.URL == other.URL &&
 		headerEqual(r.Headers, other.Headers)
 }
+
+// Context return context set in Targets
+// If not set to target, nil is returned
+func (r *Result) Context() context.Context { return r.context }
 
 func headerEqual(h1, h2 http.Header) bool {
 	if len(h1) != len(h2) {

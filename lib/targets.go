@@ -3,6 +3,7 @@ package vegeta
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,10 +23,11 @@ import (
 //
 //go:generate go run ../internal/cmd/jsonschema/main.go -type=Target -output=target.schema.json
 type Target struct {
-	Method string      `json:"method"`
-	URL    string      `json:"url"`
-	Body   []byte      `json:"body,omitempty"`
-	Header http.Header `json:"header,omitempty"`
+	Method  string      `json:"method"`
+	URL     string      `json:"url"`
+	Body    []byte      `json:"body,omitempty"`
+	Header  http.Header `json:"header,omitempty"`
+	context context.Context
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -41,6 +43,9 @@ func (t *Target) Request() (*http.Request, error) {
 	}
 	if host := req.Header.Get("Host"); host != "" {
 		req.Host = host
+	}
+	if t.context != nil {
+		req = req.WithContext(t.context)
 	}
 	return req, nil
 }
@@ -77,6 +82,9 @@ func (t *Target) Equal(other *Target) bool {
 		return true
 	}
 }
+
+// SetContext This context is set in http.Request and Results
+func (t *Target) SetContext(ctx context.Context) { t.context = ctx }
 
 var (
 	// ErrNoTargets is returned when not enough Targets are available.

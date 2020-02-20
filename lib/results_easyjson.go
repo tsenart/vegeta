@@ -4,12 +4,11 @@ package vegeta
 
 import (
 	json "encoding/json"
-	"net/http"
-	time "time"
-
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
+	http "net/http"
+	time "time"
 )
 
 // suppress unused package warning
@@ -69,7 +68,42 @@ func easyjsonBd1621b8DecodeGithubComTsenartVegetaLib(in *jlexer.Lexer, out *json
 		case "url":
 			out.URL = string(in.String())
 		case "headers":
-			out.Headers = easyjsonUnmarshalHeaders(in)
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Headers = make(http.Header)
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v2 []string
+					if in.IsNull() {
+						in.Skip()
+						v2 = nil
+					} else {
+						in.Delim('[')
+						if v2 == nil {
+							if !in.IsDelim(']') {
+								v2 = make([]string, 0, 4)
+							} else {
+								v2 = []string{}
+							}
+						} else {
+							v2 = (v2)[:0]
+						}
+						for !in.IsDelim(']') {
+							var v3 string
+							v3 = string(in.String())
+							v2 = append(v2, v3)
+							in.WantComma()
+						}
+						in.Delim(']')
+					}
+					(out.Headers)[key] = v2
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -142,56 +176,36 @@ func easyjsonBd1621b8EncodeGithubComTsenartVegetaLib(out *jwriter.Writer, in jso
 	{
 		const prefix string = ",\"headers\":"
 		out.RawString(prefix)
-		easyjsonMarshalHeaders(out, in.Headers)
+		if in.Headers == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v6First := true
+			for v6Name, v6Value := range in.Headers {
+				if v6First {
+					v6First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v6Name))
+				out.RawByte(':')
+				if v6Value == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+					out.RawString("null")
+				} else {
+					out.RawByte('[')
+					for v7, v8 := range v6Value {
+						if v7 > 0 {
+							out.RawByte(',')
+						}
+						out.String(string(v8))
+					}
+					out.RawByte(']')
+				}
+			}
+			out.RawByte('}')
+		}
 	}
 	out.RawByte('}')
-}
-
-func easyjsonUnmarshalHeaders(in *jlexer.Lexer) http.Header {
-	h := http.Header{}
-	in.Delim('[')
-	for !in.IsDelim(']') {
-		for in.IsDelim('{') {
-			in.Delim('{')
-			var key string
-			var values []string
-			for !in.IsDelim('}') {
-				k := in.UnsafeString()
-				in.WantColon()
-				if in.IsNull() {
-					in.Skip()
-					in.WantComma()
-					continue
-				}
-				switch k {
-				case "key":
-					key = in.String()
-				case "value":
-					values = append(values, in.String())
-				}
-				in.WantComma()
-			}
-			h[key] = values
-			in.Delim('}')
-			in.WantComma()
-		}
-	}
-	in.Delim(']')
-	return h
-}
-
-func easyjsonMarshalHeaders(w *jwriter.Writer, h http.Header) {
-	w.RawByte('[')
-	for key, values := range h {
-		for _, value := range values {
-			w.RawString(`{"key":`)
-			w.String(key)
-			w.RawString(`,"value":`)
-			w.String(value)
-			w.RawByte('}')
-		}
-	}
-	w.RawByte(']')
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
