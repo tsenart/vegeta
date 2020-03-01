@@ -65,6 +65,38 @@ func TestConstantPacer(t *testing.T) {
 	}
 }
 
+func TestConstantPacer_Rate(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		freq int
+		per  time.Duration
+		rate float64
+	}{{
+		freq: 60,
+		per:  time.Minute,
+		rate: 1.0,
+	}, {
+		freq: 120,
+		per:  time.Minute,
+		rate: 2.0,
+	}, {
+		freq: 30,
+		per:  time.Minute,
+		rate: 0.5,
+	}, {
+		freq: 500,
+		per:  time.Second,
+		rate: 500.0,
+	},
+	} {
+		cp := ConstantPacer{Freq: tc.freq, Per: tc.per}
+		if have, want := cp.Rate(0), tc.rate; !floatEqual(have, want) {
+			t.Errorf("%s.Rate(_): have %f, want %f", cp, have, want)
+		}
+	}
+}
+
 // Stolen from https://github.com/google/go-cmp/cmp/cmpopts/equate.go
 // to avoid an unwieldy dependency. Both fraction and margin set at 1e-6.
 func floatEqual(x, y float64) bool {
@@ -226,6 +258,34 @@ func TestSinePacerPace_Flat(t *testing.T) {
 		}
 	}
 }
+func TestSincePacer_Rate(t *testing.T) {
+	t.Parallel()
+
+	sp := SinePacer{
+		Period: time.Minute,
+		Mean:   Rate{Freq: 10, Per: time.Second},
+		Amp:    Rate{Freq: 100, Per: time.Second},
+	}
+
+	for _, tc := range []struct {
+		elapsed time.Duration
+		rate    float64
+	}{{
+		elapsed: 0,
+		rate:    10.0,
+	}, {
+		elapsed: time.Minute,
+		rate:    10.0,
+	}, {
+		elapsed: time.Minute / 4,
+		rate:    110.0,
+	},
+	} {
+		if have, want := sp.Rate(tc.elapsed), tc.rate; !floatEqual(have, want) {
+			t.Errorf("%s.Rate(%s): have %f, want %f", sp, tc.elapsed, have, want)
+		}
+	}
+}
 
 func TestLinearPacer(t *testing.T) {
 	t.Parallel()
@@ -328,7 +388,7 @@ func TestLinearPacer_hits(t *testing.T) {
 	}
 }
 
-func TestLinearPacer_rate(t *testing.T) {
+func TestLinearPacer_Rate(t *testing.T) {
 	prop := func(start uint16, slope int8, x1, x2 uint32) (ok bool) {
 		p := LinearPacer{
 			StartAt: Rate{Freq: int(start), Per: time.Second},
@@ -339,7 +399,7 @@ func TestLinearPacer_rate(t *testing.T) {
 			x1, x2 = x2, x1
 		}
 
-		y1, y2 := p.rate(time.Duration(x1)), p.rate(time.Duration(x2))
+		y1, y2 := p.Rate(time.Duration(x1)), p.Rate(time.Duration(x2))
 		direction := y2 - y1
 
 		switch {
