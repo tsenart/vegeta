@@ -26,7 +26,6 @@ type Attacker struct {
 	seq        uint64
 	began      time.Time
 	chunked    bool
-	timeout time.Duration
 }
 
 const (
@@ -151,7 +150,7 @@ func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
 // an Attacker will wait for a request to be responded to and completely read.
 func Timeout(d time.Duration) func(*Attacker) {
 	return func(a *Attacker) {
-		a.timeout = d
+		a.client.ReadTimeout = d
 	}
 }
 
