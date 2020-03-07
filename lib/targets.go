@@ -28,23 +28,6 @@ type Target struct {
 	Header http.Header `json:"header,omitempty"`
 }
 
-// Request creates an *http.Request out of Target and returns it along with an
-// error in case of failure.
-func (t *Target) Request() (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
-	if err != nil {
-		return nil, err
-	}
-	for k, vs := range t.Header {
-		req.Header[k] = make([]string, len(vs))
-		copy(req.Header[k], vs)
-	}
-	if host := req.Header.Get("Host"); host != "" {
-		req.Host = host
-	}
-	return req, nil
-}
-
 // Equal returns true if the target is equal to the other given target.
 func (t *Target) Equal(other *Target) bool {
 	switch {

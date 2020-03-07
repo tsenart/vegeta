@@ -1,11 +1,8 @@
 package vegeta
 
 import (
-	"context"
+	"bytes"
 	"crypto/tls"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"net/http"
@@ -14,13 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/http2"
+	"github.com/valyala/fasthttp"
 )
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer     *net.Dialer
-	client     http.Client
+	client     *fasthttp.Client
 	stopch     chan struct{}
 	workers    uint64
 	maxWorkers uint64
@@ -30,6 +26,7 @@ type Attacker struct {
 	seq        uint64
 	began      time.Time
 	chunked    bool
+	timeout time.Duration
 }
 
 const (
@@ -74,20 +71,10 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		began:      time.Now(),
 	}
 
-	a.dialer = &net.Dialer{
-		LocalAddr: &net.TCPAddr{IP: DefaultLocalAddr.IP, Zone: DefaultLocalAddr.Zone},
-		KeepAlive: 30 * time.Second,
-	}
-
-	a.client = http.Client{
-		Timeout: DefaultTimeout,
-		Transport: &http.Transport{
-			Proxy:               http.ProxyFromEnvironment,
-			Dial:                a.dialer.Dial,
-			TLSClientConfig:     DefaultTLSConfig,
-			MaxIdleConnsPerHost: DefaultConnections,
-			MaxConnsPerHost:     DefaultMaxConnections,
-		},
+	a.client = &fasthttp.Client{
+		ReadTimeout: DefaultTimeout,
+		TLSConfig: DefaultTLSConfig,
+		MaxConnsPerHost: DefaultMaxConnections,
 	}
 
 	for _, opt := range opts {
@@ -114,8 +101,8 @@ func MaxWorkers(n uint64) func(*Attacker) {
 // open connections per target host.
 func Connections(n int) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.MaxIdleConnsPerHost = n
+		//tr := a.client.Transport.(*http.Transport)
+		//tr.MaxIdleConnsPerHost = n
 	}
 }
 
@@ -123,8 +110,7 @@ func Connections(n int) func(*Attacker) {
 // connections per target host.
 func MaxConnections(n int) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.MaxConnsPerHost = n
+		a.client.MaxConnsPerHost = n
 	}
 }
 
@@ -139,16 +125,16 @@ func ChunkedBody(b bool) func(*Attacker) {
 func Redirects(n int) func(*Attacker) {
 	return func(a *Attacker) {
 		a.redirects = n
-		a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-			switch {
-			case n == NoFollow:
-				return http.ErrUseLastResponse
-			case n < len(via):
-				return fmt.Errorf("stopped after %d redirects", n)
-			default:
-				return nil
-			}
-		}
+		//a.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+		//	switch {
+		//	case n == NoFollow:
+		//		return http.ErrUseLastResponse
+		//	case n < len(via):
+		//		return fmt.Errorf("stopped after %d redirects", n)
+		//	default:
+		//		return nil
+		//	}
+		//}
 	}
 }
 
@@ -156,8 +142,8 @@ func Redirects(n int) func(*Attacker) {
 // the http.Client's Transport
 func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.Proxy = proxy
+		//tr := a.client.Transport.(*http.Transport)
+		//tr.Proxy = proxy
 	}
 }
 
@@ -165,7 +151,7 @@ func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
 // an Attacker will wait for a request to be responded to and completely read.
 func Timeout(d time.Duration) func(*Attacker) {
 	return func(a *Attacker) {
-		a.client.Timeout = d
+		a.timeout = d
 	}
 }
 
@@ -173,9 +159,9 @@ func Timeout(d time.Duration) func(*Attacker) {
 // an Attacker will use with its requests.
 func LocalAddr(addr net.IPAddr) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
-		tr.Dial = a.dialer.Dial
+		// tr := a.client.Transport.(*http.Transport)
+		//a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
+		// tr.Dial = a.dialer.Dial
 	}
 }
 
@@ -183,12 +169,12 @@ func LocalAddr(addr net.IPAddr) func(*Attacker) {
 // connections on the dialer and transport.
 func KeepAlive(keepalive bool) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.DisableKeepAlives = !keepalive
-		if !keepalive {
-			a.dialer.KeepAlive = 0
-			tr.Dial = a.dialer.Dial
-		}
+		//tr := a.client.Transport.(*http.Transport)
+		//tr.DisableKeepAlives = !keepalive
+		//if !keepalive {
+		//	a.dialer.KeepAlive = 0
+		//	tr.Dial = a.dialer.Dial
+		//}
 	}
 }
 
@@ -196,8 +182,8 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 // Attacker to use with its requests.
 func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.TLSClientConfig = c
+		//tr := a.client.Transport.(*http.Transport)
+		//tr.TLSClientConfig = c
 	}
 }
 
@@ -205,11 +191,11 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // on requests performed by an Attacker.
 func HTTP2(enabled bool) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr := a.client.Transport.(*http.Transport); enabled {
-			http2.ConfigureTransport(tr)
-		} else {
-			tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
-		}
+		//if tr := a.client.Transport.(*http.Transport); enabled {
+		//	http2.ConfigureTransport(tr)
+		//} else {
+		//	tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		//}
 	}
 }
 
@@ -217,14 +203,14 @@ func HTTP2(enabled bool) func(*Attacker) {
 // performed by an Attacker
 func H2C(enabled bool) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr := a.client.Transport.(*http.Transport); enabled {
-			a.client.Transport = &http2.Transport{
-				AllowHTTP: true,
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return tr.Dial(network, addr)
-				},
-			}
-		}
+		//if tr := a.client.Transport.(*http.Transport); enabled {
+		//	a.client.Transport = &http2.Transport{
+		//		AllowHTTP: true,
+		//		DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+		//			return tr.Dial(network, addr)
+		//		},
+		//	}
+		//}
 	}
 }
 
@@ -237,26 +223,28 @@ func MaxBody(n int64) func(*Attacker) {
 // UnixSocket changes the dialer for the attacker to use the specified unix socket file
 func UnixSocket(socket string) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr, ok := a.client.Transport.(*http.Transport); socket != "" && ok {
-			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", socket)
-			}
-		}
+		//if tr, ok := a.client.Transport.(*http.Transport); socket != "" && ok {
+		//	tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+		//		return net.Dial("unix", socket)
+		//	}
+		//}
 	}
 }
 
 // Client returns a functional option that allows you to bring your own http.Client
 func Client(c *http.Client) func(*Attacker) {
-	return func(a *Attacker) { a.client = *c }
+	return func(a *Attacker) {
+		//a.client = *c
+	}
 }
 
 // ProxyHeader returns a functional option that allows you to add your own
 // Proxy CONNECT headers
 func ProxyHeader(h http.Header) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr, ok := a.client.Transport.(*http.Transport); ok {
-			tr.ProxyConnectHeader = h
-		}
+		//if tr, ok := a.client.Transport.(*http.Transport); ok {
+		//	tr.ProxyConnectHeader = h
+		//}
 	}
 }
 
@@ -344,7 +332,7 @@ func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, tic
 
 func (a *Attacker) hit(tr Targeter, name string) *Result {
 	var (
-		res = Result{Attack: name}
+		res = &Result{Attack: name}
 		tgt Target
 		err error
 	)
@@ -355,25 +343,39 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	a.seq++
 	a.seqmu.Unlock()
 
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+
 	defer func() {
 		res.Latency = time.Since(res.Timestamp)
 		if err != nil {
 			res.Error = err.Error()
 		}
+
+		fasthttp.ReleaseRequest(req)
+		fasthttp.ReleaseResponse(resp)
 	}()
 
 	if err = tr(&tgt); err != nil {
 		a.Stop()
-		return &res
+		return res
+	}
+
+	req.Header.SetMethod(tgt.Method)
+	req.SetRequestURI(tgt.URL)
+
+	for k, vs := range tgt.Header {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
+
+	if host := tgt.Header.Get("Host"); host != "" {
+		req.Header.SetHost(host)
 	}
 
 	res.Method = tgt.Method
 	res.URL = tgt.URL
-
-	req, err := tgt.Request()
-	if err != nil {
-		return &res
-	}
 
 	if name != "" {
 		req.Header.Set("X-Vegeta-Attack", name)
@@ -382,37 +384,34 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	req.Header.Set("X-Vegeta-Seq", strconv.FormatUint(res.Seq, 10))
 
 	if a.chunked {
-		req.TransferEncoding = append(req.TransferEncoding, "chunked")
+		req.SetBodyStream(bytes.NewReader(tgt.Body), -1)
+	} else {
+		req.SetBody(tgt.Body)
 	}
 
-	r, err := a.client.Do(req)
+	err = a.client.Do(req, resp)
 	if err != nil {
-		return &res
+		return res
 	}
-	defer r.Body.Close()
 
-	body := io.Reader(r.Body)
+	res.Body = resp.Body()
 	if a.maxBody >= 0 {
-		body = io.LimitReader(r.Body, a.maxBody)
-	}
-
-	if res.Body, err = ioutil.ReadAll(body); err != nil {
-		return &res
-	} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
-		return &res
+		res.Body = res.Body[:a.maxBody]
 	}
 
 	res.BytesIn = uint64(len(res.Body))
+	res.BytesOut = uint64(len(req.Body()))
+	res.Code = uint16(resp.StatusCode())
 
-	if req.ContentLength != -1 {
-		res.BytesOut = uint64(req.ContentLength)
+	if res.Code < 200 || res.Code >= 400 {
+		res.Error = http.StatusText(resp.StatusCode())
 	}
 
-	if res.Code = uint16(r.StatusCode); res.Code < 200 || res.Code >= 400 {
-		res.Error = r.Status
-	}
+	res.Headers = make(http.Header)
+	resp.Header.VisitAll(func(k, v []byte) {
+		res.Headers.Add(string(k), string(v))
+	})
 
-	res.Headers = r.Header
-
-	return &res
+	return res
 }
+
