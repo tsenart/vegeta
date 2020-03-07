@@ -181,8 +181,7 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 // Attacker to use with its requests.
 func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
-		//tr := a.client.Transport.(*http.Transport)
-		//tr.TLSClientConfig = c
+		a.client.TLSConfig = c
 	}
 }
 
