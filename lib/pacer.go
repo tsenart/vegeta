@@ -6,12 +6,17 @@ import (
 	"time"
 )
 
-// A Pacer defines the rate of hits during an Attack by
-// returning the duration an Attacker should wait until
-// hitting the next Target. If the second return value
-// is true, the attack will terminate.
+// A Pacer defines the rate of hits during an Attack.
 type Pacer interface {
+	// Pace returns the duration an Attacker should wait until
+	// hitting the next Target, given an already elapsed duration and
+	// completed hits. If the second return value is true, an attacker
+	// should stop sending hits.
 	Pace(elapsed time.Duration, hits uint64) (wait time.Duration, stop bool)
+
+	// Rate returns a Pacer's instantaneous hit rate (per seconds)
+	// at the given elapsed duration of an attack.
+	Rate(elapsed time.Duration) float64
 }
 
 // A PacerFunc is a function adapter type that implements
@@ -63,6 +68,13 @@ func (cp ConstantPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration,
 	delta := time.Duration((hits + 1) * interval)
 	// Zero or negative durations cause time.Sleep to return immediately.
 	return delta - elapsed, false
+}
+
+// Rate returns a ConstantPacer's instantaneous hit rate (i.e. requests per second)
+// at the given elapsed duration of an attack. Since it's constant, the return
+// value is independent of the given elapsed duration.
+func (cp ConstantPacer) Rate(elapsed time.Duration) float64 {
+	return cp.hitsPerNs() * 1e9
 }
 
 // hitsPerNs returns the attack rate this ConstantPacer represents, in
@@ -184,6 +196,12 @@ func (sp SinePacer) Pace(elapsedTime time.Duration, elapsedHits uint64) (time.Du
 	return nextHitIn, false
 }
 
+// Rate returns a SinePacer's instantaneous hit rate (i.e. requests per second)
+// at the given elapsed duration of an attack.
+func (sp SinePacer) Rate(elapsed time.Duration) float64 {
+	return sp.hitsPerNs(elapsed) * 1e9
+}
+
 // ampHits returns AP/2𝛑, which is the number of hits added or subtracted
 // from the Mean due to the Amplitude over a quarter of the Period,
 // i.e. from 0 → 𝛑/2 radians
@@ -240,7 +258,7 @@ func (p LinearPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bo
 		return 0, false
 	}
 
-	rate := p.rate(elapsed)
+	rate := p.Rate(elapsed)
 	interval := math.Round(1e9 / rate)
 
 	if n := uint64(interval); n != 0 && math.MaxInt64/n < hits {
@@ -252,6 +270,15 @@ func (p LinearPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bo
 	wait := time.Duration(interval * delta)
 
 	return wait, false
+}
+
+// Rate returns a LinearPacer's instantaneous hit rate (i.e. requests per second)
+// at the given elapsed duration of an attack.
+func (p LinearPacer) Rate(elapsed time.Duration) float64 {
+	a := p.Slope
+	x := elapsed.Seconds()
+	b := p.StartAt.hitsPerNs() * 1e9
+	return a*x + b
 }
 
 // hits returns the number of hits that have been sent during an attack
@@ -267,13 +294,4 @@ func (p LinearPacer) hits(t time.Duration) float64 {
 	x := t.Seconds()
 
 	return (a*math.Pow(x, 2))/2 + b*x
-}
-
-// rate calculates the instantaneous rate of attack at
-// t nanoseconds after the attack began.
-func (p LinearPacer) rate(t time.Duration) float64 {
-	a := p.Slope
-	x := t.Seconds()
-	b := p.StartAt.hitsPerNs() * 1e9
-	return a*x + b
 }
