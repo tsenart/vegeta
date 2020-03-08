@@ -46,16 +46,6 @@ var (
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
-	// DefaultHitter is the default Hitter an Attacker uses.
-	DefaultHitter = &FastHTTPHitter{
-		MaxBody: DefaultMaxBody,
-		Client: &fasthttp.Client{
-			ReadTimeout:                   DefaultTimeout,
-			TLSConfig:                     DefaultTLSConfig,
-			MaxConnsPerHost:               DefaultMaxConnections,
-			DisableHeaderNamesNormalizing: true,
-		},
-	}
 )
 
 var _ Hitter = (*NetHTTPHitter)(nil)

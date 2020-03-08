@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
+
+	"github.com/valyala/fasthttp"
+	"golang.org/x/net/http2"
 )
 
 func attackCmd() command {
@@ -38,7 +42,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
 	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
-	fs.BoolVar(&opts.http2, "http2", true, "Send HTTP/2 requests when supported by the server")
+	fs.BoolVar(&opts.http2, "http2", false, "Send HTTP/2 requests when supported by the server")
 	fs.BoolVar(&opts.h2c, "h2c", false, "Send HTTP/2 requests without TLS encryption")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
@@ -137,10 +141,9 @@ func attack(opts *attackOpts) (err error) {
 	}
 
 	var (
-		tr       vegeta.Targeter
-		src      = files[opts.targetsf]
-		hdr      = opts.headers.Header
-		proxyHdr = opts.proxyHeaders.Header
+		tr  vegeta.Targeter
+		src = files[opts.targetsf]
+		hdr = opts.headers.Header
 	)
 
 	switch opts.format {
@@ -167,28 +170,16 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
-	tlsc, err := tlsConfig(opts.insecure, opts.certf, opts.keyf, opts.rootCerts)
+	hitter, err := newHitter(opts)
 	if err != nil {
 		return err
 	}
 
-	atk := vegeta.NewAttacker(
-		vegeta.Redirects(opts.redirects),
-		vegeta.Timeout(opts.timeout),
-		vegeta.LocalAddr(*opts.laddr.IPAddr),
-		vegeta.TLSConfig(tlsc),
-		vegeta.Workers(opts.workers),
-		vegeta.MaxWorkers(opts.maxWorkers),
-		vegeta.KeepAlive(opts.keepalive),
-		vegeta.Connections(opts.connections),
-		vegeta.MaxConnections(opts.maxConnections),
-		vegeta.HTTP2(opts.http2),
-		vegeta.H2C(opts.h2c),
-		vegeta.MaxBody(opts.maxBody),
-		vegeta.UnixSocket(opts.unixSocket),
-		vegeta.ProxyHeader(proxyHdr),
-		vegeta.ChunkedBody(opts.chunked),
-	)
+	atk := vegeta.Attacker{
+		Hitter:     hitter,
+		Workers:    opts.workers,
+		MaxWorkers: opts.maxWorkers,
+	}
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)
@@ -209,6 +200,93 @@ func attack(opts *attackOpts) (err error) {
 			}
 		}
 	}
+}
+
+func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
+	tlsc, err := tlsConfig(opts.insecure, opts.certf, opts.keyf, opts.rootCerts)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.http2 || opts.h2c || opts.unixSocket != "" {
+		dialer := net.Dialer{
+			LocalAddr: &net.TCPAddr{
+				IP:   opts.laddr.IP,
+				Zone: opts.laddr.Zone,
+			},
+			KeepAlive: 30 * time.Second,
+		}
+
+		tr := &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			DialContext:         dialer.DialContext,
+			TLSClientConfig:     tlsc,
+			MaxIdleConnsPerHost: opts.connections,
+			MaxConnsPerHost:     opts.maxConnections,
+			DisableKeepAlives:   !opts.keepalive,
+			ProxyConnectHeader:  opts.proxyHeaders.Header,
+		}
+
+		client := &http.Client{
+			Timeout:   opts.timeout,
+			Transport: tr,
+			CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+				switch {
+				case opts.redirects == vegeta.NoFollow:
+					return http.ErrUseLastResponse
+				case opts.redirects < len(via):
+					return fmt.Errorf("stopped after %d redirects", opts.redirects)
+				default:
+					return nil
+				}
+			},
+		}
+
+		switch {
+		case opts.http2:
+			if err = http2.ConfigureTransport(tr); err != nil {
+				return nil, err
+			}
+		case opts.h2c:
+			client.Transport = &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return tr.DialContext(context.Background(), network, addr)
+				},
+			}
+		case opts.unixSocket != "":
+			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", opts.unixSocket)
+			}
+		}
+
+		return &vegeta.NetHTTPHitter{
+			Chunked: opts.chunked,
+			MaxBody: opts.maxBody,
+			Client:  client,
+		}, nil
+	}
+
+	// TODO(tsenart): Add fasthttp support for:
+	//  - opts.redirects
+	//  - opts.connections (max idle conns per host)
+	//  - opts.keepalive
+	//  - opts.proxyHeaders
+	//  - HTTP_PROXY
+	//  - opts.localAddr
+
+	return &vegeta.FastHTTPHitter{
+		MaxBody: opts.maxBody,
+		Chunked: opts.chunked,
+		Client: &fasthttp.Client{
+			Name:                          "vegeta " + Version,
+			NoDefaultUserAgentHeader:      true,
+			ReadTimeout:                   opts.timeout,
+			TLSConfig:                     tlsc,
+			MaxConnsPerHost:               opts.maxConnections,
+			DisableHeaderNamesNormalizing: true,
+		},
+	}, nil
 }
 
 // tlsConfig builds a *tls.Config from the given options.

@@ -1,21 +1,10 @@
 package vegeta
 
 import (
-	"bytes"
-	"context"
-	"crypto/tls"
 	"errors"
-	"io"
-	"io/ioutil"
-	"math"
-	"net"
-	"net/http"
-	"net/url"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/valyala/fasthttp"
 )
 
 // Attacker is an attack executor which wraps an http.Client
@@ -35,6 +24,9 @@ type Attacker struct {
 // runs until Stop is called. Results are sent to the returned channel as soon
 // as they arrive and will have their Attack field set to the given name.
 func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
+	a.began = time.Now()
+	a.stopch = make(chan struct{})
+
 	var wg sync.WaitGroup
 
 	workers := a.Workers
@@ -121,11 +113,11 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &Result{Attack: name, Error: err.Error()}
 	}
 
+	t.Header = t.Header.Clone()
+
 	if name != "" {
 		t.Header.Set("X-Vegeta-Attack", name)
 	}
-
-	t.Header.Set("X-Vegeta-Seq", strconv.FormatUint(seq, 10))
 
 	a.seqmu.Lock()
 	timestamp := a.began.Add(time.Since(a.began))
@@ -133,11 +125,14 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	a.seq++
 	a.seqmu.Unlock()
 
+	t.Header.Set("X-Vegeta-Seq", strconv.FormatUint(seq, 10))
+
 	r := a.Hitter.Hit(&t)
 	if r == nil {
 		r = &Result{Error: ErrNoResult.Error()}
 	}
 
+	r.Latency = time.Since(timestamp)
 	r.Attack = name
 	r.Timestamp = timestamp
 	r.Seq = seq
