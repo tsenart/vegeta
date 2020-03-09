@@ -762,7 +762,7 @@ import (
   "fmt"
   "time"
 
-  vegeta "github.com/tsenart/vegeta/lib"
+  vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
 func main() {
