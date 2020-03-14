@@ -165,7 +165,7 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 		req.SetBody(t.Body)
 	}
 
-	err = h.Client.DoTimeout(req, resp, h.Client.ReadTimeout)
+	err = h.Client.Do(req, resp)
 	if err != nil {
 		return r
 	}
@@ -184,7 +184,7 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 		r.Error = http.StatusText(resp.StatusCode())
 	}
 
-	r.Headers = make(http.Header)
+	r.Headers = make(http.Header, resp.Header.Len())
 	resp.Header.VisitAll(func(k, v []byte) {
 		r.Headers.Add(string(k), string(v))
 	})
