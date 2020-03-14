@@ -9,14 +9,14 @@ import (
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	Hitter Hitter
+	Hitter     Hitter
 	Workers    uint64
 	MaxWorkers uint64
 
-	stopch     chan struct{}
-	seqmu      sync.Mutex
-	seq        uint64
-	began      time.Time
+	stopch chan struct{}
+	seqmu  sync.Mutex
+	seq    uint64
+	began  time.Time
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at

@@ -208,7 +208,7 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 		return nil, err
 	}
 
-	if opts.http2 || opts.h2c || opts.unixSocket != "" {
+	if opts.http2 || opts.h2c {
 		dialer := net.Dialer{
 			LocalAddr: &net.TCPAddr{
 				IP:   opts.laddr.IP,
@@ -242,6 +242,12 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 			},
 		}
 
+		if opts.unixSocket != "" {
+			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", opts.unixSocket)
+			}
+		}
+
 		switch {
 		case opts.http2:
 			if err = http2.ConfigureTransport(tr); err != nil {
@@ -253,10 +259,6 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 					return tr.DialContext(context.Background(), network, addr)
 				},
-			}
-		case opts.unixSocket != "":
-			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", opts.unixSocket)
 			}
 		}
 
@@ -270,22 +272,38 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 	// TODO(tsenart): Add fasthttp support for:
 	//  - opts.redirects
 	//  - opts.connections (max idle conns per host)
-	//  - opts.keepalive
 	//  - opts.proxyHeaders
 	//  - HTTP_PROXY
-	//  - opts.localAddr
+	//  - opts.maxBody
+
+	dialer := fasthttp.TCPDialer{
+		LocalAddr: &net.TCPAddr{
+			IP:   opts.laddr.IP,
+			Zone: opts.laddr.Zone,
+		},
+	}
+
+	cli := &fasthttp.Client{
+		Name:                          "vegeta " + Version,
+		NoDefaultUserAgentHeader:      true,
+		ReadTimeout:                   opts.timeout,
+		TLSConfig:                     tlsc,
+		MaxConnsPerHost:               opts.maxConnections,
+		DisableHeaderNamesNormalizing: true,
+		Dial:                          dialer.Dial,
+	}
+
+	if opts.unixSocket != "" {
+		cli.Dial = func(_ string) (net.Conn, error) {
+			return net.Dial("unix", opts.unixSocket)
+		}
+	}
 
 	return &vegeta.FastHTTPHitter{
-		MaxBody: opts.maxBody,
-		Chunked: opts.chunked,
-		Client: &fasthttp.Client{
-			Name:                          "vegeta " + Version,
-			NoDefaultUserAgentHeader:      true,
-			ReadTimeout:                   opts.timeout,
-			TLSConfig:                     tlsc,
-			MaxConnsPerHost:               opts.maxConnections,
-			DisableHeaderNamesNormalizing: true,
-		},
+		Client:    cli,
+		MaxBody:   opts.maxBody,
+		Chunked:   opts.chunked,
+		KeepAlive: opts.keepalive,
 	}, nil
 }
 

@@ -119,9 +119,10 @@ func (h *NetHTTPHitter) Hit(t *Target) *Result {
 }
 
 type FastHTTPHitter struct {
-	Client  *fasthttp.Client
-	Chunked bool
-	MaxBody int64
+	Client    *fasthttp.Client
+	MaxBody   int64
+	Chunked   bool
+	KeepAlive bool
 }
 
 var _ Hitter = (*FastHTTPHitter)(nil)
@@ -154,6 +155,10 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 
 	if host := t.Header.Get("Host"); host != "" {
 		req.Header.SetHost(host)
+	}
+
+	if h.KeepAlive {
+		req.Header.Set("Connection", "keep-alive")
 	}
 
 	r.Method = t.Method

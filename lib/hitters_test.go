@@ -72,7 +72,7 @@ func benchmarkHitter(b *testing.B, h vegeta.Hitter) {
 	})
 
 	took := time.Since(start)
-	rate := float64(atomic.LoadUint64(&reqs))/took.Seconds()
+	rate := float64(atomic.LoadUint64(&reqs)) / took.Seconds()
 
 	b.ReportMetric(rate, "req/s")
 }
