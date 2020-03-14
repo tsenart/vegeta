@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	vegeta "github.com/tsenart/vegeta/lib"
-	"github.com/tsenart/vegeta/lib/lttb"
+	vegeta "github.com/tsenart/vegeta/v12/lib"
+	"github.com/tsenart/vegeta/v12/lib/lttb"
 )
 
 var update = flag.Bool("update", false, "Update .golden files")

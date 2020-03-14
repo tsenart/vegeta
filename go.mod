@@ -1,4 +1,4 @@
-module github.com/tsenart/vegeta
+module github.com/tsenart/vegeta/v12
 
 go 1.13
 
