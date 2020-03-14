@@ -165,13 +165,13 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 		req.SetBody(t.Body)
 	}
 
-	err = h.Client.Do(req, resp)
+	err = h.Client.DoTimeout(req, resp, h.Client.ReadTimeout)
 	if err != nil {
 		return r
 	}
 
 	r.Body = resp.Body()
-	if h.MaxBody >= 0 {
+	if h.MaxBody > 0 {
 		// TODO(tsenart): Contribute a change to fasthttp that permits reading only n bytes from the response body.
 		r.Body = r.Body[:h.MaxBody]
 	}
