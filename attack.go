@@ -270,7 +270,6 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 	}
 
 	// TODO(tsenart): Add fasthttp support for:
-	//  - opts.redirects
 	//  - opts.connections (max idle conns per host)
 	//  - opts.proxyHeaders
 	//  - HTTP_PROXY
@@ -300,10 +299,11 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 	}
 
 	return &vegeta.FastHTTPHitter{
-		Client:    cli,
-		MaxBody:   opts.maxBody,
-		Chunked:   opts.chunked,
-		KeepAlive: opts.keepalive,
+		Client:       cli,
+		MaxBody:      opts.maxBody,
+		MaxRedirects: opts.redirects,
+		Chunked:      opts.chunked,
+		KeepAlive:    opts.keepalive,
 	}, nil
 }
 

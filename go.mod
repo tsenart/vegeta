@@ -20,12 +20,15 @@ require (
 	github.com/google/go-cmp v0.2.0
 	github.com/influxdata/tdigest v0.0.0-20180711151920-a7d76c6f093a
 	github.com/klauspost/compress v1.10.3 // indirect
-	github.com/klauspost/cpuid v1.2.3 // indirect
 	github.com/mailru/easyjson v0.7.0
 	github.com/miekg/dns v1.1.17
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/tsenart/go-tsz v0.0.0-20180814232043-cdeb9e1e981e
 	github.com/valyala/fasthttp v1.9.1-0.20200313102552-38aa88ab52c4
-	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 // indirect
+	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	pgregory.net/rapid v0.3.3
 )
+
+replace github.com/valyala/fasthttp => github.com/tsenart/fasthttp v1.9.1-0.20200315143151-5b99e2de1407

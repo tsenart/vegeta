@@ -124,10 +124,11 @@ func (h *NetHTTPHitter) Hit(t *Target) *Result {
 }
 
 type FastHTTPHitter struct {
-	Client    *fasthttp.Client
-	MaxBody   int64
-	Chunked   bool
-	KeepAlive bool
+	Client       *fasthttp.Client
+	MaxBody      int64
+	MaxRedirects int
+	Chunked      bool
+	KeepAlive    bool
 }
 
 var _ Hitter = (*FastHTTPHitter)(nil)
@@ -175,7 +176,12 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 		req.SetBody(t.Body)
 	}
 
-	err = h.Client.Do(req, resp)
+	if h.MaxRedirects >= 0 {
+		err = h.Client.DoRedirects(req, resp, h.MaxRedirects)
+	} else {
+		err = h.Client.Do(req, resp)
+	}
+
 	if err != nil {
 		return r
 	}
