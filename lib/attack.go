@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -113,10 +114,14 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		return &Result{Attack: name, Error: err.Error()}
 	}
 
-	t.Header = t.Header.Clone()
+	if t.Header == nil {
+		t.Header = make(http.Header, 2)
+	} else {
+		t.Header = t.Header.Clone()
+	}
 
 	if name != "" {
-		t.Header.Set("X-Vegeta-Attack", name)
+		t.Header["X-Vegeta-Attack"] = []string{name}
 	}
 
 	a.seqmu.Lock()
@@ -125,7 +130,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	a.seq++
 	a.seqmu.Unlock()
 
-	t.Header.Set("X-Vegeta-Seq", strconv.FormatUint(seq, 10))
+	t.Header["X-Vegeta-Seq"] = []string{strconv.FormatUint(seq, 10)}
 
 	r := a.Hitter.Hit(&t)
 	if r == nil {

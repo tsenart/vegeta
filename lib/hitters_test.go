@@ -1,4 +1,4 @@
-package vegeta_test
+package vegeta
 
 import (
 	"net"
@@ -8,28 +8,26 @@ import (
 	"time"
 
 	"github.com/valyala/fasthttp"
-
-	vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func BenchmarkFastHTTPHitter_Hit(b *testing.B) {
-	benchmarkHitter(b, &vegeta.FastHTTPHitter{
+	benchmarkHitter(b, &FastHTTPHitter{
 		Client: &fasthttp.Client{
 			Name:                          "vegeta",
 			NoDefaultUserAgentHeader:      true,
-			ReadTimeout:                   vegeta.DefaultTimeout,
+			ReadTimeout:                   DefaultTimeout,
 			DisableHeaderNamesNormalizing: true,
 		},
 	})
 }
 
 func BenchmarkNetHTTPHitter_Hit(b *testing.B) {
-	benchmarkHitter(b, &vegeta.NetHTTPHitter{
+	benchmarkHitter(b, &NetHTTPHitter{
 		Client: http.DefaultClient,
 	})
 }
 
-func benchmarkHitter(b *testing.B, h vegeta.Hitter) {
+func benchmarkHitter(b *testing.B, h Hitter) {
 	reqs := uint64(0)
 	pong := []byte("pong")
 
@@ -56,10 +54,13 @@ func benchmarkHitter(b *testing.B, h vegeta.Hitter) {
 		}
 	}()
 
-	t := &vegeta.Target{
+	t := Target{
 		Method: "GET",
 		URL:    "http://" + ln.Addr().String() + "/",
+		Header: http.Header{"X-Foo": []string{"bar"}},
 	}
+	tr := NewStaticTargeter(t)
+	a := Attacker{Hitter: h}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -67,7 +68,7 @@ func benchmarkHitter(b *testing.B, h vegeta.Hitter) {
 	start := time.Now()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = h.Hit(t)
+			_ = a.hit(tr, "attack")
 		}
 	})
 

@@ -13,6 +13,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// TODO: Go-docs for everything here.
+// TODO: Overhaul examples in README to use new APIs
+// TODO: Fix attacker tests
+// TODO: Write CLI integration tests
+
 type Hitter interface {
 	Hit(*Target) *Result
 }
