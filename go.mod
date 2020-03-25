@@ -1,6 +1,6 @@
 module github.com/tsenart/vegeta/v12
 
-go 1.13
+go 1.14
 
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20180308105923-f2c93856175a

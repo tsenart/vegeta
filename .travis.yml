@@ -3,11 +3,13 @@ language: go
 services:
   - docker
 go:
-  - 1.13.x
+  - 1.14.x
+
 install:
   - go get -v golang.org/x/lint/golint
   - go get -d -t -v ./...
   - go build -v ./...
+
 jobs:
   include:
     - stage: Test
