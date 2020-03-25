@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/mailru/easyjson/jlexer"
-	jwriter "github.com/mailru/easyjson/jwriter"
+	"github.com/mailru/easyjson/jwriter"
 )
 
 func init() {
@@ -255,13 +255,15 @@ func NewCSVDecoder(r io.Reader) Decoder {
 		r.Method = rec[9]
 		r.URL = rec[10]
 
-		pr := textproto.NewReader(bufio.NewReader(
-			base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
-		hdr, err := pr.ReadMIMEHeader()
-		if err != nil {
-			return err
+		if rec[11] != "" {
+			pr := textproto.NewReader(bufio.NewReader(
+				base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
+			hdr, err := pr.ReadMIMEHeader()
+			if err != nil {
+				return err
+			}
+			r.Headers = http.Header(hdr)
 		}
-		r.Headers = http.Header(hdr)
 
 		return err
 	}
