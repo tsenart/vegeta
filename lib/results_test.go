@@ -2,9 +2,7 @@ package vegeta
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"reflect"
@@ -52,16 +50,6 @@ func TestResultDecoding(t *testing.T) {
 }
 
 func TestResultEncoding(t *testing.T) {
-	newStdJSONEncoder := func(w io.Writer) Encoder {
-		enc := json.NewEncoder(w)
-		return func(r *Result) error { return enc.Encode(r) }
-	}
-
-	newStdJSONDecoder := func(r io.Reader) Decoder {
-		dec := json.NewDecoder(r)
-		return func(r *Result) error { return dec.Decode(r) }
-	}
-
 	for _, tc := range []struct {
 		encoding string
 		enc      func(io.Writer) Encoder
@@ -73,8 +61,6 @@ func TestResultEncoding(t *testing.T) {
 		{"gob", NewEncoder, NewDecoder},
 		{"csv", NewCSVEncoder, NewCSVDecoder},
 		{"json", NewJSONEncoder, NewJSONDecoder},
-		{"json-dec-compat", NewJSONEncoder, newStdJSONDecoder},
-		{"json-enc-compat", newStdJSONEncoder, NewJSONDecoder},
 	} {
 		tc := tc
 		t.Run(tc.encoding, func(t *testing.T) {
@@ -91,8 +77,6 @@ func TestResultEncoding(t *testing.T) {
 					BytesOut:  bsOut,
 					Error:     e,
 					Body:      body,
-					Method:    "GET",
-					URL:       "http://vegeta.test",
 					Headers:   http.Header{"Foo": []string{"bar"}},
 				}
 
@@ -157,7 +141,8 @@ func BenchmarkResultEncodings(b *testing.B) {
 		{"csv", NewCSVEncoder, NewCSVDecoder},
 		{"json", NewJSONEncoder, NewJSONDecoder},
 	} {
-		enc := tc.enc(ioutil.Discard)
+		var buf bytes.Buffer
+		enc := tc.enc(&buf)
 
 		b.Run(tc.encoding+"-encode", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
@@ -165,17 +150,10 @@ func BenchmarkResultEncodings(b *testing.B) {
 			}
 		})
 
-		var buf bytes.Buffer
-		enc = tc.enc(&buf)
-		for _, r := range results {
-			enc.Encode(&r)
-		}
-
 		dec := tc.dec(&buf)
 		b.Run(tc.encoding+"-decode", func(b *testing.B) {
-			var r Result
 			for i := 0; i < b.N; i++ {
-				dec.Decode(&r)
+				dec.Decode(&results[i%len(results)])
 			}
 		})
 	}

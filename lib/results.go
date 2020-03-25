@@ -13,6 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mailru/easyjson/jlexer"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 func init() {
@@ -264,3 +267,34 @@ func NewCSVDecoder(r io.Reader) Decoder {
 	}
 }
 
+//go:generate easyjson -no_std_marshalers -output_filename results_easyjson.go results.go
+//easyjson:json
+type jsonResult Result
+
+// NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
+// object.
+func NewJSONEncoder(w io.Writer) Encoder {
+	var jw jwriter.Writer
+	return func(r *Result) error {
+		(*jsonResult)(r).MarshalEasyJSON(&jw)
+		if jw.Error != nil {
+			return jw.Error
+		}
+		jw.RawByte('\n')
+		_, err := jw.DumpTo(w)
+		return err
+	}
+}
+
+// NewJSONDecoder returns a Decoder that decodes JSON encoded Results.
+func NewJSONDecoder(r io.Reader) Decoder {
+	rd := bufio.NewReader(r)
+	return func(r *Result) (err error) {
+		var jl jlexer.Lexer
+		if jl.Data, err = rd.ReadBytes('\n'); err != nil {
+			return err
+		}
+		(*jsonResult)(r).UnmarshalEasyJSON(&jl)
+		return jl.Error()
+	}
+}
