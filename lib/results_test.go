@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"reflect"
 	"testing"
-	"testing/quick"
 	"time"
+
+	"pgregory.net/rapid"
 )
 
 func TestResultDecoding(t *testing.T) {
@@ -80,20 +81,35 @@ func TestResultEncoding(t *testing.T) {
 		t.Run(tc.encoding, func(t *testing.T) {
 			t.Parallel()
 
-			err := quick.Check(func(code uint16, ts uint32, latency time.Duration, seq, bsIn, bsOut uint64, body []byte, attack, e string) bool {
+			rapid.Check(t, func(t *rapid.T) {
+				hdrs := rapid.MapOf(
+					rapid.StringMatching(`([\w-]+)`),
+					rapid.SliceOfN(rapid.StringMatching(`\S`), 1, -1),
+				).Draw(t, "headers").(map[string][]string)
+
 				want := Result{
-					Attack:    attack,
-					Seq:       seq,
-					Code:      code,
-					Timestamp: time.Unix(int64(ts), 0),
-					Latency:   latency,
-					BytesIn:   bsIn,
-					BytesOut:  bsOut,
-					Error:     e,
-					Body:      body,
-					Method:    "GET",
-					URL:       "http://vegeta.test",
-					Headers:   http.Header{"Foo": []string{"bar"}},
+					Attack:    rapid.String().Draw(t, "attack").(string),
+					Seq:       rapid.Uint64().Draw(t, "seq").(uint64),
+					Code:      rapid.Uint16().Draw(t, "code").(uint16),
+					Timestamp: time.Unix(rapid.Int64Range(0, 1e8).Draw(t, "timestamp").(int64), 0),
+					Latency:   time.Duration(rapid.Int64Min(0).Draw(t, "latency").(int64)),
+					BytesIn:   rapid.Uint64().Draw(t, "bytes_in").(uint64),
+					BytesOut:  rapid.Uint64().Draw(t, "bytes_out").(uint64),
+					Error:     rapid.String().Draw(t, "error").(string),
+					Body:      rapid.SliceOf(rapid.Byte()).Draw(t, "body").([]byte),
+					Method: rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").
+						Draw(t, "method").(string),
+					URL: rapid.String().Draw(t, "url").(string),
+				}
+
+				if len(hdrs) > 0 {
+					want.Headers = make(http.Header, len(hdrs))
+				}
+
+				for k, vs := range hdrs {
+					for _, v := range vs {
+						want.Headers.Add(k, v)
+					}
 				}
 
 				var buf bytes.Buffer
@@ -104,6 +120,8 @@ func TestResultEncoding(t *testing.T) {
 					}
 				}
 
+				encoded := buf.String()
+
 				dec := tc.dec(&buf)
 				if dec == nil {
 					t.Fatal("Cannot get decoder")
@@ -111,21 +129,15 @@ func TestResultEncoding(t *testing.T) {
 				for j := 0; j < 2; j++ {
 					var got Result
 					if err := dec(&got); err != nil {
-						t.Fatalf("err: %q buffer: %s", err, buf.String())
+						t.Fatalf("err: %q buffer: %s", err, encoded)
 					}
 
 					if !got.Equal(want) {
-						t.Logf("\ngot:  %#v\nwant: %#v\n", got, want)
-						return false
+						t.Logf("encoded: %s", encoded)
+						t.Fatalf("\ngot:  %#v\nwant: %#v\n", got, want)
 					}
 				}
-
-				return true
-			}, nil)
-
-			if err != nil {
-				t.Fatal(err)
-			}
+			})
 		})
 	}
 }

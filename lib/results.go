@@ -13,6 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mailru/easyjson/jlexer"
+	"github.com/mailru/easyjson/jwriter"
 )
 
 func init() {
@@ -252,15 +255,48 @@ func NewCSVDecoder(r io.Reader) Decoder {
 		r.Method = rec[9]
 		r.URL = rec[10]
 
-		pr := textproto.NewReader(bufio.NewReader(
-			base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
-		hdr, err := pr.ReadMIMEHeader()
-		if err != nil {
-			return err
+		if rec[11] != "" {
+			pr := textproto.NewReader(bufio.NewReader(
+				base64.NewDecoder(base64.StdEncoding, strings.NewReader(rec[11]))))
+			hdr, err := pr.ReadMIMEHeader()
+			if err != nil {
+				return err
+			}
+			r.Headers = http.Header(hdr)
 		}
-		r.Headers = http.Header(hdr)
 
 		return err
 	}
 }
 
+//go:generate easyjson -no_std_marshalers -output_filename results_easyjson.go results.go
+//easyjson:json
+type jsonResult Result
+
+// NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
+// object.
+func NewJSONEncoder(w io.Writer) Encoder {
+	var jw jwriter.Writer
+	return func(r *Result) error {
+		(*jsonResult)(r).MarshalEasyJSON(&jw)
+		if jw.Error != nil {
+			return jw.Error
+		}
+		jw.RawByte('\n')
+		_, err := jw.DumpTo(w)
+		return err
+	}
+}
+
+// NewJSONDecoder returns a Decoder that decodes JSON encoded Results.
+func NewJSONDecoder(r io.Reader) Decoder {
+	rd := bufio.NewReader(r)
+	return func(r *Result) (err error) {
+		var jl jlexer.Lexer
+		if jl.Data, err = rd.ReadBytes('\n'); err != nil {
+			return err
+		}
+		(*jsonResult)(r).UnmarshalEasyJSON(&jl)
+		return jl.Error()
+	}
+}
