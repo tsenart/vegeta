@@ -53,6 +53,7 @@ func attackCmd() command {
 	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.maxConnections, "max-connections", vegeta.DefaultMaxConnections, "Max connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
+	fs.BoolVar(&opts.skipBody, "skip-body", false, "Skip reading response bodies")
 	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
 	fs.Var(&opts.headers, "header", "Request header")
@@ -88,6 +89,7 @@ type attackOpts struct {
 	insecure       bool
 	lazy           bool
 	chunked        bool
+	skipBody       bool
 	duration       time.Duration
 	timeout        time.Duration
 	rate           vegeta.Rate
@@ -267,9 +269,10 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 		}
 
 		return &vegeta.NetHTTPHitter{
-			Chunked: opts.chunked,
-			MaxBody: opts.maxBody,
-			Client:  client,
+			Chunked:  opts.chunked,
+			MaxBody:  opts.maxBody,
+			SkipBody: opts.skipBody,
+			Client:   client,
 		}, nil
 	}
 
@@ -290,6 +293,7 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 		ReadTimeout:                   opts.timeout,
 		TLSConfig:                     tlsc,
 		MaxConnsPerHost:               opts.maxConnections,
+		MaxResponseBodySize:           int(opts.maxBody),
 		DisableHeaderNamesNormalizing: true,
 		Dial:                          dialer.Dial,
 	}
@@ -302,10 +306,10 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 
 	return &vegeta.FastHTTPHitter{
 		Client:       cli,
-		MaxBody:      opts.maxBody,
 		MaxRedirects: opts.redirects,
 		Chunked:      opts.chunked,
 		KeepAlive:    opts.keepalive,
+		SkipBody:     opts.skipBody,
 	}, nil
 }
 

@@ -56,9 +56,10 @@ var (
 var _ Hitter = (*NetHTTPHitter)(nil)
 
 type NetHTTPHitter struct {
-	Client  *http.Client
-	Chunked bool
-	MaxBody int64
+	Client   *http.Client
+	Chunked  bool
+	SkipBody bool
+	MaxBody  int64
 }
 
 func (h *NetHTTPHitter) Hit(t *Target) *Result {
@@ -97,15 +98,17 @@ func (h *NetHTTPHitter) Hit(t *Target) *Result {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body := io.Reader(resp.Body)
-	if h.MaxBody >= 0 {
-		body = io.LimitReader(resp.Body, h.MaxBody)
-	}
+	if !h.SkipBody {
+		body := io.Reader(resp.Body)
+		if h.MaxBody >= 0 {
+			body = io.LimitReader(resp.Body, h.MaxBody)
+		}
 
-	if r.Body, err = ioutil.ReadAll(body); err != nil {
-		return r
-	} else if _, err = io.Copy(ioutil.Discard, resp.Body); err != nil {
-		return r
+		if r.Body, err = ioutil.ReadAll(body); err != nil {
+			return r
+		} else if _, err = io.Copy(ioutil.Discard, resp.Body); err != nil {
+			return r
+		}
 	}
 
 	r.BytesIn = uint64(len(r.Body))
@@ -125,8 +128,8 @@ func (h *NetHTTPHitter) Hit(t *Target) *Result {
 
 type FastHTTPHitter struct {
 	Client       *fasthttp.Client
-	MaxBody      int64
 	MaxRedirects int
+	SkipBody     bool
 	Chunked      bool
 	KeepAlive    bool
 }
@@ -176,6 +179,8 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 		req.SetBody(t.Body)
 	}
 
+	resp.SkipBody = h.SkipBody
+
 	if h.MaxRedirects >= 0 {
 		err = h.Client.DoRedirects(req, resp, h.MaxRedirects)
 	} else {
@@ -187,11 +192,6 @@ func (h *FastHTTPHitter) Hit(t *Target) *Result {
 	}
 
 	r.Body = resp.Body()
-	if h.MaxBody > 0 {
-		// TODO(tsenart): Contribute a change to fasthttp that permits reading only n bytes from the response body.
-		r.Body = r.Body[:h.MaxBody]
-	}
-
 	r.BytesIn = uint64(len(r.Body))
 	r.BytesOut = uint64(len(req.Body()))
 	r.Code = uint16(resp.StatusCode())
