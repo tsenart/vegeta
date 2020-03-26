@@ -208,7 +208,11 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 		return nil, err
 	}
 
-	if opts.http2 || opts.h2c {
+	needsNetHTTPHitter := opts.http2 || opts.h2c ||
+		os.Getenv("HTTP_PROXY") != "" ||
+		os.Getenv("HTTPS_PROXY") != ""
+
+	if needsNetHTTPHitter {
 		dialer := net.Dialer{
 			LocalAddr: &net.TCPAddr{
 				IP:   opts.laddr.IP,
@@ -271,8 +275,6 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 
 	// TODO(tsenart): Add fasthttp support for:
 	//  - opts.connections (max idle conns per host)
-	//  - opts.proxyHeaders
-	//  - HTTP_PROXY
 	//  - opts.maxBody
 
 	dialer := fasthttp.TCPDialer{
