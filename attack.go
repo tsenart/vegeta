@@ -175,19 +175,27 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
-	atk := vegeta.Attacker{
+	atk := vegeta.Attack{
 		Hitter:     hitter,
+		Targeter:   tr,
+		Pacer:      opts.rate,
+		Name:       opts.name,
+		Duration:   opts.duration,
 		Workers:    opts.workers,
 		MaxWorkers: opts.maxWorkers,
 	}
 
-	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
+	res := make(chan *vegeta.Result)
+	go atk.Run(res)
+
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 
 	for {
 		select {
+		case <-atk.Done():
+			return nil
 		case <-sig:
 			atk.Stop()
 			return nil

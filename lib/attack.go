@@ -8,23 +8,29 @@ import (
 	"time"
 )
 
-// Attacker is an attack executor which wraps an http.Client
-type Attacker struct {
-	Hitter     Hitter
+type Attack struct {
+	Hitter   Hitter
+	Targeter Targeter
+	Pacer    Pacer
+
+	Name       string
+	Duration   time.Duration
 	Workers    uint64
 	MaxWorkers uint64
 
+	init   sync.Once
 	stopch chan struct{}
 	seqmu  sync.Mutex
 	seq    uint64
 	began  time.Time
 }
 
-// Attack reads its Targets from the passed Targeter and attacks them at
-// the rate specified by the Pacer. When the duration is zero the attack
-// runs until Stop is called. Results are sent to the returned channel as soon
-// as they arrive and will have their Attack field set to the given name.
-func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
+// Run runs the Attack, reading its Targets from the specified Targeter,
+// hitting those Targets at a pace determined by the given Pacer.
+// When the Duration is zero the attack runs until the passed context.Context is cancelled.
+// Results are sent to the passed channel as soon as they are returned by the
+// given Hitter and will have their Attack field set to the given Name.
+func (a *Attack) Run(results chan *Result) {
 	a.began = time.Now()
 	a.stopch = make(chan struct{})
 
@@ -35,61 +41,56 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 		workers = a.MaxWorkers
 	}
 
-	results := make(chan *Result)
-	ticks := make(chan struct{})
+	hits := make(chan struct{})
 	for i := uint64(0); i < workers; i++ {
 		wg.Add(1)
-		go a.attack(tr, name, &wg, ticks, results)
+		go a.run(&wg, hits, results)
 	}
 
-	go func() {
-		defer close(results)
-		defer wg.Wait()
-		defer close(ticks)
+	defer a.Stop()
+	defer wg.Wait()
+	defer close(hits)
 
-		began, count := time.Now(), uint64(0)
-		for {
-			elapsed := time.Since(began)
-			if du > 0 && elapsed > du {
-				return
-			}
+	began, count := time.Now(), uint64(0)
+	for {
+		elapsed := time.Since(began)
+		if a.Duration > 0 && elapsed > a.Duration {
+			return
+		}
 
-			wait, stop := p.Pace(elapsed, count)
-			if stop {
-				return
-			}
+		wait, stop := a.Pacer.Pace(elapsed, count)
+		if stop {
+			return
+		}
 
-			time.Sleep(wait)
+		time.Sleep(wait)
 
-			if workers < a.MaxWorkers {
-				select {
-				case ticks <- struct{}{}:
-					count++
-					continue
-				case <-a.stopch:
-					return
-				default:
-					// all workers are blocked. start one more and try again
-					workers++
-					wg.Add(1)
-					go a.attack(tr, name, &wg, ticks, results)
-				}
-			}
-
+		if workers < a.MaxWorkers {
 			select {
-			case ticks <- struct{}{}:
+			case hits <- struct{}{}:
 				count++
+				continue
 			case <-a.stopch:
 				return
+			default:
+				// all workers are blocked. start one more and try again
+				workers++
+				wg.Add(1)
+				go a.run(&wg, hits, results)
 			}
 		}
-	}()
 
-	return results
+		select {
+		case hits <- struct{}{}:
+			count++
+		case <-a.stopch:
+			return
+		}
+	}
 }
 
-// Stop stops the current attack.
-func (a *Attacker) Stop() {
+// Stop stops the current attack if its running.
+func (a *Attack) Stop() {
 	select {
 	case <-a.stopch:
 		return
@@ -98,20 +99,24 @@ func (a *Attacker) Stop() {
 	}
 }
 
-func (a *Attacker) attack(tr Targeter, name string, workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result) {
+func (a *Attack) Done() chan struct{} {
+	return a.stopch
+}
+
+func (a *Attack) run(workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result) {
 	defer workers.Done()
 	for range ticks {
-		results <- a.hit(tr, name)
+		results <- a.hit()
 	}
 }
 
 var ErrNoResult = errors.New("no result returned from hitter")
 
-func (a *Attacker) hit(tr Targeter, name string) *Result {
+func (a *Attack) hit() *Result {
 	var t Target
-	if err := tr(&t); err != nil {
+	if err := a.Targeter(&t); err != nil {
 		a.Stop()
-		return &Result{Attack: name, Error: err.Error()}
+		return &Result{Attack: a.Name, Error: err.Error()}
 	}
 
 	if t.Header == nil {
@@ -120,8 +125,8 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		t.Header = t.Header.Clone()
 	}
 
-	if name != "" {
-		t.Header["X-Vegeta-Attack"] = []string{name}
+	if a.Name != "" {
+		t.Header["X-Vegeta-Attack"] = []string{a.Name}
 	}
 
 	a.seqmu.Lock()
@@ -138,7 +143,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	}
 
 	r.Latency = time.Since(timestamp)
-	r.Attack = name
+	r.Attack = a.Name
 	r.Timestamp = timestamp
 	r.Seq = seq
 
