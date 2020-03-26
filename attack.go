@@ -50,7 +50,6 @@ func attackCmd() command {
 	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
 	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
 	fs.Uint64Var(&opts.maxWorkers, "max-workers", vegeta.DefaultMaxWorkers, "Maximum number of workers")
-	fs.IntVar(&opts.connections, "connections", vegeta.DefaultConnections, "Max open idle connections per target host")
 	fs.IntVar(&opts.maxConnections, "max-connections", vegeta.DefaultMaxConnections, "Max connections per target host")
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.BoolVar(&opts.skipBody, "skip-body", false, "Skip reading response bodies")
@@ -95,7 +94,6 @@ type attackOpts struct {
 	rate           vegeta.Rate
 	workers        uint64
 	maxWorkers     uint64
-	connections    int
 	maxConnections int
 	redirects      int
 	maxBody        int64
@@ -224,13 +222,12 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 		}
 
 		tr := &http.Transport{
-			Proxy:               http.ProxyFromEnvironment,
-			DialContext:         dialer.DialContext,
-			TLSClientConfig:     tlsc,
-			MaxIdleConnsPerHost: opts.connections,
-			MaxConnsPerHost:     opts.maxConnections,
-			DisableKeepAlives:   !opts.keepalive,
-			ProxyConnectHeader:  opts.proxyHeaders.Header,
+			Proxy:              http.ProxyFromEnvironment,
+			DialContext:        dialer.DialContext,
+			TLSClientConfig:    tlsc,
+			MaxConnsPerHost:    opts.maxConnections,
+			DisableKeepAlives:  !opts.keepalive,
+			ProxyConnectHeader: opts.proxyHeaders.Header,
 		}
 
 		client := &http.Client{
@@ -275,10 +272,6 @@ func newHitter(opts *attackOpts) (vegeta.Hitter, error) {
 			Client:   client,
 		}, nil
 	}
-
-	// TODO(tsenart): Add fasthttp support for:
-	//  - opts.connections (max idle conns per host)
-	//  - opts.maxBody
 
 	dialer := fasthttp.TCPDialer{
 		LocalAddr: &net.TCPAddr{
