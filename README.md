@@ -88,6 +88,8 @@ attack command:
     	Read targets lazily
   -max-body value
     	Maximum number of bytes to capture from response bodies. [-1 = no limit] (default -1)
+  -max-connections int
+      Max connections per target host
   -max-workers uint
     	Maximum number of workers (default 18446744073709551615)
   -name string
@@ -177,6 +179,10 @@ Specifies whether to send request bodies with the chunked transfer encoding.
 #### `-connections`
 
 Specifies the maximum number of idle open connections per target host.
+
+#### `-max-connections`
+
+Specifies the maximum number of connections per target host.
 
 #### `-duration`
 
