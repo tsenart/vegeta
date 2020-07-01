@@ -14,23 +14,70 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/http2"
 )
 
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer     *net.Dialer
-	client     http.Client
-	stopch     chan struct{}
-	workers    uint64
-	maxWorkers uint64
-	maxBody    int64
-	redirects  int
-	seqmu      sync.Mutex
-	seq        uint64
-	began      time.Time
-	chunked    bool
+	dialer      *net.Dialer
+	client      http.Client
+	stopch      chan struct{}
+	workers     uint64
+	maxWorkers  uint64
+	maxBody     int64
+	redirects   int
+	seqmu       sync.Mutex
+	seq         uint64
+	began       time.Time
+	chunked     bool
+	promEnabled bool
+	promBind    string
+	promPort    int
+	promPath    string
+	promSrv     *http.Server
 }
+
+//Prometheus metrics
+var requestSecondsHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Name:    "request_seconds",
+	Help:    "Request latency",
+	Buckets: []float64{0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20, 50},
+}, []string{
+	"method",
+	"url",
+	"status",
+})
+
+var requestBytesInCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "request_bytes_in",
+	Help: "Bytes received from servers as response to requests",
+}, []string{
+	"method",
+	"url",
+	"status",
+})
+
+var requestBytesOutCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "request_bytes_out",
+	Help: "Bytes sent to servers during requests",
+}, []string{
+	"method",
+	"url",
+	"status",
+})
+
+var requestFailCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "request_fail_count",
+	Help: "Internal failures that prevented a hit to the target server",
+}, []string{
+	"method",
+	"url",
+	"message",
+})
 
 const (
 	// DefaultRedirects is the default number of times an Attacker follows
@@ -67,11 +114,15 @@ var (
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	a := &Attacker{
-		stopch:     make(chan struct{}),
-		workers:    DefaultWorkers,
-		maxWorkers: DefaultMaxWorkers,
-		maxBody:    DefaultMaxBody,
-		began:      time.Now(),
+		stopch:      make(chan struct{}),
+		workers:     DefaultWorkers,
+		maxWorkers:  DefaultMaxWorkers,
+		maxBody:     DefaultMaxBody,
+		began:       time.Now(),
+		promEnabled: false,
+		promBind:    "0.0.0.0",
+		promPort:    8880,
+		promPath:    "/metrics",
 	}
 
 	a.dialer = &net.Dialer{
@@ -92,6 +143,21 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 
 	for _, opt := range opts {
 		opt(a)
+	}
+
+	//setup prometheus metrics
+	if a.promEnabled {
+		go func() {
+			router := mux.NewRouter()
+			router.Handle(a.promPath, promhttp.Handler())
+
+			listen := fmt.Sprintf("%s:%d", a.promBind, a.promPort)
+			a.promSrv = &http.Server{Addr: listen, Handler: router}
+			err := a.promSrv.ListenAndServe()
+			if err != nil {
+				// fmt.Printf("%s\n", err)
+			}
+		}()
 	}
 
 	return a
@@ -132,6 +198,34 @@ func MaxConnections(n int) func(*Attacker) {
 // body of each request with the chunked transfer encoding.
 func ChunkedBody(b bool) func(*Attacker) {
 	return func(a *Attacker) { a.chunked = b }
+}
+
+// PrometheusEnable Enables Prometheus metrics at http://0.0.0.0:8880/metrics during attack
+// For custom settings, use PrometheusSettings(..)
+func PrometheusEnable() func(*Attacker) {
+	return func(a *Attacker) {
+		a.promEnabled = true
+	}
+}
+
+// PrometheusSettings Returns a functional option which configures a Prometheus
+// client settings that can be used for monitoring this attack on a remote Prometheus Server
+// regarding to requests/s bytes in/out/s and so on.
+// Options are:
+//   - enabled: whatever to enable Prometheus support
+//   - bindHost: host to bind the listening socket to
+//   - bindPort: port to bind the listening socket to
+//   - metricsPath: http path that will be used to get metrics
+// For example, after using PrometheusSettings(true, "0.0.0.0", 8880, "/metrics"),
+// during an "attack" you can call "curl http://127.0.0.0:8880/metrics" to see current metrics.
+// This endpoint can be configured in scrapper section of your Prometheus server.
+func PrometheusSettings(enabled bool, bindHost string, bindPort int, metricsPath string) func(*Attacker) {
+	return func(a *Attacker) {
+		a.promEnabled = enabled
+		a.promBind = bindHost
+		a.promPort = bindPort
+		a.promPath = metricsPath
+	}
 }
 
 // Redirects returns a functional option which sets the maximum
@@ -283,6 +377,7 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 		defer close(results)
 		defer wg.Wait()
 		defer close(ticks)
+		defer a.stopPrometheus()
 
 		began, count := time.Now(), uint64(0)
 		for {
@@ -355,13 +450,6 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	a.seq++
 	a.seqmu.Unlock()
 
-	defer func() {
-		res.Latency = time.Since(res.Timestamp)
-		if err != nil {
-			res.Error = err.Error()
-		}
-	}()
-
 	if err = tr(&tgt); err != nil {
 		a.Stop()
 		return &res
@@ -369,6 +457,19 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 
 	res.Method = tgt.Method
 	res.URL = tgt.URL
+
+	defer func() {
+		res.Latency = time.Since(res.Timestamp)
+		if a.promEnabled {
+			requestSecondsHistogram.WithLabelValues(res.Method, res.URL, fmt.Sprintf("%d", res.Code)).Observe(float64(res.Latency * time.Second))
+		}
+		if err != nil {
+			res.Error = err.Error()
+			if a.promEnabled {
+				requestFailCounter.WithLabelValues(res.Method, res.URL, res.Error)
+			}
+		}
+	}()
 
 	req, err := tgt.Request()
 	if err != nil {
@@ -414,5 +515,18 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 
 	res.Headers = r.Header
 
+	//Prometheus metrics
+	if a.promEnabled {
+		requestBytesInCounter.WithLabelValues(res.Method, res.URL, fmt.Sprintf("%d", res.Code)).Add(float64(res.BytesIn))
+		requestBytesOutCounter.WithLabelValues(res.Method, res.URL, fmt.Sprintf("%d", res.Code)).Add(float64(res.BytesOut))
+	}
+
 	return &res
+}
+
+func (a *Attacker) stopPrometheus() {
+	err := a.promSrv.Close()
+	if err != nil {
+		// fmt.Printf("Error stopping Prometheus HTTP server. err=%s\n", err)
+	}
 }

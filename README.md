@@ -94,6 +94,14 @@ attack command:
     	Attack name
   -output string
     	Output file (default "stdout")
+  -prom-bind
+      Host to bind Prometheus service to. Defaults to 0.0.0.0
+  -prom-enable
+      Enable Prometheus metrics endpoint so that requests can be monitored by Prometheus. Defaults to false.
+  -prom-path
+      Prometheus metrics path. Defaults to /metrics
+  -prom-port
+      HTTP port for exposing Prometheus metrics at /metrics. Defaults to http://[host]:8880/metrics
   -proxy-header value
     	Proxy CONNECT header
   -rate value
@@ -727,6 +735,8 @@ It'll read and sort them by timestamp before generating reports.
 vegeta report *.bin
 ```
 
+Another way to gather results in distributed tests is to use the built-in Prometheus Exporter and configure a Prometheus Server to get test results from all Vegeta instances. See `attack` option "prom-enable" for more details and a complete example at section "Prometheus Exporter Support"
+
 ## Usage: Real-time Analysis
 
 If you are a happy user of iTerm, you can integrate vegeta with [jplot](https://github.com/rs/jplot) using [jaggr](https://github.com/rs/jaggr) to plot a vegeta report in real-time in the comfort of your terminal:
@@ -746,7 +756,7 @@ echo 'GET http://localhost:8080' | \
 
 ![](https://i.imgur.com/ttBDsQS.gif)
 
-## Usage (Library)
+## Usage: Library
 
 The library versioning follows [SemVer v2.0.0](https://semver.org/spec/v2.0.0.html).
 Since [lib/v9.0.0](https://github.com/tsenart/vegeta/tree/lib/v9.0.0), the library and cli
@@ -802,6 +812,63 @@ $ ulimit -u # processes / threads
 ```
 
 Just pass a new number as the argument to change it.
+
+## Prometheus Support
+
+Vegeta has a built-in Prometheus Exporter that may be enabled during "attacks" so that you can point any Prometheus instance to Vegeta instances and get some metrics about http requests performance and about Vegeta process itself.
+
+To enable Prometheus Exporter on command line, see options with "prom-" prefix.
+To enable Prometheus Exporter on lib usage, add Option "PrometheusEnable" and/or "PrometheusSettings".
+
+Prometheus HTTP endpoint will be available only during the lifespan of an "attack" and will be closed right after the attack is finished.
+
+The following metrics are exposed:
+
+* `request_bytes_in` - bytes count received from targeted servers by "url", "method" and "status"
+* `request_bytes_out` - bytes count sent to targeted server by "url", "method" and "status"
+* `request_seconds` - histogram with request latency and counters by "url", "method" and "status"
+
+### Prometheus Exporter Example
+
+* Create a docker-compose.yml
+
+```
+version: '3.5'
+services:
+  vegeta:
+    image: flaviostutz/vegeta
+    ports:
+      - 8880:8880
+    environment:
+      - TARGET_URL=http://www.google.com
+      - DURATION=300s
+      - REQUESTS_PER_SECOND=1
+
+  prometheus:
+    image: flaviostutz/prometheus:2.19.2.0
+    ports:
+      - 9090:9090
+    environment:
+      - SCRAPE_INTERVAL=10s
+      - SCRAPE_TIMEOUT=10s
+      - STATIC_SCRAPE_TARGETS=vegeta@vegeta:8880
+```
+
+* Run `docker-compose up -d`
+
+* Run `curl localhost:8880/metrics` to see plain Prometheus Exporter endpoint contents
+
+* Open Prometheus server instance with your browser at http://localhost:9090
+
+* Go to "Graph" and execute query `rate(request_seconds_sum[1m])` and then select the "Graph" tab to see a graph with latency over time
+
+### More resources
+
+* See https://prometheus.io/docs/prometheus/latest/querying/basics/ for query details
+
+* Use Grafana for creating stateful dashboards
+
+* For more elaborated scenarios, see https://github.com/flaviostutz/promster so that you can automatically register new Vegeta Prometheus Exporter instances to Prometheus in elastic scenarios.
 
 ## License
 

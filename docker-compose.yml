@@ -1,0 +1,23 @@
+version: '3.5'
+
+services:
+
+  vegeta:
+    build: .
+    image: flaviostutz/vegeta
+    ports:
+      - 8880:8880
+    environment: 
+      - TARGET_URL=https://www.uol.com.br
+      - DURATION=60s
+      - REQUESTS_PER_SECOND=3
+
+  prometheus:
+    image: flaviostutz/prometheus:2.19.2.0
+    ports:
+      - 9090:9090
+    environment:
+      - SCRAPE_INTERVAL=10s
+      - SCRAPE_TIMEOUT=10s
+      - STATIC_SCRAPE_TARGETS=vegeta@vegeta:8880
+

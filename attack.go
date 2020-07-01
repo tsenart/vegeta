@@ -27,6 +27,10 @@ func attackCmd() command {
 		laddr:        localAddr{&vegeta.DefaultLocalAddr},
 		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
 		maxBody:      vegeta.DefaultMaxBody,
+		promEnable:   false,
+		promBind:     "0.0.0.0",
+		promPort:     8880,
+		promPath:     "/metrics",
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -56,6 +60,10 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.BoolVar(&opts.promEnable, "prom-enable", false, "Enable Prometheus metrics endpoint so that requests can be monitored by Prometheus. Defaults to false.")
+	fs.StringVar(&opts.promBind, "prom-bind", "0.0.0.0", "Host to bind Prometheus service to. Defaults to 0.0.0.0")
+	fs.IntVar(&opts.promPort, "prom-port", 8880, "HTTP port for exposing Prometheus metrics at /metrics. Defaults to http://[host]:8880/metrics")
+	fs.StringVar(&opts.promPath, "prom-path", "/metrics", "Prometheus metrics path. Defaults to /metrics")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -99,6 +107,10 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+	promBind       string
+	promPort       int
+	promEnable     bool
+	promPath       string
 }
 
 // attack validates the attack arguments, sets up the
@@ -188,6 +200,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
+		vegeta.PrometheusSettings(opts.promEnable, opts.promBind, opts.promPort, opts.promPath),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
