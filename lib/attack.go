@@ -450,11 +450,6 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	a.seq++
 	a.seqmu.Unlock()
 
-	if err = tr(&tgt); err != nil {
-		a.Stop()
-		return &res
-	}
-
 	res.Method = tgt.Method
 	res.URL = tgt.URL
 
@@ -470,6 +465,11 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 			}
 		}
 	}()
+
+	if err = tr(&tgt); err != nil {
+		a.Stop()
+		return &res
+	}
 
 	req, err := tgt.Request()
 	if err != nil {
@@ -525,8 +525,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 }
 
 func (a *Attacker) stopPrometheus() {
-	err := a.promSrv.Close()
-	if err != nil {
-		// fmt.Printf("Error stopping Prometheus HTTP server. err=%s\n", err)
+	if a.promSrv != nil {
+		a.promSrv.Close()
 	}
 }

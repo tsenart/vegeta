@@ -1,6 +1,6 @@
 FROM golang:1.14.4-alpine3.12 AS BUILD
 
-RUN apk add make
+RUN apk add make build-base
 
 WORKDIR /vegeta
 
@@ -13,6 +13,7 @@ RUN go mod download
 ADD / /vegeta
 RUN make vegeta
 # RUN go build -v -o /bin/vegeta
+RUN go test -v ./...
 
 FROM alpine:3.12.0
 
