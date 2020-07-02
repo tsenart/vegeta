@@ -828,6 +828,8 @@ The following metrics are exposed:
 * `request_bytes_out` - bytes count sent to targeted server by "url", "method" and "status"
 * `request_seconds` - histogram with request latency and counters by "url", "method" and "status"
 
+<image src="prometheus-sample.png" width="500" />
+
 ### Prometheus Exporter Example
 
 * Create a docker-compose.yml
@@ -866,7 +868,7 @@ services:
 
 * See https://prometheus.io/docs/prometheus/latest/querying/basics/ for query details
 
-* Use Grafana for creating stateful dashboards
+* Use Grafana for creating stateful dashboards. Get a sample dashboard for Vegeta [here](grafana.json)
 
 * For more elaborated scenarios, see https://github.com/flaviostutz/promster so that you can automatically register new Vegeta Prometheus Exporter instances to Prometheus in elastic scenarios.
 

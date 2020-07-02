@@ -461,7 +461,7 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 	defer func() {
 		res.Latency = time.Since(res.Timestamp)
 		if a.promEnabled {
-			requestSecondsHistogram.WithLabelValues(res.Method, res.URL, fmt.Sprintf("%d", res.Code)).Observe(float64(res.Latency * time.Second))
+			requestSecondsHistogram.WithLabelValues(res.Method, res.URL, fmt.Sprintf("%d", res.Code)).Observe(float64(res.Latency) / float64(time.Second))
 		}
 		if err != nil {
 			res.Error = err.Error()

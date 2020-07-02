@@ -10,14 +10,21 @@ services:
     environment: 
       - TARGET_URL=https://www.uol.com.br
       - DURATION=60s
-      - REQUESTS_PER_SECOND=3
+      - REQUESTS_PER_SECOND=5
 
   prometheus:
-    image: flaviostutz/prometheus:2.19.2.0
+    image: flaviostutz/prometheus
     ports:
       - 9090:9090
     environment:
       - SCRAPE_INTERVAL=10s
       - SCRAPE_TIMEOUT=10s
       - STATIC_SCRAPE_TARGETS=vegeta@vegeta:8880
+
+  grafana:
+    image: flaviostutz/grafana:5.2.4
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=mypass
 
