@@ -41,7 +41,7 @@ type Attacker struct {
 	promSrv     *http.Server
 }
 
-//Prometheus metrics
+// Prometheus metrics
 var requestSecondsHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    "request_seconds",
 	Help:    "Request latency",
