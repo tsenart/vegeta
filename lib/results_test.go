@@ -103,6 +103,7 @@ func TestResultEncoding(t *testing.T) {
 					URL: rapid.String().Draw(t, "url").(string),
 				}
 
+				want.Error = strings.ReplaceAll(want.Error, "\n", "")
 				want.URL = strings.ReplaceAll(want.URL, "\n", "")
 
 				if len(hdrs) > 0 {

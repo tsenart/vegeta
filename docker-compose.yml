@@ -8,7 +8,7 @@ services:
     ports:
       - 8880:8880
     environment: 
-      - TARGET_URL=https://www.uol.com.br
+      - TARGET_URL=https://www.yahoo.com
       - DURATION=60s
       - REQUESTS_PER_SECOND=5
 
