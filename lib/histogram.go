@@ -68,10 +68,14 @@ func (bs *Buckets) UnmarshalText(value []byte) error {
 	if len(value) < 2 || value[0] != '[' || value[len(value)-1] != ']' {
 		return fmt.Errorf("bad buckets: %s", value)
 	}
-	for _, v := range strings.Split(string(value[1:len(value)-1]), ",") {
+	for i, v := range strings.Split(string(value[1:len(value)-1]), ",") {
 		d, err := time.ParseDuration(strings.TrimSpace(v))
 		if err != nil {
 			return err
+		}
+		// add a default range of [0-Buckets[0]) if needed
+		if i == 0 && d > 0 {
+			*bs = append(*bs, 0)
 		}
 		*bs = append(*bs, d)
 	}
