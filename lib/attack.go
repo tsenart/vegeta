@@ -245,6 +245,18 @@ func UnixSocket(socket string) func(*Attacker) {
 	}
 }
 
+// SessionTickets returns a functional option which configures usage of session
+// tickets for session resumption.
+func SessionTickets(sessiontickets bool) func(*Attacker) {
+  return func(a *Attacker) {
+    if sessiontickets {
+		  cf := a.client.Transport.(*http.Transport).TLSClientConfig
+      cf.SessionTicketsDisabled = false
+      cf.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+    }
+  }
+}
+
 // Client returns a functional option that allows you to bring your own http.Client
 func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
