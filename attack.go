@@ -57,6 +57,7 @@ func attackCmd() command {
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
+	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Support TLS session resumption using session tickets")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -101,6 +102,7 @@ type attackOpts struct {
 	resolvers      csl
 	unixSocket     string
 	dnsTTL         time.Duration
+	sessionTickets bool
 }
 
 // attack validates the attack arguments, sets up the
@@ -193,6 +195,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
 		vegeta.DNSCaching(opts.dnsTTL),
+		vegeta.SessionTickets(opts.sessionTickets),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
