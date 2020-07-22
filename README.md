@@ -104,6 +104,8 @@ attack command:
     	List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
   -root-certs value
     	TLS root certificate files (comma separated list)
+  - sessiontickets
+      Enable session resumption using session tickets (default false)
   -targets string
     	Targets file (default "stdin")
   -timeout duration
@@ -350,6 +352,10 @@ the ones configured by the operating system. Works only on non Windows systems.
 
 Specifies the trusted TLS root CAs certificate files as a comma separated
 list. If unspecified, the default system CAs certificates will be used.
+
+#### `-sessiontickets`
+
+Specifies whether to support session resumption using session tickets.
 
 #### `-targets`
 
