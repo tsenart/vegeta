@@ -56,6 +56,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.BoolVar(&opts.sessionTickets, "sessiontickets", false, "Use session tickets")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -99,6 +100,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+  sessionTickets bool
 }
 
 // attack validates the attack arguments, sets up the
@@ -188,6 +190,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
+    vegeta.SessionTickets(opts.sessionTickets),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
