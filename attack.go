@@ -56,7 +56,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
-	fs.BoolVar(&opts.sessionTickets, "sessiontickets", false, "Support session resumption using session tickets")
+	fs.BoolVar(&opts.sessionTickets, "sessiontickets", false, "Support TLS session resumption using session tickets")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {

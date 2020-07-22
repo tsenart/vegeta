@@ -246,7 +246,7 @@ func UnixSocket(socket string) func(*Attacker) {
 }
 
 // SessionTickets returns a functional option which configures usage of session
-// tickets for session resumption.
+// tickets for TLS session resumption.
 func SessionTickets(sessiontickets bool) func(*Attacker) {
   return func(a *Attacker) {
     if sessiontickets {

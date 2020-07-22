@@ -105,7 +105,7 @@ attack command:
   -root-certs value
     	TLS root certificate files (comma separated list)
   - sessiontickets
-      Enable session resumption support using session tickets (default false)
+      Enable TLS session resumption support using session tickets (default false)
   -targets string
     	Targets file (default "stdin")
   -timeout duration
@@ -355,7 +355,7 @@ list. If unspecified, the default system CAs certificates will be used.
 
 #### `-sessiontickets`
 
-Specifies whether to support session resumption using session tickets.
+Specifies whether to support TLS session resumption using session tickets.
 
 #### `-targets`
 
