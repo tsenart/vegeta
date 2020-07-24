@@ -32,3 +32,5 @@ vendor
 *.lz
 
 .DS_Store
+
+fuzzit
