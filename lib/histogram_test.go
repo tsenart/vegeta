@@ -57,6 +57,7 @@ func TestBuckets_UnmarshalText(t *testing.T) {
 		"[0,5ms]":             {0, 5 * time.Millisecond},
 		"[0, 5ms]":            {0, 5 * time.Millisecond},
 		"[   0,5ms, 10m    ]": {0, 5 * time.Millisecond, 10 * time.Minute},
+		"[3ms,10ms]":          {0, 3 * time.Millisecond, 10 * time.Millisecond},
 	} {
 		var got Buckets
 		if err := got.UnmarshalText([]byte(value)); err != nil {
