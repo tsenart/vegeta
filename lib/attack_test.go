@@ -62,7 +62,6 @@ func TestAttackDuration(t *testing.T) {
 	}
 }
 
-// Cannot be run concurrently with TestSessionTickets()
 func TestTLSConfig(t *testing.T) {
 	atk := NewAttacker()
 	got := atk.client.Transport.(*http.Transport).TLSClientConfig
