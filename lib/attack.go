@@ -247,14 +247,14 @@ func UnixSocket(socket string) func(*Attacker) {
 
 // SessionTickets returns a functional option which configures usage of session
 // tickets for TLS session resumption.
-func SessionTickets(sessiontickets bool) func(*Attacker) {
-  return func(a *Attacker) {
-    if sessiontickets {
-      cf := a.client.Transport.(*http.Transport).TLSClientConfig
-      cf.SessionTicketsDisabled = false
-      cf.ClientSessionCache = tls.NewLRUClientSessionCache(0)
-    }
-  }
+func SessionTickets(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if enabled {
+			cf := a.client.Transport.(*http.Transport).TLSClientConfig
+			cf.SessionTicketsDisabled = false
+			cf.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+		}
+	}
 }
 
 // Client returns a functional option that allows you to bring your own http.Client

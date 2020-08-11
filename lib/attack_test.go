@@ -165,15 +165,15 @@ func TestKeepAlive(t *testing.T) {
 // This test cannot be run in parallel with TestTLSConfig() because ClientSessionCache
 // is designed to be called concurrently from different goroutines.
 func TestSessionTickets(t *testing.T) {
-  atk := NewAttacker(SessionTickets(true))
-  cf := atk.client.Transport.(*http.Transport).TLSClientConfig
-  got, want := cf.SessionTicketsDisabled, false
-  if got != want {
-    t.Fatalf("got: %v, want: %v", got, want)
-  }
-  if cf.ClientSessionCache == nil {
-    t.Fatalf("ClientSessionCache is nil")
-  }
+	atk := NewAttacker(SessionTickets(true))
+	cf := atk.client.Transport.(*http.Transport).TLSClientConfig
+	got, want := cf.SessionTicketsDisabled, false
+	if got != want {
+		t.Fatalf("got: %v, want: %v", got, want)
+	}
+	if cf.ClientSessionCache == nil {
+		t.Fatalf("ClientSessionCache is nil")
+	}
 }
 
 func TestConnections(t *testing.T) {
