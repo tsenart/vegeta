@@ -104,7 +104,7 @@ attack command:
     	List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
   -root-certs value
     	TLS root certificate files (comma separated list)
-  - session-tickets
+  -session-tickets
       Enable TLS session resumption support using session tickets (default false)
   -targets string
     	Targets file (default "stdin")
