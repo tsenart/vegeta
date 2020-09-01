@@ -14,7 +14,8 @@ jobs:
       script:
         - go vet ./...
         - $HOME/gopath/bin/golint -set_exit_status $(go list ./... | grep -v /vendor/)
-        - go test -v ./...
+        - go test -v ./... -coverprofile=coverage.txt
+        - bash <(curl -s https://codecov.io/bash)
     - stage: Fuzz regression
       script: ./fuzzit.sh local-regression
       # - stage: Fuzz
