@@ -241,7 +241,7 @@ func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 var (
-	reds = []string{
+	failures = []string{
 		"#EE7860",
 		"#DD624E",
 		"#CA4E3E",
@@ -250,29 +250,29 @@ var (
 		"#881618",
 		"#6F050E",
 	}
-	greens = []string{
-		"#A6DA83",
-		"#84C068",
-		"#64A550",
-		"#488A3A",
-		"#2F7027",
-		"#185717",
-		"#053E0A",
+	successes = []string{
+		"#E9D758",
+		"#297373",
+		"#39393A",
+		"#A1CDF4",
+		"#593C8F",
+		"#171738",
+		"#A1674A",
 	}
 )
 
 func labelColors(labels []string) []string {
 	colors := make([]string, 0, len(labels))
 
-	var red, green int
+	var failure, success int
 	for _, label := range labels {
 		var color string
 		if strings.Contains(label, "ERROR") {
-			color = reds[red%len(reds)]
-			red++
+			color = failures[failure%len(failures)]
+			failure++
 		} else {
-			color = greens[green%len(greens)]
-			green++
+			color = successes[success%len(successes)]
+			success++
 		}
 		colors = append(colors, color)
 	}
