@@ -53,6 +53,8 @@ func TestResultDecoding(t *testing.T) {
 }
 
 func TestResultEncoding(t *testing.T) {
+	t.Parallel()
+
 	newStdJSONEncoder := func(w io.Writer) Encoder {
 		enc := json.NewEncoder(w)
 		return func(r *Result) error { return enc.Encode(r) }
@@ -79,8 +81,6 @@ func TestResultEncoding(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.encoding, func(t *testing.T) {
-			t.Parallel()
-
 			rapid.Check(t, func(t *rapid.T) {
 				hdrs := rapid.MapOf(
 					rapid.StringMatching(`([\w-]+)`),
