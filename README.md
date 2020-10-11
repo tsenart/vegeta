@@ -1,4 +1,4 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.svg?branch=master)](http://travis-ci.org/tsenart/vegeta) [![Fuzzit Status](https://app.fuzzit.dev/badge?org_id=vegeta)](https://app.fuzzit.dev/orgs/vegeta/dashboard) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
+# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.svg?branch=master)](http://travis-ci.org/tsenart/vegeta) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
@@ -466,7 +466,14 @@ All duration like fields are in nanoseconds.
     "max": 3660505,
     "min": 1949582
   },
-  "buckets": {"0":9952,"1000000":40,"2000000":6,"3000000":0,"4000000":0,"5000000":2},
+  "buckets": {
+    "0": 9952,
+    "1000000": 40,
+    "2000000": 6,
+    "3000000": 0,
+    "4000000": 0,
+    "5000000": 2
+  },
   "bytes_in": {
     "total": 606700,
     "mean": 6067
