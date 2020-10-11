@@ -3,4 +3,13 @@ version = 1
 [[analyzers]]
 name = "python"
 enabled = true
-runtime_version = "3.x.x"
+
+  [analyzers.meta]
+  runtime_version = "3.x.x"
+
+[[analyzers]]
+name = "go"
+enabled = true
+
+  [analyzers.meta]
+  import_paths = ["github.com/tsenart/vegeta"]
