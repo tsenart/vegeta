@@ -17,10 +17,12 @@ require (
 	github.com/gonum/mathext v0.0.0-20181121095525-8a4bf007ea55 // indirect
 	github.com/gonum/matrix v0.0.0-20181209220409-c518dec07be9 // indirect
 	github.com/gonum/stat v0.0.0-20181125101827-41a0da705a5b // indirect
-	github.com/google/go-cmp v0.2.0
+	github.com/google/go-cmp v0.4.0
+	github.com/gorilla/mux v1.7.4
 	github.com/influxdata/tdigest v0.0.0-20180711151920-a7d76c6f093a
 	github.com/mailru/easyjson v0.7.0
 	github.com/miekg/dns v1.1.17
+	github.com/prometheus/client_golang v1.7.1
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/tsenart/go-tsz v0.0.0-20180814232043-cdeb9e1e981e
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297

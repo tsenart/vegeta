@@ -17,6 +17,7 @@ import (
 
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
+	prom "github.com/tsenart/vegeta/v12/lib/prom"
 )
 
 func attackCmd() command {
@@ -27,6 +28,7 @@ func attackCmd() command {
 		laddr:        localAddr{&vegeta.DefaultLocalAddr},
 		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
 		maxBody:      vegeta.DefaultMaxBody,
+		promURL:      "0.0.0.0:8880",
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -56,6 +58,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.StringVar(&opts.promURL, "prometheus-url", "", "Enable Prometheus metrics with specific bind parameters in format [bind ip]:[bind port]. Example: 0.0.0.0:8880")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -99,6 +102,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+	promURL        string
 }
 
 // attack validates the attack arguments, sets up the
@@ -172,6 +176,14 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
+	var promMetrics *prom.PrometheusMetrics
+	if opts.promURL != "" {
+		promMetrics, err = prom.NewPrometheusMetricsWithParams(opts.promURL)
+		if err != nil {
+			return err
+		}
+	}
+
 	atk := vegeta.NewAttacker(
 		vegeta.Redirects(opts.redirects),
 		vegeta.Timeout(opts.timeout),
@@ -203,6 +215,9 @@ func attack(opts *attackOpts) (err error) {
 		case r, ok := <-res:
 			if !ok {
 				return nil
+			}
+			if opts.promURL != "" {
+				promMetrics.Observe(r)
 			}
 			if err = enc.Encode(r); err != nil {
 				return err
