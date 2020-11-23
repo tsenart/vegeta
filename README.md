@@ -358,8 +358,7 @@ See the [`-format`](#-format) section to learn about the different target format
 
 #### `-timeout`
 
-Specifies the timeout for each request. The default is 0 which disables
-timeouts.
+Specifies the timeout for each request. A value of `0` disables timeouts.
 
 #### `-workers`
 
