@@ -263,7 +263,7 @@ Lines starting with `#` are ignored.
 ```
 # get a dragon ball
 GET http://goku:9090/path/to/dragon?item=ball
-# specify a test accout
+# specify a test account
 X-Account-ID: 99
 ```
 
@@ -308,7 +308,7 @@ The trade-off is one of added latency in each hit against the targets.
 
 Specifies the maximum number of bytes to capture from the body of each
 response. Remaining unread bytes will be fully read but discarded.
-Set to -1 for no limit. It knows how to intepret values like these:
+Set to -1 for no limit. It knows how to interpret values like these:
 
 - `"10 MB"` -> `10MB`
 - `"10240 g"` -> `10TB`
