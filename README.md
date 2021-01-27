@@ -12,12 +12,18 @@ It can be used both as a command line utility and a library.
 
 Get them [here](http://github.com/tsenart/vegeta/releases).
 
-### Homebrew on Mac OS X
+### macOS
 
-You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/) package manager on Mac OS X:
+You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/):
 
 ```shell
 $ brew update && brew install vegeta
+```
+
+Or with [MacPorts](https://www.macports.org/):
+
+```shell
+$ port install vegeta
 ```
 
 ### Source
