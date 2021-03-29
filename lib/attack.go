@@ -30,6 +30,7 @@ type Attacker struct {
 	seq        uint64
 	began      time.Time
 	chunked    bool
+	callback   func(int, []byte)
 }
 
 const (
@@ -132,6 +133,12 @@ func MaxConnections(n int) func(*Attacker) {
 // body of each request with the chunked transfer encoding.
 func ChunkedBody(b bool) func(*Attacker) {
 	return func(a *Attacker) { a.chunked = b }
+}
+
+// Callback returns a functional option which makes the attacker synchronously call
+// the specified function after hitting the endpoint
+func Callback(c func(int, []byte)) func(*Attacker) {
+	return func(a *Attacker) { a.callback = c }
 }
 
 // Redirects returns a functional option which sets the maximum
@@ -412,6 +419,10 @@ func (a *Attacker) hit(tr Targeter, name string) *Result {
 		res.Error = r.Status
 	}
 
+	if a.callback != nil {
+		a.callback(r.StatusCode, res.Body)
+	}
+	
 	res.Headers = r.Header
 
 	return &res
