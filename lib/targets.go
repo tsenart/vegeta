@@ -31,9 +31,12 @@ type Target struct {
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) Request() (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
+	req, err := http.NewRequest(t.Method, t.URL, nil)
 	if err != nil {
 		return nil, err
+	}
+	if req.Method != http.MethodGet {
+		req.Body = ioutil.NopCloser(bytes.NewReader(t.Body))
 	}
 	for k, vs := range t.Header {
 		req.Header[k] = make([]string, len(vs))
