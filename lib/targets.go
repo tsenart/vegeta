@@ -31,17 +31,25 @@ type Target struct {
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) Request() (*http.Request, error) {
-	req, err := http.NewRequest(t.Method, t.URL, bytes.NewReader(t.Body))
+	var body io.Reader
+	if len(t.Body) != 0 {
+		body = bytes.NewReader(t.Body)
+	}
+
+	req, err := http.NewRequest(t.Method, t.URL, body)
 	if err != nil {
 		return nil, err
 	}
+
 	for k, vs := range t.Header {
 		req.Header[k] = make([]string, len(vs))
 		copy(req.Header[k], vs)
 	}
+
 	if host := req.Header.Get("Host"); host != "" {
 		req.Host = host
 	}
+
 	return req, nil
 }
 
@@ -116,12 +124,11 @@ func (tr Targeter) Decode(t *Target) error {
 // The method and url fields are required. If present, the body field must be base64 encoded.
 // The generated [JSON Schema](lib/target.schema.json) defines the format in detail.
 //
-//    {"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
-//    {"method":"GET",  "url":"https://goku/2"}
+//	{"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
+//	{"method":"GET",  "url":"https://goku/2"}
 //
 // body will be set as the Target's body if no body is provided in each target definiton.
 // hdr will be merged with the each Target's headers.
-//
 func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 	type reader struct {
 		*bufio.Reader
@@ -242,13 +249,13 @@ func ReadAllTargets(t Targeter) (tgts []Target, err error) {
 // NewHTTPTargeter returns a new Targeter that decodes one Target from the
 // given io.Reader on every invocation. The format is as follows:
 //
-//    GET https://foo.bar/a/b/c
-//    Header-X: 123
-//    Header-Y: 321
-//    @/path/to/body/file
+//	GET https://foo.bar/a/b/c
+//	Header-X: 123
+//	Header-Y: 321
+//	@/path/to/body/file
 //
-//    POST https://foo.bar/b/c/a
-//    Header-X: 123
+//	POST https://foo.bar/b/c/a
+//	Header-X: 123
 //
 // body will be set as the Target's body if no body is provided.
 // hdr will be merged with the each Target's headers.
