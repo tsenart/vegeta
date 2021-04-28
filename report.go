@@ -21,7 +21,7 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --type    Which report type to generate (text | json | hist[buckets] | hdrplot).
+  --type    Which report type to generate (text | short | json | hist[buckets] | hdrplot).
             [default: text]
 
   --every   Write the report to --output at every given interval (e.g 100ms)
@@ -38,7 +38,7 @@ Examples:
 
 func reportCmd() command {
 	fs := flag.NewFlagSet("vegeta report", flag.ExitOnError)
-	typ := fs.String("type", "text", "Report type to generate [text, json, hist[buckets], hdrplot]")
+	typ := fs.String("type", "text", "Report type to generate [text, short, json, hist[buckets], hdrplot]")
 	every := fs.Duration("every", 0, "Report interval")
 	output := fs.String("output", "stdout", "Output file")
 	buckets := fs.String("buckets", "", "Histogram buckets, e.g.: \"[0,1ms,10ms]\"")
@@ -84,7 +84,10 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 		return fmt.Errorf("The plot reporter has been deprecated and succeeded by the vegeta plot command")
 	case "text":
 		var m vegeta.Metrics
-		rep, report = vegeta.NewTextReporter(&m), &m
+		rep, report = vegeta.NewTextReporter(&m, false), &m
+	case "short":
+		var m vegeta.Metrics
+		rep, report = vegeta.NewTextReporter(&m, true), &m
 	case "json":
 		var m vegeta.Metrics
 		if bucketsStr != "" {
