@@ -38,6 +38,8 @@ type Metrics struct {
 	Success float64 `json:"success"`
 	// StatusCodes is a histogram of the responses' status codes.
 	StatusCodes map[string]int `json:"status_codes"`
+	// RequestsErrors is a requests error (400+ ~ 600-).
+	RequestsErrors []string `json:"requests_errors"`
 	// Errors is a set of unique errors returned by the targets during the attack.
 	Errors []string `json:"errors"`
 
@@ -49,7 +51,6 @@ type Metrics struct {
 // Result to Metrics.
 func (m *Metrics) Add(r *Result) {
 	m.init()
-
 	m.Requests++
 	m.StatusCodes[strconv.Itoa(int(r.Code))]++
 	m.BytesOut.Total += r.BytesOut
@@ -71,6 +72,11 @@ func (m *Metrics) Add(r *Result) {
 
 	if r.Code >= 200 && r.Code < 400 {
 		m.success++
+	}
+
+	if r.Code >= 400 && r.Code < 600 {
+		var codeWithURL string = "Code: " + strconv.Itoa(int(r.Code)) + " - " + r.URL
+		m.RequestsErrors = append(m.RequestsErrors, codeWithURL)
 	}
 
 	if r.Error != "" {

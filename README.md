@@ -136,6 +136,8 @@ report command:
     	Output file (default "stdout")
   -type string
     	Report type to generate [text, json, hist[buckets], hdrplot] (default "text")
+  -verbose boolean
+      Show all requests with status code errors (default false)
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report

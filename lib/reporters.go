@@ -54,7 +54,7 @@ func NewHistogramReporter(h *Histogram) Reporter {
 
 // NewTextReporter returns a Reporter that writes out Metrics as aligned,
 // formatted text.
-func NewTextReporter(m *Metrics) Reporter {
+func NewTextReporter(m *Metrics, verbose bool) Reporter {
 	const fmtstr = "Requests\t[total, rate, throughput]\t%d, %.2f, %.2f\n" +
 		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
 		"Latencies\t[min, mean, 50, 90, 95, 99, max]\t%s, %s, %s, %s, %s, %s, %s\n" +
@@ -64,7 +64,7 @@ func NewTextReporter(m *Metrics) Reporter {
 		"Status Codes\t[code:count]\t"
 
 	return func(w io.Writer) (err error) {
-		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+		tw := tabwriter.NewWriter(w, 0, 9, 2, ' ', tabwriter.StripEscape)
 		if _, err = fmt.Fprintf(tw, fmtstr,
 			m.Requests, m.Rate, m.Throughput,
 			round(m.Duration+m.Wait),
@@ -100,6 +100,12 @@ func NewTextReporter(m *Metrics) Reporter {
 
 		if _, err = fmt.Fprintln(tw, "\nError Set:"); err != nil {
 			return err
+		}
+
+		if verbose {
+			for _, request := range m.RequestsErrors {
+				fmt.Fprintln(tw, "\n"+request)
+			}
 		}
 
 		for _, e := range m.Errors {
