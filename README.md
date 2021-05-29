@@ -786,6 +786,8 @@ func main() {
     metrics.Add(res)
   }
   metrics.Close()
+  
+  attacker.Stop()
 
   fmt.Printf("99th percentile: %s\n", metrics.Latencies.P99)
 }
