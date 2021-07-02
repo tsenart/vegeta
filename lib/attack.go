@@ -17,19 +17,35 @@ import (
 	"golang.org/x/net/http2"
 )
 
+type netAddrList struct {
+	addrList []string
+	lastUsed int
+}
+
+// getNextAddr returns the next addr in a best effort round-robin way. Best effort meaning that
+// this call is not synchronized, so the same address might be returned several times in a row.
+func (n *netAddrList) getNextAddr() string {
+	if len(n.addrList) == 1 {
+		return n.addrList[0]
+	}
+	n.lastUsed = (n.lastUsed + 1) % len(n.addrList)
+	return n.addrList[n.lastUsed]
+}
+
 // Attacker is an attack executor which wraps an http.Client
 type Attacker struct {
-	dialer     *net.Dialer
-	client     http.Client
-	stopch     chan struct{}
-	workers    uint64
-	maxWorkers uint64
-	maxBody    int64
-	redirects  int
-	seqmu      sync.Mutex
-	seq        uint64
-	began      time.Time
-	chunked    bool
+	dialer      *net.Dialer
+	client      http.Client
+	stopch      chan struct{}
+	workers     uint64
+	maxWorkers  uint64
+	maxBody     int64
+	redirects   int
+	seqmu       sync.Mutex
+	seq         uint64
+	began       time.Time
+	chunked     bool
+	addrMapping map[string]*netAddrList
 }
 
 const (
@@ -63,6 +79,19 @@ var (
 	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
 )
 
+func (a *Attacker) getDialContext() func(context.Context, string, string) (net.Conn, error) {
+	dialContext := a.dialer.DialContext
+	if len(a.addrMapping) > 0 {
+		dialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			if dstAddress, exists := a.addrMapping[address]; exists {
+				return a.dialer.DialContext(ctx, network, dstAddress.getNextAddr())
+			}
+			return a.dialer.DialContext(ctx, network, address)
+		}
+	}
+	return dialContext
+}
+
 // NewAttacker returns a new Attacker with default options which are overridden
 // by the optionally provided opts.
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
@@ -83,7 +112,6 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		Timeout: DefaultTimeout,
 		Transport: &http.Transport{
 			Proxy:               http.ProxyFromEnvironment,
-			Dial:                a.dialer.Dial,
 			TLSClientConfig:     DefaultTLSConfig,
 			MaxIdleConnsPerHost: DefaultConnections,
 			MaxConnsPerHost:     DefaultMaxConnections,
@@ -133,6 +161,21 @@ func MaxConnections(n int) func(*Attacker) {
 func ChunkedBody(b bool) func(*Attacker) {
 	return func(a *Attacker) { a.chunked = b }
 }
+
+// AddrMapping returns a functional option which makes the attacker use the passed in list
+// to translate target names
+func AddrMapping(addrMap map[string][]string) func(*Attacker) {
+	return func(a *Attacker) {
+		if len(addrMap) > 0 {
+			a.addrMapping = make(map[string]*netAddrList, len(addrMap))
+			for k, v := range addrMap {
+				a.addrMapping[k] = &netAddrList{addrList: v}
+			}
+		}
+		a.client.Transport.(*http.Transport).DialContext = a.getDialContext()
+	}
+}
+
 
 // Redirects returns a functional option which sets the maximum
 // number of redirects an Attacker will follow.

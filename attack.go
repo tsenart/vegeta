@@ -12,12 +12,52 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+const connectToFormat = "srcAddr:port:@dstAddr:port[,dstAddr:port,...][;srcAddr:port@dstAddr:port[,...]"
+var addrRegexp = regexp.MustCompile(`^([[:alnum:]-.]+[^.]):(\d{1,5})$`)
+
+type connectToList struct {
+	assignments map[string][]string
+}
+
+func (c *connectToList) String() string {
+	assignments := make([]string, len(c.assignments))
+	for k, v := range c.assignments {
+		assignments = append(assignments, k + "@" + strings.Join(v, ","))
+	}
+	return strings.Join(assignments, ";")
+}
+
+func (c *connectToList) Set(s string) error {
+	assignments := strings.Split(s, ";")
+	c.assignments = make(map[string][]string, len(assignments))
+	for _, assignment := range assignments {
+		parts := strings.Split(assignment, "@")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid value for assignment %s, expected format: %s", parts, connectToFormat)
+		}
+		srcAddr, dstList := parts[0], parts[1]
+		if !addrRegexp.MatchString(srcAddr) {
+			return fmt.Errorf("invalid source address expression [%s], expected address:port", srcAddr)
+		}
+
+		c.assignments[srcAddr] = strings.Split(dstList, ",")
+		for _, dst := range c.assignments[srcAddr] {
+			if !addrRegexp.MatchString(dst) {
+				return fmt.Errorf("invalid destination address expression [%s], expected address:port", dst)
+			}
+		}
+	}
+
+	return nil
+}
 
 func attackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
@@ -56,6 +96,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.Var(&opts.connectToList, "connect-to", "The list of IPs or DNS names to use instead of the specified host for a set of names. Format: " + connectToFormat)
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -99,6 +140,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+	connectToList  connectToList
 }
 
 // attack validates the attack arguments, sets up the
@@ -188,6 +230,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
+		vegeta.AddrMapping(opts.connectToList.assignments),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
