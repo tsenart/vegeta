@@ -62,6 +62,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.promAddr, "prometheus-addr", "", "Prometheus exporter listen address [empty = disabled]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
+	fs.Var(&connectToFlag{&opts.connectTo}, "connect-to", "A mapping of (ip|host):port to use instead of a target URL's (ip|host):port. Can be repeated multiple times.\nIdentical src:port with different dst:port will round-robin over the different dst:port pairs.\nExample: google.com:80:localhost:6060")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -108,6 +109,7 @@ type attackOpts struct {
 	promAddr       string
 	dnsTTL         time.Duration
 	sessionTickets bool
+	connectTo      map[string][]string
 }
 
 // attack validates the attack arguments, sets up the
@@ -218,6 +220,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
 		vegeta.DNSCaching(opts.dnsTTL),
+		vegeta.ConnectTo(opts.connectTo),
 		vegeta.SessionTickets(opts.sessionTickets),
 	)
 

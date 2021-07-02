@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -152,4 +153,55 @@ func (f *dnsTTLFlag) String() string {
 		return "-1"
 	}
 	return f.ttl.String()
+}
+
+const connectToFormat = "src:port:dst:port"
+
+type connectToFlag struct {
+	addrMap *map[string][]string
+}
+
+func (c *connectToFlag) String() string {
+	if c.addrMap == nil {
+		return ""
+	}
+
+	addrMappings := make([]string, 0, len(*c.addrMap))
+	for k, v := range *c.addrMap {
+		addrMappings = append(addrMappings, k+":"+strings.Join(v, ","))
+	}
+
+	sort.Strings(addrMappings)
+	return strings.Join(addrMappings, ";")
+}
+
+func (c *connectToFlag) Set(s string) error {
+	if c.addrMap == nil {
+		return nil
+	}
+
+	if *c.addrMap == nil {
+		*c.addrMap = make(map[string][]string)
+	}
+
+	parts := strings.Split(s, ":")
+	if len(parts) != 4 {
+		return fmt.Errorf("invalid -connect-to %q, expected format: %s", s, connectToFormat)
+	}
+	srcAddr := parts[0] + ":" + parts[1]
+	dstAddr := parts[2] + ":" + parts[3]
+
+	// Parse source address
+	if _, _, err := net.SplitHostPort(srcAddr); err != nil {
+		return fmt.Errorf("invalid source address expression [%s], expected address:port", srcAddr)
+	}
+
+	// Parse destination address
+	if _, _, err := net.SplitHostPort(dstAddr); err != nil {
+		return fmt.Errorf("invalid destination address expression [%s], expected address:port", dstAddr)
+	}
+
+	(*c.addrMap)[srcAddr] = append((*c.addrMap)[srcAddr], dstAddr)
+
+	return nil
 }

@@ -28,6 +28,9 @@ type Attacker struct {
 	maxWorkers uint64
 	maxBody    int64
 	redirects  int
+	seqmu      sync.Mutex
+	seq        uint64
+	began      time.Time
 	chunked    bool
 }
 
@@ -268,6 +271,45 @@ func ProxyHeader(h http.Header) func(*Attacker) {
 	return func(a *Attacker) {
 		if tr, ok := a.client.Transport.(*http.Transport); ok {
 			tr.ProxyConnectHeader = h
+		}
+	}
+}
+
+// ConnectTo returns a functional option which makes the attacker use the
+// passed in map to translate target addr:port pairs. When used with DNSCaching,
+// it must be used after it.
+func ConnectTo(addrMap map[string][]string) func(*Attacker) {
+	return func(a *Attacker) {
+		if len(addrMap) == 0 {
+			return
+		}
+
+		tr, ok := a.client.Transport.(*http.Transport)
+		if !ok {
+			return
+		}
+
+		dial := tr.DialContext
+		if dial == nil {
+			dial = a.dialer.DialContext
+		}
+
+		type roundRobin struct {
+			addrs []string
+			n     int
+		}
+
+		connectTo := make(map[string]*roundRobin, len(addrMap))
+		for k, v := range addrMap {
+			connectTo[k] = &roundRobin{addrs: v}
+		}
+
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if cm, ok := connectTo[addr]; ok {
+				cm.n = (cm.n + 1) % len(cm.addrs)
+				addr = cm.addrs[cm.n]
+			}
+			return dial(ctx, network, addr)
 		}
 	}
 }

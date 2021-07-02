@@ -92,6 +92,10 @@ attack command:
     	TLS client PEM encoded certificate file
   -chunked
     	Send body with chunked transfer encoding
+  -connect-to value
+    	A mapping of (ip|host):port to use instead of a target URL's (ip|host):port. Can be repeated multiple times.
+    	Identical src:port with different dst:port will round-robin over the different dst:port pairs.
+    	Example: google.com:80:localhost:6060
   -connections int
     	Max open idle connections per target host (default 10000)
   -dns-ttl value
@@ -178,7 +182,6 @@ examples:
   vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
   cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
-
 ```
 
 #### `-cpus`

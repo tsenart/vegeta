@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -496,5 +497,68 @@ func TestFirstOfEachIPFamily(t *testing.T) {
 				t.Errorf("unexpected result (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestAttackConnectTo(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	hits := make(map[string]int)
+	srvs := make(map[string]int)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits[r.Host]++
+		mu.Unlock()
+	})
+
+	addrs := make([]string, 3)
+	for i := range addrs {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		addrs[i] = ln.Addr().String()
+
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			srvs[ln.Addr().String()]++
+			mu.Unlock()
+			handler.ServeHTTP(w, r)
+		}))
+
+		srv.Listener = ln
+		srv.Start()
+		t.Cleanup(srv.Close)
+	}
+
+	tr := NewStaticTargeter(
+		Target{Method: "GET", URL: "http://sapo.pt:80"},
+		Target{Method: "GET", URL: "http://sapo.pt:80"},
+		Target{Method: "GET", URL: "http://sapo.pt:80"},
+		Target{Method: "GET", URL: "http://" + addrs[0]},
+	)
+
+	atk := NewAttacker(
+		KeepAlive(false),
+		ConnectTo(map[string][]string{"sapo.pt:80": addrs}),
+	)
+
+	a := &attack{name: "TEST", began: time.Now()}
+	for i := 0; i < 4; i++ {
+		resp := atk.hit(tr, a)
+		if resp.Error != "" {
+			t.Fatal(resp.Error)
+		}
+	}
+
+	want := map[string]int{"sapo.pt:80": 3, addrs[0]: 1}
+	if diff := cmp.Diff(want, hits); diff != "" {
+		t.Errorf("unexpected hits (-want +got):\n%s", diff)
+	}
+
+	want = map[string]int{addrs[0]: 2, addrs[1]: 1, addrs[2]: 1}
+	if diff := cmp.Diff(want, srvs); diff != "" {
+		t.Errorf("unexpected hits (-want +got):\n%s", diff)
 	}
 }
