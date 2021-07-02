@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +21,46 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 	prom "github.com/tsenart/vegeta/v12/lib/prom"
 )
+
+const connectToFormat = "srcAddr:port:@dstAddr:port[,dstAddr:port,...][;srcAddr:port@dstAddr:port[,...]"
+
+var addrRegexp = regexp.MustCompile(`^([[:alnum:]-.]+[^.]):(\d{1,5})$`)
+
+type connectToList struct {
+	assignments map[string][]string
+}
+
+func (c *connectToList) String() string {
+	assignments := make([]string, len(c.assignments))
+	for k, v := range c.assignments {
+		assignments = append(assignments, k+"@"+strings.Join(v, ","))
+	}
+	return strings.Join(assignments, ";")
+}
+
+func (c *connectToList) Set(s string) error {
+	assignments := strings.Split(s, ";")
+	c.assignments = make(map[string][]string, len(assignments))
+	for _, assignment := range assignments {
+		parts := strings.Split(assignment, "@")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid value for assignment %s, expected format: %s", parts, connectToFormat)
+		}
+		srcAddr, dstList := parts[0], parts[1]
+		if !addrRegexp.MatchString(srcAddr) {
+			return fmt.Errorf("invalid source address expression [%s], expected address:port", srcAddr)
+		}
+
+		c.assignments[srcAddr] = strings.Split(dstList, ",")
+		for _, dst := range c.assignments[srcAddr] {
+			if !addrRegexp.MatchString(dst) {
+				return fmt.Errorf("invalid destination address expression [%s], expected address:port", dst)
+			}
+		}
+	}
+
+	return nil
+}
 
 func attackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
@@ -62,6 +103,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.promAddr, "prometheus-addr", "", "Prometheus exporter listen address [empty = disabled]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
+	fs.Var(&opts.connectToList, "connect-to", "The list of IPs or DNS names to use instead of the specified host for a set of names. Format: "+connectToFormat)
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -108,6 +150,7 @@ type attackOpts struct {
 	promAddr       string
 	dnsTTL         time.Duration
 	sessionTickets bool
+	connectToList  connectToList
 }
 
 // attack validates the attack arguments, sets up the
@@ -219,6 +262,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.ChunkedBody(opts.chunked),
 		vegeta.DNSCaching(opts.dnsTTL),
 		vegeta.SessionTickets(opts.sessionTickets),
+		vegeta.AddrMapping(opts.connectToList.assignments),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

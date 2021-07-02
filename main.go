@@ -26,7 +26,7 @@ func main() {
 	version := fs.Bool("version", false, "Print version and exit")
 
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "Usage: vegeta [global flags] <command> [command flags]")
+		_, _ = fmt.Fprintln(fs.Output(), "Usage: vegeta [global flags] <command> [command flags]")
 		fmt.Fprintf(fs.Output(), "\nglobal flags:\n")
 		fs.PrintDefaults()
 
@@ -38,7 +38,7 @@ func main() {
 		sort.Strings(names)
 		for _, name := range names {
 			if cmd := commands[name]; cmd.fs != nil {
-				fmt.Fprintf(fs.Output(), "\n%s command:\n", name)
+				_, _ = fmt.Fprintf(fs.Output(), "\n%s command:\n", name)
 				cmd.fs.SetOutput(fs.Output())
 				cmd.fs.PrintDefaults()
 			}
@@ -47,7 +47,7 @@ func main() {
 		fmt.Fprintf(fs.Output(), "%s\n", examples)
 	}
 
-	fs.Parse(os.Args[1:])
+	_ = fs.Parse(os.Args[1:])
 
 	if *version {
 		fmt.Printf("Version: %s\nCommit: %s\nRuntime: %s %s/%s\nDate: %s\n",
@@ -76,7 +76,7 @@ func main() {
 
 		switch {
 		case strings.HasPrefix(prof, "cpu"):
-			pprof.StartCPUProfile(f)
+			_ = pprof.StartCPUProfile(f)
 			defer pprof.StopCPUProfile()
 		case strings.HasPrefix(prof, "heap"):
 			defer pprof.Lookup("heap").WriteTo(f, 0)

@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -419,4 +420,28 @@ func TestDNSCaching_Issue649(t *testing.T) {
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "https://[2a00:1450:4005:802::200e]"})
 	atk := NewAttacker(DNSCaching(0))
 	_ = atk.hit(tr, &attack{name: "TEST", began: time.Now()})
+}
+
+func TestAttackConnectTo(t *testing.T) {
+	t.Parallel()
+	localHits := int64(0)
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt64(&localHits, 1)
+		}),
+	)
+	localURL, _ := url.Parse(server.URL)
+	defer server.Close()
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://google.com"})
+	rate := Rate{Freq: 100, Per: time.Second}
+	atk := NewAttacker(AddrMapping(map[string][]string{
+		"google.com:80": {localURL.Host},
+	}))
+	var hits int64
+	for range atk.Attack(tr, rate, 1*time.Second, "") {
+		hits++
+	}
+	if hits != localHits {
+		t.Fatalf("hits: %v, localhits: %v", hits, localHits)
+	}
 }
