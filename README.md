@@ -242,6 +242,29 @@ PATCH http://goku:9090/thing/71988591
 @/path/to/thing-71988591.json
 ```
 
+###### Targets with formdata body
+
+target.req
+```
+POST http://goku:9090/things
+@/path/to/formdata.txt
+```
+
+formdata.txt
+```
+------WebKitFormBoundary
+Content-Disposition: form-data; name="report"; filename="spec.pdf"
+Content-Type: application/pdf
+
+@spec.pdf
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="powerlevel"
+
+9000
+------WebKitFormBoundary--
+```
+
 ###### Targets with custom bodies and headers
 
 ```
