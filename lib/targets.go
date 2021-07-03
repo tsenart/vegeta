@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -303,9 +304,32 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			} else if strings.HasPrefix(line, "#") {
 				continue
 			} else if strings.HasPrefix(line, "@") {
-				if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
-					return fmt.Errorf("bad body: %s", err)
+				bodyFileName := line[1:]
+				fBody, err := os.Open(bodyFileName)
+				if err != nil {
+					return fmt.Errorf("bad body: couldn't open file: %s, err: %s", bodyFileName, err)
 				}
+				scBody := peekingScanner{src: bufio.NewScanner(fBody)}
+				var body []byte
+				var firstLine bool = true
+				for scBody.Scan() {
+					if !firstLine {
+						body = append(body, []byte("\r\n")...)
+					} else {
+						firstLine = false
+					}
+					lineBody := strings.TrimSpace(scBody.Text())
+					if strings.HasPrefix(lineBody, "@") {
+						if fileBin, err := ioutil.ReadFile(lineBody[1:]); err == nil {
+							body = append(body, fileBin...)
+						} else {
+							return fmt.Errorf("bad body: couldn't open file: %s, err: %s", lineBody[1:], err)
+						}
+					} else {
+						body = append(body, scBody.src.Bytes()...)
+					}
+				}
+				tgt.Body = body
 				break
 			}
 			tokens = strings.SplitN(line, ":", 2)
