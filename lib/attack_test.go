@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -391,5 +392,29 @@ func TestVegetaHeaders(t *testing.T) {
 		if have, want := hdr.Get("X-Vegeta-Seq"), strconv.Itoa(seq); have != want {
 			t.Errorf("X-Vegeta-Seq: have %q, want %q", have, want)
 		}
+	}
+}
+
+func TestAttackConnectTo(t *testing.T) {
+	t.Parallel()
+	localHits := int64(0)
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt64(&localHits, 1)
+		}),
+	)
+	localURL, _ := url.Parse(server.URL)
+	defer server.Close()
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://google.com"})
+	rate := Rate{Freq: 100, Per: time.Second}
+	atk := NewAttacker(AddrMapping(map[string][]string{
+		"google.com:80": {localURL.Host},
+	}))
+	var hits int64
+	for range atk.Attack(tr, rate, 1*time.Second, "") {
+		hits++
+	}
+	if hits != localHits {
+		t.Fatalf("hits: %v, localhits: %v", hits, localHits)
 	}
 }
