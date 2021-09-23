@@ -114,6 +114,10 @@ func (m *Metrics) Close() {
 	m.Latencies.P99 = m.Latencies.Quantile(0.99)
 }
 
+func (m *Metrics) ReportCentroids(b bool) {
+	m.Latencies.ReportCentroids(b)
+}
+
 func (m *Metrics) init() {
 	if m.StatusCodes == nil {
 		m.StatusCodes = map[string]int{}
@@ -146,8 +150,11 @@ type LatencyMetrics struct {
 	Max time.Duration `json:"max"`
 	// Min is the minimum observed request latency.
 	Min time.Duration `json:"min"`
+	// Centroids is the list of centroids from the underlying t-digest
+	Centroids tdigest.CentroidList `json:"centroidList,omitempty"`
 
-	estimator estimator
+	estimator       estimator
+	reportCentroids bool
 }
 
 // Add adds the given latency to the latency metrics.
@@ -160,12 +167,26 @@ func (l *LatencyMetrics) Add(latency time.Duration) {
 		l.Min = latency
 	}
 	l.estimator.Add(float64(latency))
+	if l.reportCentroids {
+		l.Centroids = l.getCentroids()
+	}
 }
 
 // Quantile returns the nth quantile from the latency summary.
 func (l LatencyMetrics) Quantile(nth float64) time.Duration {
 	l.init()
 	return time.Duration(l.estimator.Get(nth))
+}
+
+func (l *LatencyMetrics) ReportCentroids(b bool) {
+	l.reportCentroids = b
+}
+
+func (l *LatencyMetrics) getCentroids() tdigest.CentroidList {
+	if td, ok := l.estimator.(tdigestExporter); ok {
+		return td.GetCentroids()
+	}
+	return nil
 }
 
 func (l *LatencyMetrics) init() {
@@ -189,6 +210,10 @@ type estimator interface {
 	Get(quantile float64) float64
 }
 
+type tdigestExporter interface {
+	GetCentroids() tdigest.CentroidList
+}
+
 type tdigestEstimator struct{ *tdigest.TDigest }
 
 func newTdigestEstimator(compression float64) *tdigestEstimator {
@@ -198,4 +223,7 @@ func newTdigestEstimator(compression float64) *tdigestEstimator {
 func (e *tdigestEstimator) Add(s float64) { e.TDigest.Add(s, 1) }
 func (e *tdigestEstimator) Get(q float64) float64 {
 	return e.TDigest.Quantile(q)
+}
+func (e *tdigestEstimator) GetCentroids() tdigest.CentroidList {
+	return e.Centroids()
 }

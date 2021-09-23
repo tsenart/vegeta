@@ -18,7 +18,7 @@ require (
 	github.com/gonum/matrix v0.0.0-20181209220409-c518dec07be9 // indirect
 	github.com/gonum/stat v0.0.0-20181125101827-41a0da705a5b // indirect
 	github.com/google/go-cmp v0.2.0
-	github.com/influxdata/tdigest v0.0.0-20180711151920-a7d76c6f093a
+	github.com/influxdata/tdigest v0.0.1
 	github.com/mailru/easyjson v0.7.0
 	github.com/miekg/dns v1.1.17
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
