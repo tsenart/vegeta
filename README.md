@@ -1,4 +1,4 @@
-# Vegeta [![Build Status](https://github.com/teslamotors/vegeta/workflows/CI/badge.svg)](https://github.com/teslamotors/vegeta/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/teslamotors/vegeta)](https://goreportcard.com/report/github.com/teslamotors/vegeta) [![PkgGoDev](https://pkg.go.dev/badge/github.com/teslamotors/vegeta/v12/lib)](https://pkg.go.dev/github.com/teslamotors/vegeta/v12/lib) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
+# Vegeta
 > This repo contains a forked version of Vegeta with changes to export the centroids from the underlying tdigest used to approximate response time quantiles. This enables us to accurately approximate the percentile response times from a distributed stress test without having to export each node's results.bin (which can reach several GB in size).
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill

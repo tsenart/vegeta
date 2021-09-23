@@ -43,6 +43,8 @@ type Metrics struct {
 
 	errors  map[string]struct{}
 	success uint64
+
+	discardErrors bool
 }
 
 // Add implements the Add method of the Report interface by adding the given
@@ -73,7 +75,7 @@ func (m *Metrics) Add(r *Result) {
 		m.success++
 	}
 
-	if r.Error != "" {
+	if r.Error != "" && !m.discardErrors {
 		if _, ok := m.errors[r.Error]; !ok {
 			m.errors[r.Error] = struct{}{}
 			m.Errors = append(m.Errors, r.Error)
@@ -82,6 +84,39 @@ func (m *Metrics) Add(r *Result) {
 
 	if m.Histogram != nil {
 		m.Histogram.Add(r)
+	}
+}
+
+// Merge combines two metrics into one. To ensure accurate calculation of quantiles, use ReportCentroids(true)
+func (m *Metrics) Merge(nm *Metrics) {
+	m.init()
+
+	if nm.Requests == 0 {
+		return
+	}
+	m.Requests += nm.Requests
+	for k, v := range nm.StatusCodes {
+		m.StatusCodes[k] += v
+	}
+	m.BytesIn.Total += nm.BytesIn.Total
+	m.BytesOut.Total += nm.BytesOut.Total
+	if len(nm.Latencies.Centroids) > 0 {
+		m.Latencies.estimator.(tdigestMerger).MergeCentroids(nm.Latencies.Centroids)
+	}
+
+	m.Earliest = minTime(m.Earliest, nm.Earliest)
+	m.Latest = maxTime(m.Latest, nm.Latest)
+	m.End = maxTime(m.End, nm.End)
+	m.success += uint64(nm.Throughput * (nm.Duration + nm.Wait).Seconds())
+	m.Latencies.Total += nm.Latencies.Total
+	if !m.discardErrors {
+		for _, e := range nm.Errors {
+			if _, ok := m.errors[e]; !ok {
+				m.errors[e] = struct{}{}
+				m.Errors = append(m.Errors, e)
+			}
+
+		}
 	}
 }
 
@@ -114,8 +149,14 @@ func (m *Metrics) Close() {
 	m.Latencies.P99 = m.Latencies.Quantile(0.99)
 }
 
+// ReportCentroids toggles whether or not we should report the centroids from the underlying t-digest
 func (m *Metrics) ReportCentroids(b bool) {
-	m.Latencies.ReportCentroids(b)
+	m.Latencies.setReportCentroids(b)
+}
+
+// DiscardErrors toggles whether or not we should record error values
+func (m *Metrics) DiscardErrors(b bool) {
+	m.discardErrors = b
 }
 
 func (m *Metrics) init() {
@@ -178,7 +219,7 @@ func (l LatencyMetrics) Quantile(nth float64) time.Duration {
 	return time.Duration(l.estimator.Get(nth))
 }
 
-func (l *LatencyMetrics) ReportCentroids(b bool) {
+func (l *LatencyMetrics) setReportCentroids(b bool) {
 	l.reportCentroids = b
 }
 
@@ -214,6 +255,10 @@ type tdigestExporter interface {
 	GetCentroids() tdigest.CentroidList
 }
 
+type tdigestMerger interface {
+	MergeCentroids(c tdigest.CentroidList)
+}
+
 type tdigestEstimator struct{ *tdigest.TDigest }
 
 func newTdigestEstimator(compression float64) *tdigestEstimator {
@@ -226,4 +271,7 @@ func (e *tdigestEstimator) Get(q float64) float64 {
 }
 func (e *tdigestEstimator) GetCentroids() tdigest.CentroidList {
 	return e.Centroids()
+}
+func (e *tdigestEstimator) MergeCentroids(c tdigest.CentroidList) {
+	e.AddCentroidList(c)
 }
