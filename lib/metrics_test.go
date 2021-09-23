@@ -74,7 +74,7 @@ func TestMetrics_Add(t *testing.T) {
 	}
 }
 
-// https://github.com/tsenart/vegeta/issues/208
+// https://github.com/teslamotors/vegeta/issues/208
 func TestMetrics_NoInfiniteRate(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestMetrics_NoInfiniteRate(t *testing.T) {
 	}
 }
 
-// https://github.com/tsenart/vegeta/pull/277
+// https://github.com/teslamotors/vegeta/pull/277
 func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestMetrics_NonNilErrorsOnClose(t *testing.T) {
 	}
 }
 
-// https://github.com/tsenart/vegeta/issues/461
+// https://github.com/teslamotors/vegeta/issues/461
 func TestMetrics_EmptyMetricsCanBeReported(t *testing.T) {
 	t.Parallel()
 

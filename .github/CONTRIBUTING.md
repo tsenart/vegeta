@@ -1,7 +1,7 @@
 # Contributing
 
 Non trivial changes should be discussed with the project maintainers by
-opening a [Feature Request](https://github.com/tsenart/vegeta/issues/new?template=feature_request.md),
+opening a [Feature Request](https://github.com/teslamotors/vegeta/issues/new?template=feature_request.md),
 clearly explaining rationale, background and possible implementation ideas.
 Feel free to use to provide code in such discussions.
 

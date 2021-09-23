@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/teslamotors/vegeta/v12/lib/lttb"
 	tsz "github.com/tsenart/go-tsz"
-	"github.com/tsenart/vegeta/v12/lib/lttb"
 )
 
 // An in-memory timeSeries of points with high compression of

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	vegeta "github.com/tsenart/vegeta/v12/lib"
-	"github.com/tsenart/vegeta/v12/lib/lttb"
+	vegeta "github.com/teslamotors/vegeta/v12/lib"
+	"github.com/teslamotors/vegeta/v12/lib/lttb"
 )
 
 // An Plot represents an interactive HTML time series

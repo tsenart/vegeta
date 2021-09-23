@@ -1,4 +1,4 @@
-module github.com/tsenart/vegeta/v12
+module github.com/teslamotors/vegeta/v12
 
 go 1.13
 
