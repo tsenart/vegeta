@@ -642,6 +642,9 @@ The CSV encoder doesn't write a header. The columns written by it are:
   7. Base64 encoded response body
   8. Attack name
   9. Sequence number of request
+  10. Method
+  11. URL
+  12. Base64 encoded response headers
 
 Arguments:
   <file>  A file with vegeta attack results encoded with one of
