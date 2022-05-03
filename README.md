@@ -20,6 +20,14 @@ You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew
 $ brew update && brew install vegeta
 ```
 
+### FreeBSD
+
+On FreeBSD you can install Vegeta with the built in package manager because there is a [Vegeta Package](https://www.freshports.org/benchmarks/vegeta) available. 
+
+```shell
+$ pkg install vegeta
+```
+
 ### Source
 
 You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
