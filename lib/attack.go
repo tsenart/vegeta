@@ -210,6 +210,7 @@ func HTTP2(enabled bool) func(*Attacker) {
 		if tr := a.client.Transport.(*http.Transport); enabled {
 			http2.ConfigureTransport(tr)
 		} else {
+			tr.ForceAttemptHTTP2 = false
 			tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 		}
 	}
