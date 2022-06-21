@@ -405,7 +405,7 @@ func TestNewHTTPTargeter(t *testing.T) {
 			Body:   []byte{},
 			Header: http.Header{"Content-Type": []string{"text/plain"}},
 		},
-		{ // Preceeding comment is ignored and target is parsed correctly.
+		{ // Preceding comment is ignored and target is parsed correctly.
 			Method: "GET",
 			URL:    "http://:6060/",
 			Body:   []byte{},

@@ -127,7 +127,7 @@ func (tr Targeter) Decode(t *Target) error {
 //	{"method":"POST", "url":"https://goku/1", "header":{"Content-Type":["text/plain"], "body": "Rk9P"}
 //	{"method":"GET",  "url":"https://goku/2"}
 //
-// body will be set as the Target's body if no body is provided in each target definiton.
+// body will be set as the Target's body if no body is provided in each target definition.
 // hdr will be merged with the each Target's headers.
 func NewJSONTargeter(src io.Reader, body []byte, header http.Header) Targeter {
 	type reader struct {
