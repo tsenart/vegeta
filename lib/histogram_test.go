@@ -67,3 +67,33 @@ func TestBuckets_UnmarshalText(t *testing.T) {
 		}
 	}
 }
+
+func TestBuckets_UnmarshalExpoSeqText(t *testing.T) {
+	t.Parallel()
+	for value, want := range map[string]string{
+		"":              "bad buckets: ",
+		" ":             "bad buckets:  ",
+		"{0, 2}":        "bad buckets: {0, 2}",
+		"[100ms]":       "bad buckets: [100ms]",
+		"[2ms, 8ms, 3]": "bad buckets: [2ms, 8ms, 3]",
+		"[]":            "bad buckets: []",
+		"[0, 2]":        "bad buckets, upper boundary should not be 0: [0, 2]",
+		"[2ms, 8ms]":    `strconv.ParseFloat: parsing "8ms": invalid syntax`,
+	} {
+		if got := (&Buckets{}).UnmarshalExpoSeqText([]byte(value)).Error(); got != want {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	}
+
+	for value, want := range map[string]Buckets{
+		"[8s, 3]": {0, 2 * time.Second, 4 * time.Second, 8 * time.Second},
+		"[8s,3]":  {0, 2 * time.Second, 4 * time.Second, 8 * time.Second},
+	} {
+		var got Buckets
+		if err := got.UnmarshalExpoSeqText([]byte(value)); err != nil {
+			t.Errorf("got: %v, want: %v", got, want)
+		} else if !reflect.DeepEqual(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	}
+}

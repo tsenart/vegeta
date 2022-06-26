@@ -111,6 +111,18 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 				return err
 			}
 			rep, report = vegeta.NewHistogramReporter(&hist), &hist
+		case strings.HasPrefix(typ, "expoHist"):
+			var hist vegeta.Histogram
+			if bucketsStr == "" { // Old way
+				if len(typ) < 10 {
+					return fmt.Errorf("bad buckets: '%s'", typ[8:])
+				}
+				bucketsStr = typ[8:]
+			}
+			if err := hist.Buckets.UnmarshalExpoSeqText([]byte(bucketsStr)); err != nil {
+				return err
+			}
+			rep, report = vegeta.NewHistogramReporter(&hist), &hist
 		default:
 			return fmt.Errorf("unknown report type: %q", typ)
 		}

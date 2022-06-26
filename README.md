@@ -135,13 +135,15 @@ report command:
   -output string
     	Output file (default "stdout")
   -type string
-    	Report type to generate [text, json, hist[buckets], hdrplot] (default "text")
+    	Report type to generate [text, json, hist[buckets], expoHist[hi,bucketNo], hdrplot] (default "text")
 
 examples:
   echo "GET http://localhost/" | vegeta attack -duration=5s | tee results.bin | vegeta report
   vegeta report -type=json results.bin > metrics.json
   cat results.bin | vegeta plot > plot.html
   cat results.bin | vegeta report -type="hist[0,100ms,200ms,300ms]"
+  cat results.bin | vegeta report -type="geoHist[800ms, 4]"
+  cat results.bin | vegeta report -type="expoHist[800ms, 60]"
 ```
 
 #### `-cpus`
@@ -517,6 +519,67 @@ Bucket         #     %       Histogram
 [2ms,   4ms]   5505  29.92%  ######################
 [4ms,   6ms]   2117  11.51%  ########
 [6ms,   +Inf]  4771  25.93%  ###################
+```
+
+#### `report -type=expoHist`
+Computes and prints a text based histogram for the given charaterisitc of buckets, the trait presented as exponential sequence.
+Each bucket upper bound is non-inclusive.
+
+```console
+cat testPlot.bin | vegeta report -type="expoHist[1s, 50]" 
+Bucket                         #    %       Histogram
+[0s,            1.148153ms]    0    0.00%   
+[1.148153ms,    1.318256ms]    0    0.00%   
+[1.318256ms,    1.513561ms]    0    0.00%   
+[1.513561ms,    1.7378ms]      0    0.00%   
+[1.7378ms,      1.995262ms]    0    0.00%   
+[1.995262ms,    2.290867ms]    0    0.00%   
+[2.290867ms,    2.630267ms]    0    0.00%   
+[2.630267ms,    3.019951ms]    0    0.00%   
+[3.019951ms,    3.467368ms]    0    0.00%   
+[3.467368ms,    3.981071ms]    0    0.00%   
+[3.981071ms,    4.570881ms]    0    0.00%   
+[4.570881ms,    5.248074ms]    0    0.00%   
+[5.248074ms,    6.025595ms]    0    0.00%   
+[6.025595ms,    6.918309ms]    0    0.00%   
+[6.918309ms,    7.943282ms]    0    0.00%   
+[7.943282ms,    9.120108ms]    0    0.00%   
+[9.120108ms,    10.471285ms]   0    0.00%   
+[10.471285ms,   12.022644ms]   0    0.00%   
+[12.022644ms,   13.803842ms]   0    0.00%   
+[13.803842ms,   15.848931ms]   0    0.00%   
+[15.848931ms,   18.197008ms]   0    0.00%   
+[18.197008ms,   20.892961ms]   0    0.00%   
+[20.892961ms,   23.988329ms]   0    0.00%   
+[23.988329ms,   27.542287ms]   0    0.00%   
+[27.542287ms,   31.622776ms]   0    0.00%   
+[31.622776ms,   36.307805ms]   0    0.00%   
+[36.307805ms,   41.686938ms]   7    3.50%   ##
+[41.686938ms,   47.863009ms]   132  66.00%  #################################################
+[47.863009ms,   54.954087ms]   19   9.50%   #######
+[54.954087ms,   63.095734ms]   15   7.50%   #####
+[63.095734ms,   72.443596ms]   6    3.00%   ##
+[72.443596ms,   83.176377ms]   8    4.00%   ###
+[83.176377ms,   95.499258ms]   3    1.50%   #
+[95.499258ms,   109.647819ms]  0    0.00%   
+[109.647819ms,  125.892541ms]  2    1.00%   
+[125.892541ms,  144.543977ms]  3    1.50%   #
+[144.543977ms,  165.95869ms]   2    1.00%   
+[165.95869ms,   190.546071ms]  2    1.00%   
+[190.546071ms,  218.776162ms]  1    0.50%   
+[218.776162ms,  251.188643ms]  0    0.00%   
+[251.188643ms,  288.40315ms]   0    0.00%   
+[288.40315ms,   331.131121ms]  0    0.00%   
+[331.131121ms,  380.189396ms]  0    0.00%   
+[380.189396ms,  436.515832ms]  0    0.00%   
+[436.515832ms,  501.187233ms]  0    0.00%   
+[501.187233ms,  575.439937ms]  0    0.00%   
+[575.439937ms,  660.693448ms]  0    0.00%   
+[660.693448ms,  758.577575ms]  0    0.00%   
+[758.577575ms,  870.963589ms]  0    0.00%   
+[870.963589ms,  999.999999ms]  0    0.00%   
+[999.999999ms,  1s]            0    0.00%   
+[1s,            +Inf]          0    0.00%   
 ```
 
 #### `report -type=hdrplot`
