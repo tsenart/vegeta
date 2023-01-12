@@ -22,6 +22,7 @@ type Attacker struct {
 	dialer     *net.Dialer
 	client     http.Client
 	stopch     chan struct{}
+	stopOnce   sync.Once
 	workers    uint64
 	maxWorkers uint64
 	maxBody    int64
@@ -68,6 +69,7 @@ var (
 func NewAttacker(opts ...func(*Attacker)) *Attacker {
 	a := &Attacker{
 		stopch:     make(chan struct{}),
+		stopOnce:   sync.Once{},
 		workers:    DefaultWorkers,
 		maxWorkers: DefaultMaxWorkers,
 		maxBody:    DefaultMaxBody,
@@ -325,13 +327,17 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 	return results
 }
 
-// Stop stops the current attack.
-func (a *Attacker) Stop() {
+// Stop stops the current attack. The return value indicates whether this call
+// has signalled the attack to stop (`true` for the first call) or whether it
+// was a noop because it has been previously signalled to stop (`false` for any
+// subsequent calls).
+func (a *Attacker) Stop() bool {
 	select {
 	case <-a.stopch:
-		return
+		return false
 	default:
-		close(a.stopch)
+		a.stopOnce.Do(func() { close(a.stopch) })
+		return true
 	}
 }
 

@@ -195,16 +195,27 @@ func attack(opts *attackOpts) (err error) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 
+	return processAttack(atk, res, enc, sig)
+}
+
+func processAttack(
+	atk *vegeta.Attacker,
+	res <-chan *vegeta.Result,
+	enc vegeta.Encoder,
+	sig <-chan os.Signal,
+) error {
 	for {
 		select {
 		case <-sig:
-			atk.Stop()
-			return nil
+			if stopSent := atk.Stop(); !stopSent {
+				// Exit immediately on second signal.
+				return nil
+			}
 		case r, ok := <-res:
 			if !ok {
 				return nil
 			}
-			if err = enc.Encode(r); err != nil {
+			if err := enc.Encode(r); err != nil {
 				return err
 			}
 		}
