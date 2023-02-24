@@ -23,6 +23,6 @@ require (
 	github.com/miekg/dns v1.1.17
 	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d
 	github.com/tsenart/go-tsz v0.0.0-20180814232043-cdeb9e1e981e
-	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
+	golang.org/x/net v0.7.0
 	pgregory.net/rapid v0.3.3
 )
