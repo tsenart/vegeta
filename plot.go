@@ -47,7 +47,7 @@ func plotCmd() command {
 	output := fs.String("output", "stdout", "Output file")
 
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, plotUsage)
+		fmt.Fprint(os.Stderr, plotUsage)
 	}
 
 	return command{fs, func(args []string) error {
