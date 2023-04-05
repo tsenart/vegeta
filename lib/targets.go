@@ -30,8 +30,8 @@ type Target struct {
 
 type GrpcTarget struct {
 	Method string
-	Req    any
-	Resp   any
+	Req    interface{}
+	Resp   interface{}
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
