@@ -154,7 +154,7 @@ func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
 	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 	defer cancel()
 
-	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp, nil)
+	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp)
 	if err != nil {
 		res.Error = err.Error()
 		return &res
