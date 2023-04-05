@@ -8,18 +8,42 @@ import (
 )
 
 type GrpcAttacker struct {
-	conn grpc.ClientConnInterface
-	//dialer     *net.Dialer
-	//client     http.Client
+	conn       grpc.ClientConnInterface
 	stopch     chan struct{}
 	workers    uint64
 	maxWorkers uint64
-	//maxBody    int64
-	//redirects  int
-	seqmu sync.Mutex
-	seq   uint64
-	began time.Time
-	//chunked    bool
+	seqmu      sync.Mutex
+	seq        uint64
+	began      time.Time
+	timeout    time.Duration
+}
+
+func NewGrpcAttacker(opts ...func(*GrpcAttacker)) *GrpcAttacker {
+	a := &GrpcAttacker{
+		stopch:     make(chan struct{}),
+		workers:    DefaultWorkers,
+		maxWorkers: DefaultMaxWorkers,
+		began:      time.Now(),
+		timeout:    DefaultTimeout,
+	}
+
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	return a
+}
+
+func GrpcClient(conn grpc.ClientConnInterface) func(*GrpcAttacker) {
+	return func(a *GrpcAttacker) {
+		a.conn = conn
+	}
+}
+
+func GrpcTimeout(d time.Duration) func(attacker *GrpcAttacker) {
+	return func(a *GrpcAttacker) {
+		a.timeout = d
+	}
 }
 
 // Stop stops the current attack.
@@ -127,7 +151,10 @@ func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
 
 	res.Method = tgt.Method
 
-	err = a.conn.Invoke(context.TODO(), tgt.Method, tgt.Req, tgt.Resp, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+	defer cancel()
+
+	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp, nil)
 	if err != nil {
 		res.Error = err.Error()
 		return &res
