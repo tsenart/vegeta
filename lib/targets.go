@@ -28,6 +28,12 @@ type Target struct {
 	Header http.Header `json:"header,omitempty"`
 }
 
+type GrpcTarget struct {
+	Method string
+	Req    any
+	Resp   any
+}
+
 // Request creates an *http.Request out of Target and returns it along with an
 // error in case of failure.
 func (t *Target) Request() (*http.Request, error) {
@@ -112,6 +118,7 @@ const (
 // A Targeter decodes a Target or returns an error in case of failure.
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
+type GrpcTargeter func(target *GrpcTarget) error
 
 // Decode is a convenience method that calls the underlying Targeter function.
 func (tr Targeter) Decode(t *Target) error {
