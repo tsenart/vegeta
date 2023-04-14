@@ -1,14 +1,16 @@
 package vegeta
 
 import (
+	"context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"sync"
 	"time"
-	"context"
 )
 
 type GrpcAttacker struct {
 	conn       grpc.ClientConnInterface
+	headers    []string
 	stopch     chan struct{}
 	workers    uint64
 	maxWorkers uint64
@@ -43,6 +45,12 @@ func GrpcClient(conn grpc.ClientConnInterface) func(*GrpcAttacker) {
 func GrpcTimeout(d time.Duration) func(attacker *GrpcAttacker) {
 	return func(a *GrpcAttacker) {
 		a.timeout = d
+	}
+}
+
+func GrpcHeaders(headers []string) func(attacker *GrpcAttacker) {
+	return func(a *GrpcAttacker) {
+		a.headers = headers
 	}
 }
 
@@ -151,7 +159,9 @@ func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
 
 	res.Method = tgt.Method
 
-	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+	ctx := context.Background()
+	ctx = metadata.AppendToOutgoingContext(ctx, a.headers...)
+	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 
 	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp)
