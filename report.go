@@ -44,7 +44,7 @@ func reportCmd() command {
 	buckets := fs.String("buckets", "", "Histogram buckets, e.g.: \"[0,1ms,10ms]\"")
 
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, reportUsage)
+		fmt.Fprint(os.Stderr, reportUsage)
 	}
 
 	return command{fs, func(args []string) error {
@@ -81,7 +81,7 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 
 	switch typ {
 	case "plot":
-		return fmt.Errorf("The plot reporter has been deprecated and succeeded by the vegeta plot command")
+		return fmt.Errorf("the plot reporter has been deprecated and succeeded by the vegeta plot command")
 	case "text":
 		var m vegeta.Metrics
 		rep, report = vegeta.NewTextReporter(&m), &m
@@ -108,6 +108,18 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 				bucketsStr = typ[4:]
 			}
 			if err := hist.Buckets.UnmarshalText([]byte(bucketsStr)); err != nil {
+				return err
+			}
+			rep, report = vegeta.NewHistogramReporter(&hist), &hist
+		case strings.HasPrefix(typ, "expoHist"):
+			var hist vegeta.Histogram
+			if bucketsStr == "" { // Old way
+				if len(typ) < 10 {
+					return fmt.Errorf("bad buckets: '%s'", typ[8:])
+				}
+				bucketsStr = typ[8:]
+			}
+			if err := hist.Buckets.UnmarshalExpoSeqText([]byte(bucketsStr)); err != nil {
 				return err
 			}
 			rep, report = vegeta.NewHistogramReporter(&hist), &hist
