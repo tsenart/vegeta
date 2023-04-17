@@ -101,11 +101,13 @@ func NewTextReporter(m *Metrics) Reporter {
 		}
 
 		grpcCodes := make([]grpc_code.Code, 0, len(m.GrpcStatusCodes))
-		for code := range m.StatusCodes {
-			codes = append(codes, code)
+		for code := range m.GrpcStatusCodes {
+			grpcCodes = append(grpcCodes, code)
 		}
 
-		sort.Strings(codes)
+		sort.Slice(grpcCodes, func(i, j int) bool {
+			return uint32(grpcCodes[i]) < uint32(grpcCodes[j])
+		})
 
 		for _, code := range grpcCodes {
 			count := m.GrpcStatusCodes[code]
