@@ -16,6 +16,7 @@ import (
 
 	"github.com/mailru/easyjson/jlexer"
 	"github.com/mailru/easyjson/jwriter"
+	"google.golang.org/grpc/codes"
 )
 
 func init() {
@@ -27,6 +28,7 @@ type Result struct {
 	Attack    string        `json:"attack"`
 	Seq       uint64        `json:"seq"`
 	Code      uint16        `json:"code"`
+	GrpcCode  codes.Code    `json:"grpc_code"`
 	Timestamp time.Time     `json:"timestamp"`
 	Latency   time.Duration `json:"latency"`
 	BytesOut  uint64        `json:"bytes_out"`

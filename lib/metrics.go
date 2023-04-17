@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/influxdata/tdigest"
+	"google.golang.org/grpc/codes"
 )
 
 // Metrics holds metrics computed out of a slice of Results which are used
@@ -38,6 +39,8 @@ type Metrics struct {
 	Success float64 `json:"success"`
 	// StatusCodes is a histogram of the responses' status codes.
 	StatusCodes map[string]int `json:"status_codes"`
+	// GrpcStatusCodes is a histogram of the gRPC responses' status codes.
+	GrpcStatusCodes map[codes.Code]int `json:"grpc_status_codes"`
 	// Errors is a set of unique errors returned by the targets during the attack.
 	Errors []string `json:"errors"`
 
@@ -52,6 +55,7 @@ func (m *Metrics) Add(r *Result) {
 
 	m.Requests++
 	m.StatusCodes[strconv.Itoa(int(r.Code))]++
+	m.GrpcStatusCodes[r.GrpcCode]++
 	m.BytesOut.Total += r.BytesOut
 	m.BytesIn.Total += r.BytesIn
 
@@ -69,7 +73,7 @@ func (m *Metrics) Add(r *Result) {
 		m.End = end
 	}
 
-	if r.Code >= 200 && r.Code < 400 {
+	if (r.Code >= 200 && r.Code < 400) || (r.GrpcCode == codes.OK && r.Error == "") {
 		m.success++
 	}
 
@@ -117,6 +121,10 @@ func (m *Metrics) Close() {
 func (m *Metrics) init() {
 	if m.StatusCodes == nil {
 		m.StatusCodes = map[string]int{}
+	}
+
+	if m.GrpcStatusCodes == nil {
+		m.GrpcStatusCodes = map[codes.Code]int{}
 	}
 
 	if m.errors == nil {

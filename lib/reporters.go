@@ -3,6 +3,7 @@ package vegeta
 import (
 	"encoding/json"
 	"fmt"
+	grpc_code "google.golang.org/grpc/codes"
 	"io"
 	"sort"
 	"strings"
@@ -61,7 +62,8 @@ func NewTextReporter(m *Metrics) Reporter {
 		"Bytes In\t[total, mean]\t%d, %.2f\n" +
 		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
 		"Success\t[ratio]\t%.2f%%\n" +
-		"Status Codes\t[code:count]\t"
+		"Status Codes\t[code:count]\n" +
+		"Status Codes gRPC\t[code:count]\t"
 
 	return func(w io.Writer) (err error) {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
@@ -94,6 +96,20 @@ func NewTextReporter(m *Metrics) Reporter {
 		for _, code := range codes {
 			count := m.StatusCodes[code]
 			if _, err = fmt.Fprintf(tw, "%s:%d  ", code, count); err != nil {
+				return err
+			}
+		}
+
+		grpcCodes := make([]grpc_code.Code, 0, len(m.GrpcStatusCodes))
+		for code := range m.StatusCodes {
+			codes = append(codes, code)
+		}
+
+		sort.Strings(codes)
+
+		for _, code := range grpcCodes {
+			count := m.GrpcStatusCodes[code]
+			if _, err = fmt.Fprintf(tw, "%s:%d  ", code.String(), count); err != nil {
 				return err
 			}
 		}

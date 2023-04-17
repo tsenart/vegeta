@@ -4,6 +4,7 @@ import (
 	"context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"sync"
 	"time"
 )
@@ -165,6 +166,11 @@ func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
 	defer cancel()
 
 	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp)
+
+	defer func() {
+		res.GrpcCode = status.Code(err)
+	}()
+
 	if err != nil {
 		res.Error = err.Error()
 		return &res
