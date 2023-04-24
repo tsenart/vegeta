@@ -44,6 +44,10 @@ func easyjsonBd1621b8DecodeGithubComTsenartVegetaV12Lib(in *jlexer.Lexer, out *j
 			out.Seq = uint64(in.Uint64())
 		case "code":
 			out.Code = uint16(in.Uint16())
+		case "grpc_code":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.GrpcCode).UnmarshalJSON(data))
+			}
 		case "timestamp":
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Timestamp).UnmarshalJSON(data))
@@ -132,6 +136,11 @@ func easyjsonBd1621b8EncodeGithubComTsenartVegetaV12Lib(out *jwriter.Writer, in 
 		const prefix string = ",\"code\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.Code))
+	}
+	{
+		const prefix string = ",\"grpc_code\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.GrpcCode))
 	}
 	{
 		const prefix string = ",\"timestamp\":"

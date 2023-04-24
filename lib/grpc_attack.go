@@ -65,7 +65,7 @@ func (a *GrpcAttacker) Stop() {
 	}
 }
 
-func (a *GrpcAttacker) Attack(tr GrpcTargeter, p Pacer, du time.Duration, name string) <-chan *Result {
+func (a *GrpcAttacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <-chan *Result {
 	var wg sync.WaitGroup
 
 	workers := a.workers
@@ -126,17 +126,17 @@ func (a *GrpcAttacker) Attack(tr GrpcTargeter, p Pacer, du time.Duration, name s
 	return results
 }
 
-func (a *GrpcAttacker) attack(tr GrpcTargeter, name string, workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result) {
+func (a *GrpcAttacker) attack(tr Targeter, name string, workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result) {
 	defer workers.Done()
 	for range ticks {
 		results <- a.hit(tr, name)
 	}
 }
 
-func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
+func (a *GrpcAttacker) hit(tr Targeter, name string) *Result {
 	var (
 		res = Result{Attack: name}
-		tgt GrpcTarget
+		tgt Target
 		err error
 	)
 
@@ -165,7 +165,7 @@ func (a *GrpcAttacker) hit(tr GrpcTargeter, name string) *Result {
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 
-	err = a.conn.Invoke(ctx, tgt.Method, tgt.Req, tgt.Resp)
+	err = a.conn.Invoke(ctx, tgt.Method, tgt.GrpcRequestMsg, tgt.GrpcResponseMsg)
 
 	defer func() {
 		res.GrpcCode = status.Code(err)

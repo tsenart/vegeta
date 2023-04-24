@@ -30,6 +30,12 @@
             }
           },
           "type": "object"
+        },
+        "grpc_request_msg": {
+          "additionalProperties": true
+        },
+        "grpc_response_msg": {
+          "additionalProperties": true
         }
       },
       "additionalProperties": false,

@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"google.golang.org/protobuf/proto"
+
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
 )
@@ -26,12 +28,9 @@ type Target struct {
 	URL    string      `json:"url"`
 	Body   []byte      `json:"body,omitempty"`
 	Header http.Header `json:"header,omitempty"`
-}
 
-type GrpcTarget struct {
-	Method string
-	Req    interface{}
-	Resp   interface{}
+	GrpcRequestMsg  proto.Message `json:"grpc_request_msg,omitempty"`
+	GrpcResponseMsg proto.Message `json:"grpc_response_msg,omitempty"`
 }
 
 // Request creates an *http.Request out of Target and returns it along with an
@@ -70,7 +69,9 @@ func (t *Target) Equal(other *Target) bool {
 		equal := t.Method == other.Method &&
 			t.URL == other.URL &&
 			bytes.Equal(t.Body, other.Body) &&
-			len(t.Header) == len(other.Header)
+			len(t.Header) == len(other.Header) &&
+			t.GrpcRequestMsg == other.GrpcRequestMsg &&
+			t.GrpcResponseMsg == other.GrpcResponseMsg
 
 		if !equal {
 			return false
@@ -111,6 +112,8 @@ var (
 const (
 	// HTTPTargetFormat is the human readable identifier for the HTTP target format.
 	HTTPTargetFormat = "http"
+	// GRPCTargetFormat is the human readable identifier for the GRPC target format.
+	GRPCTargetFormat = "grpc"
 	// JSONTargetFormat is the human readable identifier for the JSON target format.
 	JSONTargetFormat = "json"
 )
@@ -118,7 +121,8 @@ const (
 // A Targeter decodes a Target or returns an error in case of failure.
 // Implementations must be safe for concurrent use.
 type Targeter func(*Target) error
-type GrpcTargeter func(target *GrpcTarget) error
+
+//type GrpcTargeter func(target *GrpcTarget) error
 
 // Decode is a convenience method that calls the underlying Targeter function.
 func (tr Targeter) Decode(t *Target) error {
