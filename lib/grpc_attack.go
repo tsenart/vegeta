@@ -55,6 +55,14 @@ func GrpcHeaders(headers []string) func(attacker *GrpcAttacker) {
 	}
 }
 
+func GrpcWorkers(n uint64) func(*GrpcAttacker) {
+	return func(a *GrpcAttacker) { a.workers = n }
+}
+
+func GrpcMaxWorkers(n uint64) func(*GrpcAttacker) {
+	return func(a *GrpcAttacker) { a.maxWorkers = n }
+}
+
 // Stop stops the current attack.
 func (a *GrpcAttacker) Stop() {
 	select {
