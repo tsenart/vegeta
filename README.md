@@ -26,7 +26,7 @@ You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
 command:
 
 ```shell
-$ go install github.com/tsenart/vegeta@latest
+$ go install github.com/tsenart/vegeta/v12@latest
 ```
 
 ## Versioning
