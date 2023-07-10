@@ -9,6 +9,8 @@ import (
 
 	bmizerany "github.com/bmizerany/perks/quantile"
 	gk "github.com/dgryski/go-gk"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	streadway "github.com/streadway/quantile"
 )
 
@@ -69,9 +71,45 @@ func TestMetrics_Add(t *testing.T) {
 		success: got.success,
 	}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("\ngot:  %+v\nwant: %+v", got, want)
+	opts := []cmp.Option{
+		cmpopts.IgnoreUnexported(
+			Metrics{},
+			LatencyMetrics{},
+			ByteMetrics{},
+		),
+		equateApproxDuration(time.Nanosecond),
 	}
+
+	if diff := cmp.Diff(got, want, opts...); diff != "" {
+		t.Errorf("mismatch: %s", diff)
+	}
+}
+
+func equateApproxDuration(margin time.Duration) cmp.Option {
+	if margin < 0 {
+		panic("margin must be a non-negative number")
+	}
+	a := durationApproximator{margin}
+	return cmp.FilterValues(areNonZeroDurations, cmp.Comparer(a.compare))
+}
+
+func areNonZeroDurations(x, y time.Duration) bool {
+	return x != 0 && y != 0
+}
+
+type durationApproximator struct {
+	margin time.Duration
+}
+
+func (a durationApproximator) compare(x, y time.Duration) bool {
+	// Avoid subtracting times to avoid overflow when the
+	// difference is larger than the largest representable duration.
+	if x > y {
+		// Ensure x is always before y
+		x, y = y, x
+	}
+	// We're within the margin if x+margin >= y.
+	return (x + a.margin) >= y
 }
 
 // https://github.com/tsenart/vegeta/issues/208
@@ -116,7 +154,7 @@ func BenchmarkMetrics(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(time.Now().UnixNano())) // #skipcq: GSC-G404
 
 	latencies := make([]time.Duration, 1000000)
 	for i := range latencies {
