@@ -38,8 +38,21 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: ['windows', 'linux', 'darwin']
-        goarch: ['amd64', 'arm64']
+        target:
+          - 'windows/amd64'
+          - 'windows/386'
+          - 'windows/arm64'
+          - 'linux/amd64'
+          - 'linux/386'
+          - 'linux/arm64'
+          - 'linux/arm'
+          - 'darwin/amd64'
+          - 'darwin/arm64'
+          - 'freebsd/386'
+          - 'freebsd/amd64'
+          - 'freebsd/arm'
+          - 'openbsd/amd64'
+          - 'openbsd/arm64'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -49,10 +62,16 @@ jobs:
         with:
           go-version: '1.20'
 
+      - name: Set up GOOS and GOARCH
+        id: setup_env
+        run: |
+          echo "goos=$(echo ${{ matrix.target }} | cut -d'/' -f1)" >> $GITHUB_OUTPUT
+          echo "goarch=$(echo ${{ matrix.target }} | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
       - name: Build
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: ${{ steps.setup_env.outputs.goos }}
+          GOARCH: ${{ steps.setup_env.outputs.goarch }}
         run: |
           set -euo pipefail
 
@@ -69,7 +88,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: vegeta_${{ matrix.goos }}_${{ matrix.goarch }}
+          name: vegeta_${{ steps.setup_env.outputs.goos }}_${{ steps.setup_env.outputs.goarch }}
           path: |
             *.zip
             *.tar.gz
@@ -116,7 +135,7 @@ jobs:
           PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
           RELEASE_NOTES=${{ github.workspace }}/release-notes.txt
 
-          echo "## Changelog\n" > $RELEASE_NOTES
+          printf "## Changelog\n\n" > $RELEASE_NOTES
           git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> $RELEASE_NOTES
           cat $RELEASE_NOTES
 
