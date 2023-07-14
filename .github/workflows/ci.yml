@@ -122,7 +122,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.sign.outputs.version }}
-          body_file: release-notes.txt
+          body_path: release-notes.txt
           files: |
             dist/*
           tag_name: ${{ steps.sign.outputs.version }}
