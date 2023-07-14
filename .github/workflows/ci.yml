@@ -55,6 +55,11 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           set -euo pipefail
+
+          echo "PATH: $PATH"
+          echo "GOBIN: $(go env GOBIN)"
+          ls $(go env GOBIN)
+
           make vegeta
 
           VERSION=${GITHUB_REF#refs/tags/v}
