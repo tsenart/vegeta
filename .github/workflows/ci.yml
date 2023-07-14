@@ -63,7 +63,7 @@ jobs:
           if [[ "$GOOS" != "windows" ]]; then
             tar -czf "$NAME.tar.gz" vegeta
           else
-            zip "$NAME.zip" vegeta
+            zip "$NAME.zip" vegeta.exe
           fi
 
           rm vegeta

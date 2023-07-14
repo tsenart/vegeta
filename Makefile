@@ -6,9 +6,6 @@ vegeta: generate
 	CGO_ENABLED=0 go build -v -a -tags=netgo \
   	-ldflags '-s -w -extldflags "-static" -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Date=$(DATE)'
 
-clean-vegeta:
-	rm vegeta
-
 generate: GOARCH := $(shell go env GOHOSTARCH)
 generate: GOOS := $(shell go env GOHOSTOS)
 generate:
