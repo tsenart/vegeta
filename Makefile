@@ -9,6 +9,7 @@ vegeta: generate
 clean-vegeta:
 	rm vegeta
 
+generate: GOOS= GOARCH=
 generate:
 	go install github.com/mailru/easyjson/...@latest
 	go get github.com/shurcooL/vfsgen
