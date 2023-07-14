@@ -11,6 +11,7 @@ clean-vegeta:
 
 generate:
 	go install github.com/mailru/easyjson/...@latest
+	go get github.com/shurcooL/vfsgen
 	go install github.com/shurcooL/vfsgen/...@latest
 	go generate ./...
 
