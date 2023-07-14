@@ -121,6 +121,7 @@ jobs:
           sha256sum * > $CHECKSUMS
 
           echo "${{ secrets.VEGETA_GPG_KEY }}" | gpg --batch --yes --pinentry-mode loopback --import
+          gpg --export --armor > vegeta_${VERSION}_pubkey.asc
           gpg --detach-sign -a $CHECKSUMS
 
           echo "name=${VERSION}" >> $GITHUB_OUTPUT
