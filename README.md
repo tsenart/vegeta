@@ -26,6 +26,12 @@ Or with [MacPorts](https://www.macports.org/):
 $ port install vegeta
 ```
 
+### Arch Linux
+
+```shell
+$ pacman -S vegeta
+```
+
 ### FreeBSD
 
 On FreeBSD you can install Vegeta with the built in package manager because there is a [Vegeta Package](https://www.freshports.org/benchmarks/vegeta) available.
