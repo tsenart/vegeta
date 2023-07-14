@@ -8,6 +8,12 @@
         "url"
       ],
       "properties": {
+        "method": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
         "body": {
           "type": "string",
           "media": {
@@ -24,12 +30,6 @@
             }
           },
           "type": "object"
-        },
-        "method": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
         }
       },
       "additionalProperties": false,

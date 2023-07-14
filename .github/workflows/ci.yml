@@ -1,20 +1,134 @@
-on: [push, pull_request]
 name: CI
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+
 jobs:
-  ci:
-    strategy:
-      matrix:
-        go-version: [1.13.x]
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+  qa:
+    name: Quality Assurance
+    runs-on: ubuntu-latest
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
-        with:
-          go-version: ${{ matrix.go-version }}
       - name: Checkout code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
       - name: Vet
         run: go vet ./...
+
       - name: Test
-        run: go test -race -v ./...
+        run: go test -race ./...
+
+  build:
+    name: Build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ['windows', 'linux', 'darwin']
+        goarch: ['amd64', 'arm64']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+
+          make vegeta
+
+          VERSION=${GITHUB_REF#refs/tags/v}
+          NAME="vegeta_${VERSION}_${GOOS}_${GOARCH}"
+          if [[ "$GOOS" != "windows" ]]; then
+            tar -czf "$NAME.tar.gz" vegeta
+          else
+            zip "$NAME.zip" vegeta.exe
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: vegeta_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: |
+            *.zip
+            *.tar.gz
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [qa, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create checksums and sign them
+        id: sign
+        run: |
+          set -euo pipefail
+
+          mkdir dist
+          mv vegeta*/* dist/
+          cd dist
+
+          VERSION=${GITHUB_REF#refs/tags/v}
+          CHECKSUMS=vegeta_${VERSION}_checksums.txt
+          sha256sum * > $CHECKSUMS
+
+          echo "${{ secrets.VEGETA_GPG_KEY }}" | gpg --batch --yes --pinentry-mode loopback --import
+          gpg --detach-sign -a $CHECKSUMS
+
+          echo "name=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          set -x
+          set -euo pipefail
+
+          CURRENT_VERSION=${GITHUB_REF#refs/tags/}
+          PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
+          RELEASE_NOTES=${{ github.workspace }}/release-notes.txt
+
+          echo "## Changelog\n" > $RELEASE_NOTES
+          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> $RELEASE_NOTES
+          cat $RELEASE_NOTES
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.sign.outputs.version }}
+          body_path: ${{ github.workspace }}/release-notes.txt
+          files: |
+            dist/*
+          tag_name: ${{ steps.sign.outputs.version }}
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
