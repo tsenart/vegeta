@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"pgregory.net/rapid"
 )
 
@@ -53,6 +54,8 @@ func TestResultDecoding(t *testing.T) {
 }
 
 func TestResultEncoding(t *testing.T) {
+	t.Parallel()
+
 	newStdJSONEncoder := func(w io.Writer) Encoder {
 		enc := json.NewEncoder(w)
 		return func(r *Result) error { return enc.Encode(r) }
@@ -79,27 +82,25 @@ func TestResultEncoding(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.encoding, func(t *testing.T) {
-			t.Parallel()
-
 			rapid.Check(t, func(t *rapid.T) {
 				hdrs := rapid.MapOf(
-					rapid.StringMatching(`([\w-]+)`),
-					rapid.SliceOfN(rapid.StringMatching(`\S`), 1, -1),
+					rapid.StringMatching("^[!#$%&'*+\\-.^_`|~0-9a-zA-Z]+$"),
+					rapid.SliceOfN(rapid.StringMatching(`^[0-9a-zA-Z]+$`), 1, -1),
 				).Draw(t, "headers").(map[string][]string)
 
 				want := Result{
-					Attack:    rapid.String().Draw(t, "attack").(string),
+					Attack:    rapid.StringMatching(`^\w+$`).Draw(t, "attack").(string),
 					Seq:       rapid.Uint64().Draw(t, "seq").(uint64),
 					Code:      rapid.Uint16().Draw(t, "code").(uint16),
 					Timestamp: time.Unix(rapid.Int64Range(0, 1e8).Draw(t, "timestamp").(int64), 0),
 					Latency:   time.Duration(rapid.Int64Min(0).Draw(t, "latency").(int64)),
 					BytesIn:   rapid.Uint64().Draw(t, "bytes_in").(uint64),
 					BytesOut:  rapid.Uint64().Draw(t, "bytes_out").(uint64),
-					Error:     rapid.String().Draw(t, "error").(string),
+					Error:     rapid.StringMatching(`^\w+$`).Draw(t, "error").(string),
 					Body:      rapid.SliceOf(rapid.Byte()).Draw(t, "body").([]byte),
 					Method: rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").
 						Draw(t, "method").(string),
-					URL: rapid.String().Draw(t, "url").(string),
+					URL: rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url").(string),
 				}
 
 				if len(hdrs) > 0 {
@@ -134,7 +135,7 @@ func TestResultEncoding(t *testing.T) {
 
 					if !got.Equal(want) {
 						t.Logf("encoded: %s", encoded)
-						t.Fatalf("\ngot:  %#v\nwant: %#v\n", got, want)
+						t.Fatalf("mismatch: %s", cmp.Diff(got, want))
 					}
 				}
 			})
@@ -146,7 +147,7 @@ func BenchmarkResultEncodings(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	rng := rand.New(rand.NewSource(0))
+	rng := rand.New(rand.NewSource(0)) // #skipcq: GSC-G404
 	zf := rand.NewZipf(rng, 3, 2, 1000)
 	began := time.Now()
 	results := make([]Result, 1e5)

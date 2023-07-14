@@ -45,8 +45,8 @@ func TestBuckets_UnmarshalText(t *testing.T) {
 		"":       "bad buckets: ",
 		" ":      "bad buckets:  ",
 		"{0, 2}": "bad buckets: {0, 2}",
-		"[]":     "time: invalid duration ",
-		"[0, 2]": "time: missing unit in duration 2",
+		"[]":     `time: invalid duration ""`,
+		"[0, 2]": `time: missing unit in duration "2"`,
 	} {
 		if got := (&Buckets{}).UnmarshalText([]byte(value)).Error(); got != want {
 			t.Errorf("got: %v, want: %v", got, want)
@@ -57,6 +57,7 @@ func TestBuckets_UnmarshalText(t *testing.T) {
 		"[0,5ms]":             {0, 5 * time.Millisecond},
 		"[0, 5ms]":            {0, 5 * time.Millisecond},
 		"[   0,5ms, 10m    ]": {0, 5 * time.Millisecond, 10 * time.Minute},
+		"[3ms,10ms]":          {0, 3 * time.Millisecond, 10 * time.Millisecond},
 	} {
 		var got Buckets
 		if err := got.UnmarshalText([]byte(value)); err != nil {

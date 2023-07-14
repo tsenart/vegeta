@@ -44,7 +44,7 @@ func reportCmd() command {
 	buckets := fs.String("buckets", "", "Histogram buckets, e.g.: \"[0,1ms,10ms]\"")
 
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, reportUsage)
+		fmt.Fprintf(os.Stderr, "%s\n", reportUsage)
 	}
 
 	return command{fs, func(args []string) error {

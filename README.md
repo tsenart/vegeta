@@ -1,4 +1,4 @@
-# Vegeta [![Build Status](https://secure.travis-ci.org/tsenart/vegeta.svg?branch=master)](http://travis-ci.org/tsenart/vegeta) [![Fuzzit Status](https://app.fuzzit.dev/badge?org_id=vegeta)](https://app.fuzzit.dev/orgs/vegeta/dashboard) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![GoDoc](https://godoc.org/github.com/tsenart/vegeta?status.svg)](https://godoc.org/github.com/tsenart/vegeta) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
+# Vegeta [![Build Status](https://github.com/tsenart/vegeta/workflows/CI/badge.svg)](https://github.com/tsenart/vegeta/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/tsenart/vegeta)](https://goreportcard.com/report/github.com/tsenart/vegeta) [![PkgGoDev](https://pkg.go.dev/badge/github.com/tsenart/vegeta/v12/lib)](https://pkg.go.dev/github.com/tsenart/vegeta/v12/lib) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tsenart/vegeta?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Donate](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](#donate)
 
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate.
@@ -22,11 +22,11 @@ $ brew update && brew install vegeta
 
 ### Source
 
-You need `go` installed and `GOBIN` in your `PATH`. Once that is done, run the
-command:
-
 ```shell
-$ go get -u github.com/tsenart/vegeta
+git clone https://github.com/tsenart/vegeta
+cd vegeta
+make vegeta
+mv vegeta ~/bin # Or elsewhere, up to you.
 ```
 
 ## Versioning
@@ -364,8 +364,7 @@ See the [`-format`](#-format) section to learn about the different target format
 
 #### `-timeout`
 
-Specifies the timeout for each request. The default is 0 which disables
-timeouts.
+Specifies the timeout for each request. A value of `0` disables timeouts.
 
 #### `-workers`
 
@@ -472,7 +471,14 @@ All duration like fields are in nanoseconds.
     "max": 3660505,
     "min": 1949582
   },
-  "buckets": {"0":9952,"1000000":40,"2000000":6,"3000000":0,"4000000":0,"5000000":2},
+  "buckets": {
+    "0": 9952,
+    "1000000": 40,
+    "2000000": 6,
+    "3000000": 0,
+    "4000000": 0,
+    "5000000": 2
+  },
   "bytes_in": {
     "total": 606700,
     "mean": 6067
