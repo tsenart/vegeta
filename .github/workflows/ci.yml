@@ -114,16 +114,17 @@ jobs:
 
           CURRENT_VERSION=${GITHUB_REF#refs/tags/}
           PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
+          RELEASE_NOTES=${{ github.workspace }}/release-notes.txt
 
-          echo "## Changelog\n" > release-notes.txt
-          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> release-notes.txt
-          cat release-notes.txt
+          echo "## Changelog\n" > $RELEASE_NOTES
+          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> $RELEASE_NOTES
+          cat $RELEASE_NOTES
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.sign.outputs.version }}
-          body_path: release-notes.txt
+          body_path: ${{ github.workspace }}/release-notes.txt
           files: |
             dist/*
           tag_name: ${{ steps.sign.outputs.version }}
