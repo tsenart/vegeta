@@ -116,7 +116,8 @@ jobs:
           PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
 
           echo "## Changelog\n" > release-notes.txt
-          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline >> release-notes.txt
+          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> release-notes.txt
+          cat release-notes.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
