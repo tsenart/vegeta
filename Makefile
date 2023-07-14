@@ -9,15 +9,9 @@ vegeta: generate
 clean-vegeta:
 	rm vegeta
 
-generate: GOOS= GOARCH=
+generate: GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH)
 generate:
 	go install github.com/mailru/easyjson/...@latest
 	go get github.com/shurcooL/vfsgen
 	go install github.com/shurcooL/vfsgen/...@latest
 	go generate ./...
-
-dist:
-	goreleaser release --debug --skip-validate
-
-clean-dist:
-	rm -rf dist
