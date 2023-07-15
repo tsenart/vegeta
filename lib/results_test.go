@@ -86,21 +86,21 @@ func TestResultEncoding(t *testing.T) {
 				hdrs := rapid.MapOf(
 					rapid.StringMatching("^[!#$%&'*+\\-.^_`|~0-9a-zA-Z]+$"),
 					rapid.SliceOfN(rapid.StringMatching(`^[0-9a-zA-Z]+$`), 1, -1),
-				).Draw(t, "headers").(map[string][]string)
+				).Draw(t, "headers")
 
 				want := Result{
-					Attack:    rapid.StringMatching(`^\w+$`).Draw(t, "attack").(string),
-					Seq:       rapid.Uint64().Draw(t, "seq").(uint64),
-					Code:      rapid.Uint16().Draw(t, "code").(uint16),
-					Timestamp: time.Unix(rapid.Int64Range(0, 1e8).Draw(t, "timestamp").(int64), 0),
-					Latency:   time.Duration(rapid.Int64Min(0).Draw(t, "latency").(int64)),
-					BytesIn:   rapid.Uint64().Draw(t, "bytes_in").(uint64),
-					BytesOut:  rapid.Uint64().Draw(t, "bytes_out").(uint64),
-					Error:     rapid.StringMatching(`^\w+$`).Draw(t, "error").(string),
-					Body:      rapid.SliceOf(rapid.Byte()).Draw(t, "body").([]byte),
+					Attack:    rapid.StringMatching(`^\w+$`).Draw(t, "attack"),
+					Seq:       rapid.Uint64().Draw(t, "seq"),
+					Code:      rapid.Uint16().Draw(t, "code"),
+					Timestamp: time.Unix(rapid.Int64Range(0, 1e8).Draw(t, "timestamp"), 0),
+					Latency:   time.Duration(rapid.Int64Min(0).Draw(t, "latency")),
+					BytesIn:   rapid.Uint64().Draw(t, "bytes_in"),
+					BytesOut:  rapid.Uint64().Draw(t, "bytes_out"),
+					Error:     rapid.StringMatching(`^\w+$`).Draw(t, "error"),
+					Body:      rapid.SliceOf(rapid.Byte()).Draw(t, "body"),
 					Method: rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").
-						Draw(t, "method").(string),
-					URL: rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url").(string),
+						Draw(t, "method"),
+					URL: rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url"),
 				}
 
 				if len(hdrs) > 0 {
