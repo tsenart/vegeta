@@ -344,23 +344,18 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				for _, ip := range ips {
 					go func(ip string) {
 						conn, err := dial(ctx, network, net.JoinHostPort(ip, port))
+						cancel()
 						ch <- result{conn, err}
 					}(ip)
 				}
 
 				for i := 0; i < cap(ch); i++ {
-					select {
-					case <-ctx.Done():
-						return nil, ctx.Err()
-					case r := <-ch:
-						if err = r.err; err != nil {
-							continue
-						}
-						return r.conn, nil
+					if r := <-ch; conn == nil {
+						conn, err = r.conn, r.err
 					}
 				}
 
-				return nil, err
+				return conn, err
 			}
 		}
 	}
