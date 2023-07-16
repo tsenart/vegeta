@@ -33,6 +33,7 @@ Options:
 Examples:
   echo "GET http://:80" | vegeta attack -rate=10/s > results.gob
   echo "GET http://:80" | vegeta attack -rate=100/s | vegeta encode > results.json
+  vegeta report < results.gob | rg -vU 'Error Set:.*' # Don't show errors
   vegeta report results.*
 `
 
