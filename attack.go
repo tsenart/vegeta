@@ -56,6 +56,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -99,6 +100,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+	dnsTTL         time.Duration
 }
 
 // attack validates the attack arguments, sets up the
@@ -115,6 +117,8 @@ func attack(opts *attackOpts) (err error) {
 		}
 		net.DefaultResolver = res
 	}
+
+	net.DefaultResolver.PreferGo = true
 
 	files := map[string]io.Reader{}
 	for _, filename := range []string{opts.targetsf, opts.bodyf} {
@@ -188,6 +192,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
+		vegeta.DNSCaching(opts.dnsTTL),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

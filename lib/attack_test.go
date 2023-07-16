@@ -82,7 +82,7 @@ func TestRedirects(t *testing.T) {
 	redirects := 2
 	atk := NewAttacker(Redirects(redirects))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	want := fmt.Sprintf("stopped after %d redirects", redirects)
 	if got := res.Error; !strings.HasSuffix(got, want) {
 		t.Fatalf("want: '%v' in '%v'", want, got)
@@ -99,7 +99,7 @@ func TestNoFollow(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(Redirects(NoFollow))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if res.Error != "" {
 		t.Fatalf("got err: %v", res.Error)
 	}
@@ -118,7 +118,7 @@ func TestTimeout(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(Timeout(10 * time.Millisecond))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 
 	want := "Client.Timeout exceeded while awaiting headers"
 	if got := res.Error; !strings.Contains(got, want) {
@@ -148,7 +148,8 @@ func TestLocalAddr(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker(LocalAddr(*addr))
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	atk.hit(tr, "")
+	atk.hit(tr, &attack{name: "", began: time.Now()})
+
 }
 
 func TestKeepAlive(t *testing.T) {
@@ -182,7 +183,8 @@ func TestStatusCodeErrors(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "")
+
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if got, want := res.Error, "400 Bad Request"; got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -192,7 +194,7 @@ func TestBadTargeterError(t *testing.T) {
 	t.Parallel()
 	atk := NewAttacker()
 	tr := func(*Target) error { return io.EOF }
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if got, want := res.Error, io.EOF.Error(); got != want {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -210,7 +212,8 @@ func TestResponseBodyCapture(t *testing.T) {
 	defer server.Close()
 	atk := NewAttacker()
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	res := atk.hit(tr, "")
+
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if got := res.Body; !bytes.Equal(got, want) {
 		t.Fatalf("got: %v, want: %v", got, want)
 	}
@@ -237,7 +240,7 @@ func TestProxyOption(t *testing.T) {
 	}))
 
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://127.0.0.2"})
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if got, want := res.Error, ""; got != want {
 		t.Errorf("got error: %q, want %q", got, want)
 	}
@@ -263,7 +266,7 @@ func TestMaxBody(t *testing.T) {
 		t.Run(fmt.Sprint(maxBody), func(t *testing.T) {
 			atk := NewAttacker(MaxBody(maxBody))
 			tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-			res := atk.hit(tr, "")
+			res := atk.hit(tr, &attack{name: "", began: time.Now()})
 
 			want := body
 			if maxBody >= 0 {
@@ -321,7 +324,7 @@ func TestUnixSocket(t *testing.T) {
 	atk := NewAttacker(UnixSocket(socketFile))
 
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://anyserver/"})
-	res := atk.hit(tr, "")
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
 	if !bytes.Equal(res.Body, body) {
 		t.Fatalf("got: %s, want: %s", string(res.Body), string(body))
 	}
@@ -355,7 +358,7 @@ func TestClient(t *testing.T) {
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
 
 	atk := NewAttacker(Client(client))
-	resp := atk.hit(tr, "TEST")
+	resp := atk.hit(tr, &attack{name: "TEST", began: time.Now()})
 	if !strings.Contains(resp.Error, "Client.Timeout exceeded while awaiting headers") {
 		t.Errorf("Expected timeout error")
 	}
@@ -373,18 +376,17 @@ func TestVegetaHeaders(t *testing.T) {
 	defer server.Close()
 
 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	atk := NewAttacker()
-
+	a := NewAttacker()
+	atk := &attack{name: "ig-bang", began: time.Now()}
 	for seq := 0; seq < 5; seq++ {
-		attack := "big-bang"
-		res := atk.hit(tr, attack)
+		res := a.hit(tr, atk)
 
 		var hdr http.Header
 		if err := json.Unmarshal(res.Body, &hdr); err != nil {
 			t.Fatal(err)
 		}
 
-		if have, want := hdr.Get("X-Vegeta-Attack"), attack; have != want {
+		if have, want := hdr.Get("X-Vegeta-Attack"), atk.name; have != want {
 			t.Errorf("X-Vegeta-Attack: have %q, want %q", have, want)
 		}
 
