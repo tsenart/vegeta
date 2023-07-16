@@ -42,7 +42,6 @@ func reportCmd() command {
 	every := fs.Duration("every", 0, "Report interval")
 	output := fs.String("output", "stdout", "Output file")
 	buckets := fs.String("buckets", "", "Histogram buckets, e.g.: \"[0,1ms,10ms]\"")
-	textErrors := fs.Bool("text-errors", true, "Show errors in the text report")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n", reportUsage)
@@ -54,11 +53,11 @@ func reportCmd() command {
 		if len(files) == 0 {
 			files = append(files, "stdin")
 		}
-		return report(files, *typ, *output, *every, *buckets, *textErrors)
+		return report(files, *typ, *output, *every, *buckets)
 	}}
 }
 
-func report(files []string, typ, output string, every time.Duration, bucketsStr string, textErrors bool) error {
+func report(files []string, typ, output string, every time.Duration, bucketsStr string) error {
 	if len(typ) < 4 {
 		return fmt.Errorf("invalid report type: %s", typ)
 	}
@@ -85,7 +84,7 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 		return fmt.Errorf("The plot reporter has been deprecated and succeeded by the vegeta plot command")
 	case "text":
 		var m vegeta.Metrics
-		rep, report = vegeta.NewTextReporter(&m, vegeta.TextReporterErrors(textErrors)), &m
+		rep, report = vegeta.NewTextReporter(&m), &m
 	case "json":
 		var m vegeta.Metrics
 		if bucketsStr != "" {

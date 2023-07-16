@@ -52,24 +52,9 @@ func NewHistogramReporter(h *Histogram) Reporter {
 	}
 }
 
-// TextReporterOpt is a functional option for configuring a TextReporter.
-type TextReporterOpt func(*textReporterOpts)
-
-// TextReporterErrors configures a TextReporter to write out potentially long errors.
-// True by default.
-func TextReporterErrors(v bool) TextReporterOpt {
-	return func(o *textReporterOpts) {
-		o.errors = v
-	}
-}
-
-type textReporterOpts struct {
-	errors bool
-}
-
 // NewTextReporter returns a Reporter that writes out Metrics as aligned,
 // formatted text.
-func NewTextReporter(m *Metrics, options ...TextReporterOpt) Reporter {
+func NewTextReporter(m *Metrics) Reporter {
 	const fmtstr = "Requests\t[total, rate, throughput]\t%d, %.2f, %.2f\n" +
 		"Duration\t[total, attack, wait]\t%s, %s, %s\n" +
 		"Latencies\t[min, mean, 50, 90, 95, 99, max]\t%s, %s, %s, %s, %s, %s, %s\n" +
@@ -77,11 +62,6 @@ func NewTextReporter(m *Metrics, options ...TextReporterOpt) Reporter {
 		"Bytes Out\t[total, mean]\t%d, %.2f\n" +
 		"Success\t[ratio]\t%.2f%%\n" +
 		"Status Codes\t[code:count]\t"
-
-	opts := textReporterOpts{errors: true}
-	for _, opt := range options {
-		opt(&opts)
-	}
 
 	return func(w io.Writer) (err error) {
 		tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
@@ -118,15 +98,13 @@ func NewTextReporter(m *Metrics, options ...TextReporterOpt) Reporter {
 			}
 		}
 
-		if opts.errors {
-			if _, err = fmt.Fprintln(tw, "\nError Set:"); err != nil {
-				return err
-			}
+		if _, err = fmt.Fprintln(tw, "\nError Set:"); err != nil {
+			return err
+		}
 
-			for _, e := range m.Errors {
-				if _, err = fmt.Fprintln(tw, e); err != nil {
-					return err
-				}
+		for _, e := range m.Errors {
+			if _, err = fmt.Fprintln(tw, e); err != nil {
+				return err
 			}
 		}
 
