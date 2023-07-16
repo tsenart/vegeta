@@ -86,6 +86,8 @@ attack command:
     	Send body with chunked transfer encoding
   -connections int
     	Max open idle connections per target host (default 10000)
+  -dns-ttl value
+    	Cache DNS lookups for the given duration [-1 = disabled, 0 = forever] (default 0s)
   -duration duration
     	Duration of the test [0 = forever]
   -format string
@@ -109,7 +111,7 @@ attack command:
   -max-body value
     	Maximum number of bytes to capture from response bodies. [-1 = no limit] (default -1)
   -max-connections int
-      Max connections per target host
+    	Max connections per target host
   -max-workers uint
     	Maximum number of workers (default 18446744073709551615)
   -name string
@@ -199,6 +201,11 @@ Specifies whether to send request bodies with the chunked transfer encoding.
 #### `-connections`
 
 Specifies the maximum number of idle open connections per target host.
+
+#### `-dns-ttl`
+
+Specifies the duration to cache DNS lookups for. A zero value caches forever.
+A negative value disables caching altogether.
 
 #### `-max-connections`
 
