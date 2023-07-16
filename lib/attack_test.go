@@ -65,7 +65,7 @@ func TestAttackDuration(t *testing.T) {
 func TestTLSConfig(t *testing.T) {
 	atk := NewAttacker()
 	got := atk.client.Transport.(*http.Transport).TLSClientConfig
-	if want := (&tls.Config{InsecureSkipVerify: true}); !reflect.DeepEqual(got, want) {
+	if want := (&tls.Config{InsecureSkipVerify: false}); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got: %+v, want: %+v", got, want)
 	}
 }

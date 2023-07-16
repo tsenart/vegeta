@@ -60,7 +60,7 @@ var (
 	// DefaultLocalAddr is the default local IP address an Attacker uses.
 	DefaultLocalAddr = net.IPAddr{IP: net.IPv4zero}
 	// DefaultTLSConfig is the default tls.Config an Attacker uses.
-	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: true}
+	DefaultTLSConfig = &tls.Config{InsecureSkipVerify: false}
 )
 
 // NewAttacker returns a new Attacker with default options which are overridden
