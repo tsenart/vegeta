@@ -132,3 +132,24 @@ func (f *maxBodyFlag) String() string {
 	}
 	return datasize.ByteSize(*(f.n)).String()
 }
+
+type dnsTTLFlag struct{ ttl *time.Duration }
+
+func (f *dnsTTLFlag) Set(v string) (err error) {
+	if v == "-1" {
+		*(f.ttl) = -1
+		return nil
+	}
+
+	*(f.ttl), err = time.ParseDuration(v)
+	return err
+}
+
+func (f *dnsTTLFlag) String() string {
+	if f.ttl == nil {
+		return ""
+	} else if *(f.ttl) == -1 {
+		return "-1"
+	}
+	return f.ttl.String()
+}
