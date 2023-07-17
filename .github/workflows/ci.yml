@@ -26,6 +26,13 @@ jobs:
         with:
           go-version: '1.20'
 
+      - name: Format Check
+        run: |
+          set -euo pipefail
+          go get golang.org/x/tools/cmd/goimports
+          goimports -w .
+          git diff --exit-code
+
       - name: Vet
         run: go vet ./...
 
