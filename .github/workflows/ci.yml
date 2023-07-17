@@ -29,7 +29,7 @@ jobs:
       - name: Format Check
         run: |
           set -euo pipefail
-          go get golang.org/x/tools/cmd/goimports
+          go install golang.org/x/tools/cmd/goimports@latest
           goimports -w .
           git diff --exit-code
 
