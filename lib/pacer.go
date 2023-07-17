@@ -41,7 +41,8 @@ type Rate = ConstantPacer
 var _ Pacer = ConstantPacer{}
 
 // String returns a pretty-printed description of the ConstantPacer's behaviour:
-//   ConstantPacer{Freq: 1, Per: time.Second} => Constant{1 hits/1s}
+//
+//	ConstantPacer{Freq: 1, Per: time.Second} => Constant{1 hits/1s}
 func (cp ConstantPacer) String() string {
 	return fmt.Sprintf("Constant{%d hits/%s}", cp.Freq, cp.Per)
 }
@@ -99,37 +100,43 @@ const (
 )
 
 // SinePacer is a Pacer that describes attack request rates with the equation:
-//   R = MA sin(O+(2𝛑/P)t)
+//
+//	R = MA sin(O+(2𝛑/P)t)
+//
 // Where:
-//   R = Instantaneous attack rate at elapsed time t, hits per nanosecond
-//   M = Mean attack rate over period P, sp.Mean, hits per nanosecond
-//   A = Amplitude of sine wave, sp.Amp, hits per nanosecond
-//   O = Offset of sine wave, sp.StartAt, radians
-//   P = Period of sine wave, sp.Period, nanoseconds
-//   t = Elapsed time since attack start, nanoseconds
+//
+//	R = Instantaneous attack rate at elapsed time t, hits per nanosecond
+//	M = Mean attack rate over period P, sp.Mean, hits per nanosecond
+//	A = Amplitude of sine wave, sp.Amp, hits per nanosecond
+//	O = Offset of sine wave, sp.StartAt, radians
+//	P = Period of sine wave, sp.Period, nanoseconds
+//	t = Elapsed time since attack start, nanoseconds
 //
 // Many thanks to http://ascii.co.uk/art/sine and "sps" for the ascii here :-)
 //
-//  Mean -|         ,-'''-.
-//  +Amp  |      ,-'   |   `-.
-//        |    ,'      |      `.       O=𝛑
-//        |  ,'      O=𝛑/2      `.     MeanDown
-//        | /        Peak         \   /
-//        |/                       \ /
-//  Mean -+-------------------------\--------------------------> t
-//        |\                         \                       /
-//        | \                         \       O=3𝛑/2        /
-//        |  O=0                       `.     Trough      ,'
-//        |  MeanUp                      `.      |      ,'
-//  Mean  |                                `-.   |   ,-'
-//  -Amp -|                                   `-,,,-'
-//        |<-------------------- Period --------------------->|
+//	Mean -|         ,-'''-.
+//	+Amp  |      ,-'   |   `-.
+//	      |    ,'      |      `.       O=𝛑
+//	      |  ,'      O=𝛑/2      `.     MeanDown
+//	      | /        Peak         \   /
+//	      |/                       \ /
+//	Mean -+-------------------------\--------------------------> t
+//	      |\                         \                       /
+//	      | \                         \       O=3𝛑/2        /
+//	      |  O=0                       `.     Trough      ,'
+//	      |  MeanUp                      `.      |      ,'
+//	Mean  |                                `-.   |   ,-'
+//	-Amp -|                                   `-,,,-'
+//	      |<-------------------- Period --------------------->|
 //
 // This equation is integrated with respect to time to derive the expected
 // number of hits served at time t after the attack began:
-//   H = Mt - (AP/2𝛑)cos(O+(2𝛑/P)t) + (AP/2𝛑)cos(O)
+//
+//	H = Mt - (AP/2𝛑)cos(O+(2𝛑/P)t) + (AP/2𝛑)cos(O)
+//
 // Where:
-//   H = Total number of hits triggered during t
+//
+//	H = Total number of hits triggered during t
 type SinePacer struct {
 	// The period of the sine wave, e.g. 20*time.Minute
 	// MUST BE > 0
@@ -148,13 +155,14 @@ type SinePacer struct {
 var _ Pacer = SinePacer{}
 
 // String returns a pretty-printed description of the SinePacer's behaviour:
-//   SinePacer{
-//       Period:  time.Hour,
-//       Mean:    Rate{100, time.Second},
-//       Amp:     Rate{50, time.Second},
-//       StartAt: MeanDown,
-//   } =>
-//   Sine{Constant{100 hits/1s} ± Constant{50 hits/1s} / 1h, offset 1𝛑}
+//
+//	SinePacer{
+//	    Period:  time.Hour,
+//	    Mean:    Rate{100, time.Second},
+//	    Amp:     Rate{50, time.Second},
+//	    StartAt: MeanDown,
+//	} =>
+//	Sine{Constant{100 hits/1s} ± Constant{50 hits/1s} / 1h, offset 1𝛑}
 func (sp SinePacer) String() string {
 	return fmt.Sprintf("Sine{%s ± %s / %s, offset %g𝛑}", sp.Mean, sp.Amp, sp.Period, sp.StartAt/math.Pi)
 }
@@ -218,7 +226,8 @@ func (sp SinePacer) radians(t time.Duration) float64 {
 
 // hitsPerNs calculates the instantaneous rate of attack at
 // t nanoseconds after the attack began.
-//     R = MA sin(O+(2𝛑/P)t)
+//
+//	R = MA sin(O+(2𝛑/P)t)
 func (sp SinePacer) hitsPerNs(t time.Duration) float64 {
 	return sp.Mean.hitsPerNs() + sp.Amp.hitsPerNs()*math.Sin(sp.radians(t))
 }
@@ -226,9 +235,12 @@ func (sp SinePacer) hitsPerNs(t time.Duration) float64 {
 // hits returns the number of hits that have been sent during an attack
 // lasting t nanoseconds. It returns a float so we can tell exactly how
 // much we've missed our target by when solving numerically in Pace.
-//     H = Mt - (AP/2𝛑)cos(O+(2𝛑/P)t) + (AP/2𝛑)cos(O)
+//
+//	H = Mt - (AP/2𝛑)cos(O+(2𝛑/P)t) + (AP/2𝛑)cos(O)
+//
 // This re-arranges to:
-//     H = Mt + (AP/2𝛑)(cos(O) - cos(O+(2𝛑/P)t))
+//
+//	H = Mt + (AP/2𝛑)(cos(O) - cos(O+(2𝛑/P)t))
 func (sp SinePacer) hits(t time.Duration) float64 {
 	if t <= 0 || sp.invalid() {
 		return 0

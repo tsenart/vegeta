@@ -67,7 +67,7 @@ func TestDownsample(t *testing.T) {
 				}
 
 				// Test LTTB algorithm's equivalence to dgrisky/go-lttb
-				in := *(*[]golttb.Point)(unsafe.Pointer(&ps)) // #skipcq: GSC-G103
+				in := *(*[]golttb.Point[float64])(unsafe.Pointer(&ps)) // #skipcq: GSC-G103
 				out := golttb.LTTB(in, threshold)
 				theirs := *(*[]Point)(unsafe.Pointer(&out)) // #skipcq: GSC-G103
 
@@ -82,7 +82,7 @@ func TestDownsample(t *testing.T) {
 }
 
 func BenchmarkLTTB(b *testing.B) {
-	data := *(*[]golttb.Point)(unsafe.Pointer(&points[0])) // #skipcq: GSC-G103
+	data := *(*[]golttb.Point[float64])(unsafe.Pointer(&points[0])) // #skipcq: GSC-G103
 	b.Run("dgryski", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			golttb.LTTB(data, 1000)

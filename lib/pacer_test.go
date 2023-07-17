@@ -126,24 +126,25 @@ var quarterPeriods = map[string]float64{
 // These are multipliers that help us integrate our rate equation
 // in steps of 𝛑/2 without needing to resort to trig functions.
 // This relies on integral in each quarter period being:
-//   (Mean * Period) / 4 ± (Amp * Period) / 2𝛑
+//
+//	(Mean * Period) / 4 ± (Amp * Period) / 2𝛑
 //
 // Put another way, the two shaded areas in the graph below contain
 // an equal number of hits -- (Amp * Period) / 2𝛑, or ampHits().
 //
-//  Mean -|         ,-'''-.
-//  +Amp  |      ,-'xxx|   `-.
-//        |    ,'xxxxxx|      `.
-//        |  ,'xxxxxxxx|        `.
-//        | /xxxxxxxxxx|          \
-//        |/xxxxxxxxxxx|           \
-//  Mean -+-------------------------\--------------------------> t
-//        |                          \           |xxxxxxxxxxx/
-//        |                           \          |xxxxxxxxxx/
-//        |                            `.        |xxxxxxxx,'
-//        |                              `.      |xxxxxx,'
-//  Mean  |                                `-.   |xxx,-'
-//  -Amp -|                                   `-,,,-'
+//	Mean -|         ,-'''-.
+//	+Amp  |      ,-'xxx|   `-.
+//	      |    ,'xxxxxx|      `.
+//	      |  ,'xxxxxxxx|        `.
+//	      | /xxxxxxxxxx|          \
+//	      |/xxxxxxxxxxx|           \
+//	Mean -+-------------------------\--------------------------> t
+//	      |                          \           |xxxxxxxxxxx/
+//	      |                           \          |xxxxxxxxxx/
+//	      |                            `.        |xxxxxxxx,'
+//	      |                              `.      |xxxxxx,'
+//	Mean  |                                `-.   |xxx,-'
+//	-Amp -|                                   `-,,,-'
 //
 // The four multipliers are how many multiples of ampHits() away from
 // Mean*t the integral is after 1, 2, 3 and 4 quarter-periods respectively.
