@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -200,7 +200,7 @@ func (enc TargetEncoder) Encode(t *Target) error {
 	return enc(t)
 }
 
-// NewJSONTargetEncoder returns a TargetEncoder that encods Targets in the JSON format.
+// NewJSONTargetEncoder returns a TargetEncoder that encodes Targets in the JSON format.
 func NewJSONTargetEncoder(w io.Writer) TargetEncoder {
 	var jw jwriter.Writer
 	return func(t *Target) error {
@@ -310,7 +310,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			} else if strings.HasPrefix(line, "#") {
 				continue
 			} else if strings.HasPrefix(line, "@") {
-				if tgt.Body, err = ioutil.ReadFile(line[1:]); err != nil {
+				if tgt.Body, err = os.ReadFile(line[1:]); err != nil {
 					return fmt.Errorf("bad body: %s", err)
 				}
 				break

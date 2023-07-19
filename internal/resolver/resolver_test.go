@@ -3,7 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -102,7 +102,7 @@ func TestResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed resolver round trip: %s", err)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("failed to read respose body")
 	}
