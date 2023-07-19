@@ -1,7 +1,7 @@
 package vegeta
 
 import (
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -146,7 +146,7 @@ func TestMetrics_EmptyMetricsCanBeReported(t *testing.T) {
 	m.Close()
 
 	reporter := NewJSONReporter(&m)
-	if err := reporter(ioutil.Discard); err != nil {
+	if err := reporter(io.Discard); err != nil {
 		t.Error(err)
 	}
 }

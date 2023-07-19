@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"reflect"
@@ -17,7 +16,7 @@ import (
 func TestTargetRequest(t *testing.T) {
 	t.Parallel()
 
-	body, err := ioutil.ReadAll(io.LimitReader(rand.Reader, 1024*512))
+	body, err := io.ReadAll(io.LimitReader(rand.Reader, 1024*512))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +34,7 @@ func TestTargetRequest(t *testing.T) {
 	}
 	req, _ := tgt.Request()
 
-	reqBody, err := ioutil.ReadAll(req.Body)
+	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +313,7 @@ func TestNewHTTPTargeter(t *testing.T) {
 		}
 	}
 
-	bodyf, err := ioutil.TempFile("", "vegeta-")
+	bodyf, err := os.CreateTemp("", "vegeta-")
 	if err != nil {
 		t.Fatal(err)
 	}

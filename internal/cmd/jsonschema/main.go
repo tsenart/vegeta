@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -42,7 +41,7 @@ func main() {
 	case "stdout":
 		_, err = os.Stdout.Write(schema)
 	default:
-		err = ioutil.WriteFile(*out, schema, 0644)
+		err = os.WriteFile(*out, schema, 0644)
 	}
 
 	if err != nil {

@@ -7,12 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tsenart/vegeta/v12/internal/resolver"
@@ -137,7 +137,7 @@ func attack(opts *attackOpts) (err error) {
 
 	var body []byte
 	if bodyf, ok := files[opts.bodyf]; ok {
-		if body, err = ioutil.ReadAll(bodyf); err != nil {
+		if body, err = io.ReadAll(bodyf); err != nil {
 			return fmt.Errorf("error reading %s: %s", opts.bodyf, err)
 		}
 	}
@@ -201,7 +201,7 @@ func attack(opts *attackOpts) (err error) {
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	return processAttack(atk, res, enc, sig)
 }
@@ -237,7 +237,7 @@ func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Conf
 	filenames := append([]string{certf, keyf}, rootCerts...)
 	for _, f := range filenames {
 		if f != "" {
-			if files[f], err = ioutil.ReadFile(f); err != nil {
+			if files[f], err = os.ReadFile(f); err != nil {
 				return nil, err
 			}
 		}

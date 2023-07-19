@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
@@ -167,7 +166,7 @@ func (p *Plot) Close() {
 }
 
 // WriteTo writes the HTML plot to the give io.Writer.
-func (p Plot) WriteTo(w io.Writer) (n int64, err error) {
+func (p *Plot) WriteTo(w io.Writer) (n int64, err error) {
 	type dygraphsOpts struct {
 		Title       string   `json:"title"`
 		Labels      []string `json:"labels,omitempty"`
@@ -338,7 +337,7 @@ func asset(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(file)
+	return io.ReadAll(file)
 }
 
 type countingWriter struct {

@@ -3,8 +3,9 @@ package plot
 import (
 	"bytes"
 	"flag"
-	"io/ioutil"
+	"io"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -49,12 +50,12 @@ func TestPlot(t *testing.T) {
 	gp := filepath.Join("testdata", filepath.FromSlash(t.Name())+".golden.html")
 	if *update {
 		t.Logf("updating %q", gp)
-		if err := ioutil.WriteFile(gp, b.Bytes(), 0644); err != nil {
+		if err := os.WriteFile(gp, b.Bytes(), 0644); err != nil {
 			t.Fatalf("failed to update %q: %s", gp, err)
 		}
 	}
 
-	g, err := ioutil.ReadFile(gp)
+	g, err := os.ReadFile(gp)
 	if err != nil {
 		t.Fatalf("failed reading %q: %s", gp, err)
 	}
@@ -158,7 +159,7 @@ func BenchmarkPlot(b *testing.B) {
 
 	b.Run("WriteTo", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = plot.WriteTo(ioutil.Discard)
+			_, _ = plot.WriteTo(io.Discard)
 		}
 	})
 }

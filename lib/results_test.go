@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"reflect"
@@ -170,7 +169,7 @@ func BenchmarkResultEncodings(b *testing.B) {
 		{"csv", NewCSVEncoder, NewCSVDecoder},
 		{"json", NewJSONEncoder, NewJSONDecoder},
 	} {
-		enc := tc.enc(ioutil.Discard)
+		enc := tc.enc(io.Discard)
 
 		b.Run(tc.encoding+"-encode", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {

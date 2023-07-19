@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -297,7 +296,7 @@ func TestUnixSocket(t *testing.T) {
 	t.Parallel()
 	body := []byte("IT'S A UNIX SYSTEM, I KNOW THIS")
 
-	socketDir, err := ioutil.TempDir("", "vegata")
+	socketDir, err := os.MkdirTemp("", "vegata")
 	if err != nil {
 		t.Fatal("Failed to create socket dir", err)
 	}
@@ -352,10 +351,10 @@ func TestClient(t *testing.T) {
 	}
 
 	client := &http.Client{
-		Timeout: time.Duration(1 * time.Nanosecond),
+		Timeout: 1 * time.Nanosecond,
 		Transport: &http.Transport{
 			Proxy:               http.ProxyFromEnvironment,
-			Dial:                dialer.Dial,
+			DialContext:         dialer.DialContext,
 			TLSClientConfig:     DefaultTLSConfig,
 			MaxIdleConnsPerHost: DefaultConnections,
 		},
