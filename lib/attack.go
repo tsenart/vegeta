@@ -482,6 +482,16 @@ func (a *Attacker) hit(tr Targeter, atk *attack) *Result {
 		err error
 	)
 
+	//
+	// Subtleness ahead! We need to compute the result timestamp in
+	// the same critical section that protects the increment of the sequence
+	// number because we want the same total ordering of timestamps and sequence
+	// numbers. That is, we wouldn't want two results A and B where A.seq > B.seq
+	// but A.timestamp < B.timestamp.
+	//
+	// Additionally, we calculate the result timestamp based on the same beginning
+	// timestamp using the Add method, which will use monotonic time calculations.
+	//
 	atk.seqmu.Lock()
 	res.Timestamp = atk.began.Add(time.Since(atk.began))
 	res.Seq = atk.seq
