@@ -3,6 +3,8 @@
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate. [It's over 9000!](https://en.wikipedia.org/wiki/It's_Over_9000)
 
+![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
+
 ## Features
 
 - Usable as a command line tool and a Go library.
@@ -11,8 +13,6 @@ HTTP services with a constant request rate. [It's over 9000!](https://en.wikiped
 - Extensive reporting functionality.
 - Simple to use for [distributed load testing](https://kubernetes.io/blog/2015/11/one-million-requests-per-second-dependable-and-dynamic-distributed-systems-at-scale/).
 - Easy to install and run (static binary, package managers, etc).
-
-![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
 
 ## Install
 
