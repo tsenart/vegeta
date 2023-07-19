@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/dnscache"
@@ -377,8 +378,7 @@ type attack struct {
 	name  string
 	began time.Time
 
-	seqmu sync.Mutex
-	seq   uint64
+	seq atomic.Uint64
 }
 
 // Attack reads its Targets from the passed Targeter and attacks them at
@@ -482,11 +482,8 @@ func (a *Attacker) hit(tr Targeter, atk *attack) *Result {
 		err error
 	)
 
-	atk.seqmu.Lock()
 	res.Timestamp = atk.began.Add(time.Since(atk.began))
-	res.Seq = atk.seq
-	atk.seq++
-	atk.seqmu.Unlock()
+	res.Seq = atk.seq.Add(1) - 1
 
 	defer func() {
 		res.Latency = time.Since(res.Timestamp)
