@@ -1,0 +1,27 @@
+version: '3.5'
+
+services:
+
+  vegeta:
+    build: .
+    image: tsenart/vegeta
+    ports:
+      - 8880:8880
+    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=300s -rate=5 -prometheus-addr=0.0.0.0:8880 | vegeta report --type=text'
+
+  prometheus:
+    image: flaviostutz/prometheus
+    ports:
+      - 9090:9090
+    environment:
+      - SCRAPE_INTERVAL=10s
+      - SCRAPE_TIMEOUT=10s
+      - STATIC_SCRAPE_TARGETS=vegeta@vegeta:8880
+
+  grafana:
+    image: flaviostutz/grafana:5.2.4
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=mypass
+

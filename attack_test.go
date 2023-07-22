@@ -86,7 +86,7 @@ func TestAttackSignalOnce(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processAttack(atk, res, enc, sig)
+		processAttack(atk, res, enc, sig, nil)
 	}()
 
 	// Allow more than one request to have started before stopping.
@@ -139,7 +139,7 @@ func TestAttackSignalTwice(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processAttack(atk, res, enc, sig)
+		processAttack(atk, res, enc, sig, nil)
 	}()
 
 	// Exit as soon as possible.
