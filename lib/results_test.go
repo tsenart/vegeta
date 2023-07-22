@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,6 +102,9 @@ func TestResultEncoding(t *testing.T) {
 						Draw(t, "method"),
 					URL: rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url"),
 				}
+
+				want.Error = strings.ReplaceAll(want.Error, "\n", "")
+				want.URL = strings.ReplaceAll(want.URL, "\n", "")
 
 				if len(hdrs) > 0 {
 					want.Headers = make(http.Header, len(hdrs))

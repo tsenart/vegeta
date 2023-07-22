@@ -17,6 +17,7 @@ import (
 
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
+	prom "github.com/tsenart/vegeta/v12/lib/prom"
 )
 
 func attackCmd() command {
@@ -27,6 +28,7 @@ func attackCmd() command {
 		laddr:        localAddr{&vegeta.DefaultLocalAddr},
 		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
 		maxBody:      vegeta.DefaultMaxBody,
+		promURL:      "0.0.0.0:8880",
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -56,6 +58,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
+	fs.StringVar(&opts.promURL, "prometheus-url", "", "Enable Prometheus metrics with specific bind parameters in format [bind ip]:[bind port]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
 	systemSpecificFlags(fs, opts)
@@ -101,6 +104,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
+	promURL        string
 	dnsTTL         time.Duration
 	sessionTickets bool
 }
@@ -178,6 +182,14 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
+	var promMetrics *prom.PrometheusMetrics
+	if opts.promURL != "" {
+		promMetrics, err = prom.NewPrometheusMetricsWithParams(opts.promURL)
+		if err != nil {
+			return err
+		}
+	}
+
 	atk := vegeta.NewAttacker(
 		vegeta.Redirects(opts.redirects),
 		vegeta.Timeout(opts.timeout),
@@ -203,7 +215,7 @@ func attack(opts *attackOpts) (err error) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
-	return processAttack(atk, res, enc, sig)
+	return processAttack(atk, res, enc, sig, promMetrics)
 }
 
 func processAttack(
@@ -211,6 +223,7 @@ func processAttack(
 	res <-chan *vegeta.Result,
 	enc vegeta.Encoder,
 	sig <-chan os.Signal,
+	promMetrics *prom.PrometheusMetrics,
 ) error {
 	for {
 		select {
@@ -222,6 +235,9 @@ func processAttack(
 		case r, ok := <-res:
 			if !ok {
 				return nil
+			}
+			if promMetrics != nil {
+				promMetrics.Observe(r)
 			}
 			if err := enc.Encode(r); err != nil {
 				return err
