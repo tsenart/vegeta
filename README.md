@@ -126,8 +126,8 @@ attack command:
     	Attack name
   -output string
     	Output file (default "stdout")
-  -prometheus-url
-      Prometheus metrics bind url for enabling Prometheus metrics exporter. Ex.: "http://0.0.0.0:8880"
+  -prometheus-addr
+      Prometheus metrics bind url for enabling Prometheus metrics exporter. Ex.: "0.0.0.0:8880"
   -proxy-header value
     	Proxy CONNECT header
   -rate value
@@ -785,7 +785,7 @@ It'll read and sort them by timestamp before generating reports.
 vegeta report *.bin
 ```
 
-Another way to gather results in distributed tests is to use the built-in Prometheus Exporter and configure a Prometheus Server to get test results from all Vegeta instances. See `attack` option "prometheus-url" for more details and a complete example in the section "Prometheus Exporter Support"
+Another way to gather results in distributed tests is to use the built-in Prometheus Exporter and configure a Prometheus Server to get test results from all Vegeta instances. See `attack` option "prometheus-addr" for more details and a complete example in the section "Prometheus Exporter Support"
 
 ## Usage: Real-time Analysis
 
@@ -867,7 +867,7 @@ Just pass a new number as the argument to change it.
 
 Vegeta has a built-in Prometheus Exporter that may be enabled during "attacks" so that you can point any Prometheus instance to Vegeta instances and get some metrics about http requests performance and about the Vegeta process itself.
 
-To enable the Prometheus Exporter on the command line, use the "prometheus-url" flag.
+To enable the Prometheus Exporter on the command line, use the "prometheus-addr" flag.
 
 A Prometheus HTTP endpoint will be available only during the lifespan of an "attack" and will be closed right after the attack is finished.
 
@@ -878,6 +878,12 @@ The following metrics are exposed:
 * `request_seconds` - histogram with request latency and counters by "url", "method" and "status"
 
 <image src="prometheus-sample.png" width="500" />
+
+Check file [lib/prom/grafana.json](lib/prom/grafana.json) with the source of this sample dashboard in Grafana
+
+### Samples
+
+If you want to query P90 quantiles, for example, use "histogram_quantile(0.90, sum(rate(request_seconds_bucket[1m])) by (le, status))"
 
 ### Prometheus Exporter Example
 
@@ -890,7 +896,7 @@ services:
     image: tsenart/vegeta
     ports:
       - 8880:8880
-    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=30s -rate=5 -prometheus-url=http://0.0.0.0:8880'
+    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=30s -rate=5 -prometheus-addr=0.0.0.0:8880'
 
   prometheus:
     image: flaviostutz/prometheus:2.19.2.0

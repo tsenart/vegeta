@@ -190,11 +190,25 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(request_seconds_sum[1m])/rate(request_seconds_sum[1m])",
+          "expr": "histogram_quantile(0.50, sum(rate(request_seconds_bucket[1m])) by (le, status))",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "latency {{url}} {{status}}",
+          "legendFormat": "P50 {{status}}",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(request_seconds_bucket[1m])) by (le, status))",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "P90 {{status}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(request_seconds_bucket[1m])) by (le, status))",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "P99 {{status}}",
+          "refId": "C"
         }
       ],
       "thresholds": [],
@@ -588,7 +602,7 @@
       }
     }
   ],
-  "refresh": "5s",
+  "refresh": false,
   "schemaVersion": 16,
   "style": "dark",
   "tags": [],
@@ -596,8 +610,8 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
-    "to": "now"
+    "from": "2023-07-23T13:28:35.330Z",
+    "to": "2023-07-23T13:33:18.000Z"
   },
   "timepicker": {
     "refresh_intervals": [
@@ -627,5 +641,5 @@
   "timezone": "",
   "title": "Vegeta",
   "uid": "6GNY5DGGk",
-  "version": 5
+  "version": 3
 }

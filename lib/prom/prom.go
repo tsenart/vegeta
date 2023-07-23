@@ -1,7 +1,7 @@
 package prom
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,59 +10,51 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Metrics vegeta metrics observer with exposition as Prometheus metrics endpoint
+// Metrics vegeta metrics
 type Metrics struct {
-	requestSecondsHistogram *prometheus.HistogramVec
-	requestBytesInCounter   *prometheus.CounterVec
-	requestBytesOutCounter  *prometheus.CounterVec
-	requestFailCounter      *prometheus.CounterVec
-	srv                     http.Server
-	registry                *prometheus.Registry
+	RequestSecondsHistogram *prometheus.HistogramVec
+	RequestBytesInCounter   *prometheus.CounterVec
+	RequestBytesOutCounter  *prometheus.CounterVec
+	RequestFailCounter      *prometheus.CounterVec
+	Registry                *prometheus.Registry
 }
 
-// NewMetrics same as NewMetricsWithParams with default params:
+// NewMetrics same as NewMetricsWithParams with new Prometheus Registry
 func NewMetrics() (*Metrics, error) {
-	return NewMetricsWithParams("http://0.0.0.0:8880")
+	return NewMetricsWithParams(prometheus.NewRegistry())
 }
 
-// NewMetricsWithParams creates a new Prometheus Metrics to Observe attack results and expose metrics
-// For example, after using NewMetricsWithParams("http://0.0.0.0:8880"),
-// during an "attack" you can call "curl http://127.0.0.0:8880" to see current metrics.
-// This endpoint can be configured in scrapper section of your Prometheus server.
-func NewMetricsWithParams(bindURL string) (*Metrics, error) {
-
-	// parse bind url elements
-	p, err := url.Parse(bindURL)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid bindURL %s. Must be in format 'http://0.0.0.0:8880'. err=%s", bindURL, err)
-	}
-	bindHost, bindPort, err := net.SplitHostPort(p.Host)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid bindURL %s. Must be in format 'http://0.0.0.0:8880'. err=%s", bindURL, err)
+// NewMetricsWithParams creates Vegeta metrics and registers to prometheus Registry
+// You can use your own Prometheus Registry here to be instrumented with Vegeta metrics
+func NewMetricsWithParams(promRegistry *prometheus.Registry) (*Metrics, error) {
+	if promRegistry == nil {
+		return nil, fmt.Errorf("'promRegistry' must be defined")
 	}
 
 	pm := &Metrics{
-		registry: prometheus.NewRegistry(),
+		Registry: promRegistry,
 	}
 
-	pm.requestSecondsHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	pm.RequestSecondsHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "request_seconds",
 		Help:    "Request latency",
-		Buckets: []float64{0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20, 50},
+		Buckets: prometheus.DefBuckets,
 	}, []string{
 		"method",
 		"url",
 		"status",
 	})
-	pm.registry.MustRegister(pm.requestSecondsHistogram)
+	err := pm.Registry.Register(pm.RequestSecondsHistogram)
+	if err != nil {
+		return nil, err
+	}
 
-	pm.requestBytesInCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	pm.RequestBytesInCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "request_bytes_in",
 		Help: "Bytes received from servers as response to requests",
 	}, []string{
@@ -70,9 +62,12 @@ func NewMetricsWithParams(bindURL string) (*Metrics, error) {
 		"url",
 		"status",
 	})
-	pm.registry.MustRegister(pm.requestBytesInCounter)
+	err = pm.Registry.Register(pm.RequestBytesInCounter)
+	if err != nil {
+		return nil, err
+	}
 
-	pm.requestBytesOutCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	pm.RequestBytesOutCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "request_bytes_out",
 		Help: "Bytes sent to servers during requests",
 	}, []string{
@@ -80,48 +75,86 @@ func NewMetricsWithParams(bindURL string) (*Metrics, error) {
 		"url",
 		"status",
 	})
-	pm.registry.MustRegister(pm.requestBytesOutCounter)
+	err = pm.Registry.Register(pm.RequestBytesOutCounter)
+	if err != nil {
+		return nil, err
+	}
 
-	pm.requestFailCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	pm.RequestFailCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "request_fail_count",
 		Help: "Internal failures that prevented a hit to the target server",
 	}, []string{
 		"method",
 		"url",
+		"code",
 		"message",
 	})
-	pm.registry.MustRegister(pm.requestFailCounter)
-
-	// setup prometheus metrics http server
-	pm.srv = http.Server{
-		Addr:    fmt.Sprintf("%s:%s", bindHost, bindPort),
-		Handler: promhttp.HandlerFor(pm.registry, promhttp.HandlerOpts{}),
+	err = pm.Registry.Register(pm.RequestFailCounter)
+	if err != nil {
+		return nil, err
 	}
-
-	go func() {
-		pm.srv.ListenAndServe()
-	}()
 
 	return pm, nil
 }
 
-// Close shutdown http server exposing Prometheus metrics and unregister
-// all prometheus collectors
-func (pm *Metrics) Close() error {
-	prometheus.Unregister(pm.requestSecondsHistogram)
-	prometheus.Unregister(pm.requestBytesInCounter)
-	prometheus.Unregister(pm.requestBytesOutCounter)
-	prometheus.Unregister(pm.requestFailCounter)
-	return pm.srv.Shutdown(context.Background())
+// Unregister all prometheus collectors
+func (pm *Metrics) Unregister() error {
+	exists := pm.Registry.Unregister(pm.RequestSecondsHistogram)
+	if !exists {
+		return errors.New("'RequestSecondsHistogram' cannot be unregistered because it was not found")
+	}
+
+	exists = pm.Registry.Unregister(pm.RequestBytesInCounter)
+	if !exists {
+		return errors.New("'RequestBytesInCounter' cannot be unregistered because it was not found")
+	}
+
+	exists = pm.Registry.Unregister(pm.RequestBytesOutCounter)
+	if !exists {
+		return errors.New("'RequestBytesOutCounter' cannot be unregistered because it was not found")
+	}
+
+	exists = pm.Registry.Unregister(pm.RequestFailCounter)
+	if !exists {
+		return errors.New("'RequestFailCounter' cannot be unregistered because it was not found")
+	}
+
+	return nil
 }
 
-// Observe register metrics about hit results
+// Observe metrics with hit results
 func (pm *Metrics) Observe(res *vegeta.Result) {
 	code := strconv.FormatUint(uint64(res.Code), 10)
-	pm.requestBytesInCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesIn))
-	pm.requestBytesOutCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesOut))
-	pm.requestSecondsHistogram.WithLabelValues(res.Method, res.URL, code).Observe(float64(res.Latency) / float64(time.Second))
+	pm.RequestBytesInCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesIn))
+	pm.RequestBytesOutCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesOut))
+	pm.RequestSecondsHistogram.WithLabelValues(res.Method, res.URL, code).Observe(float64(res.Latency) / float64(time.Second))
 	if res.Error != "" {
-		pm.requestFailCounter.WithLabelValues(res.Method, res.URL, res.Error)
+		pm.RequestFailCounter.WithLabelValues(res.Method, res.URL, code, res.Error)
 	}
+}
+
+// StartPromServer starts a new Prometheus server with metrics present in promRegistry
+// launches a http server in a new goroutine and returns the http.Server instance
+func StartPromServer(bindAddr string, promRegistry *prometheus.Registry) (*http.Server, error) {
+	// parse bind url elements
+	p, err := url.Parse(fmt.Sprintf("http://%s", bindAddr))
+	if err != nil {
+		return nil, fmt.Errorf("Invalid bindAddr %s. Must be in format '0.0.0.0:8880'. err=%s", bindAddr, err)
+	}
+	bindHost, bindPort, err := net.SplitHostPort(p.Host)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid bindAddr %s. Must be in format '0.0.0.0:8880'. err=%s", bindAddr, err)
+	}
+
+	// setup prometheus metrics http server
+	srv := http.Server{
+		Addr:    fmt.Sprintf("%s:%s", bindHost, bindPort),
+		Handler: promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
+	}
+
+	go func() {
+		srv.ListenAndServe()
+	}()
+
+	return &srv, nil
 }

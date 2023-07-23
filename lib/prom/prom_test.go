@@ -1,54 +1,136 @@
 package prom
 
 import (
-	"io/ioutil"
+	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+func TestPromMetrics1(t *testing.T) {
+	pm, err := NewMetrics()
+	if err != nil {
+		t.Errorf("Error creating metrics. err=%s", err)
+	}
+
+	err = pm.Unregister()
+	if err != nil {
+		t.Errorf("Cannot unregister metrics. err=%s", err)
+	}
+}
+
+func TestPromMetrics2(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	pm, err := NewMetricsWithParams(reg)
+	if err != nil {
+		t.Errorf("Error creating metrics. err=%s", err)
+	}
+
+	err = pm.Unregister()
+	if err != nil {
+		t.Errorf("Cannot unregister metrics. err=%s", err)
+	}
+
+	// register again to check if registry was cleared correctly
+	pm, err = NewMetricsWithParams(reg)
+	if err != nil {
+		t.Errorf("Error creating metrics. err=%s", err)
+	}
+
+	err = pm.Unregister()
+	if err != nil {
+		t.Errorf("Cannot unregister metrics. err=%s", err)
+	}
+
+	// register again to check if registry was cleared correctly
+	pm, err = NewMetricsWithParams(reg)
+	if err != nil {
+		t.Errorf("Error creating metrics. err=%s", err)
+	}
+
+	err = pm.Unregister()
+	if err != nil {
+		t.Errorf("Cannot unregister metrics. err=%s", err)
+	}
+
+}
+
+func TestPromMetricsInvalidParams(t *testing.T) {
+	_, err := NewMetricsWithParams(nil)
+	if err == nil {
+		t.Errorf("Should fail because registry is required")
+	}
+}
 
 func TestPromServerBasic1(t *testing.T) {
 	pm, err := NewMetrics()
 	if err != nil {
-		t.Errorf("Error launching Prometheus http server. err=%s", err)
+		t.Errorf("Error creating metrics. err=%s", err)
 	}
 
-	err = pm.Close()
+	srv, err := StartPromServer("0.0.0.0:8880", pm.Registry)
 	if err != nil {
-		t.Errorf("Error stopping Prometheus http server. err=%s", err)
+		t.Errorf("Error starting server. err=%s", err)
 	}
+
+	err = srv.Shutdown(context.Background())
+	if err != nil {
+		t.Errorf("Error shutting down server. err=%s", err)
+	}
+	pm.Unregister()
 }
 
 func TestPromServerBasic2(t *testing.T) {
-	pm, err := NewMetrics()
+	reg := prometheus.NewRegistry()
+
+	pm, err := NewMetricsWithParams(reg)
 	if err != nil {
-		t.Errorf("Error launching Prometheus metrics. err=%s", err)
-	}
-	err = pm.Close()
-	if err != nil {
-		t.Errorf("Error stopping Prometheus http server. err=%s", err)
+		t.Errorf("Error creating metrics. err=%s", err)
 	}
 
-	pm, err = NewMetrics()
+	// start/stop 1
+	srv, err := StartPromServer("0.0.0.0:8880", pm.Registry)
 	if err != nil {
-		t.Errorf("Error launching Prometheus metrics. err=%s", err)
+		t.Errorf("Error starting server. err=%s", err)
 	}
-	err = pm.Close()
+	err = srv.Shutdown(context.Background())
 	if err != nil {
-		t.Errorf("Error stopping Prometheus http server. err=%s", err)
+		t.Errorf("Error shutting down server. err=%s", err)
 	}
 
-	pm, err = NewMetrics()
+	// start/stop 2
+	srv, err = StartPromServer("0.0.0.0:8880", pm.Registry)
 	if err != nil {
-		t.Errorf("Error launching Prometheus metrics. err=%s", err)
+		t.Errorf("Error starting server. err=%s", err)
 	}
-	err = pm.Close()
+	err = srv.Shutdown(context.Background())
 	if err != nil {
-		t.Errorf("Error stopping Prometheus http server. err=%s", err)
+		t.Errorf("Error shutting down server. err=%s", err)
 	}
+
+	pm.Unregister()
+
+	// start server again after reusing the same registry (sanity check)
+	pm2, err := NewMetricsWithParams(reg)
+	if err != nil {
+		t.Errorf("Error creating metrics. err=%s", err)
+	}
+	// start/stop 1
+	srv, err = StartPromServer("0.0.0.0:8880", pm2.Registry)
+	if err != nil {
+		t.Errorf("Error starting server. err=%s", err)
+	}
+	err = srv.Shutdown(context.Background())
+	if err != nil {
+		t.Errorf("Error shutting down server. err=%s", err)
+	}
+
 }
 
 func TestPromServerObserve(t *testing.T) {
@@ -57,6 +139,11 @@ func TestPromServerObserve(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error launching Prometheus http server. err=%s", err)
 		}
+	}
+
+	srv, err := StartPromServer("0.0.0.0:8880", pm.Registry)
+	if err != nil {
+		t.Errorf("Error starting server. err=%s", err)
 	}
 
 	r := &vegeta.Result{
@@ -82,7 +169,7 @@ func TestPromServerObserve(t *testing.T) {
 		t.Errorf("Status code should be 200")
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Errorf("Error calling prometheus metrics. err=%s", err)
 	}
@@ -115,7 +202,7 @@ func TestPromServerObserve(t *testing.T) {
 		t.Errorf("Status code should be 200")
 	}
 
-	data, err = ioutil.ReadAll(resp.Body)
+	data, err = io.ReadAll(resp.Body)
 	if err != nil {
 		t.Errorf("Error calling prometheus metrics. err=%s", err)
 	}
@@ -125,8 +212,9 @@ func TestPromServerObserve(t *testing.T) {
 		t.Error("Metrics should contain request_fail_count")
 	}
 
-	err = pm.Close()
+	err = srv.Shutdown(context.Background())
 	if err != nil {
-		t.Errorf("Error stopping Prometheus http server. err=%s", err)
+		t.Errorf("Error shutting down server. err=%s", err)
 	}
+	pm.Unregister()
 }

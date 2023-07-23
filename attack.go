@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 	prom "github.com/tsenart/vegeta/v12/lib/prom"
@@ -28,7 +30,7 @@ func attackCmd() command {
 		laddr:        localAddr{&vegeta.DefaultLocalAddr},
 		rate:         vegeta.Rate{Freq: 50, Per: time.Second},
 		maxBody:      vegeta.DefaultMaxBody,
-		promURL:      "0.0.0.0:8880",
+		promAddr:     "0.0.0.0:8880",
 	}
 	fs.StringVar(&opts.name, "name", "", "Attack name")
 	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
@@ -58,7 +60,7 @@ func attackCmd() command {
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
-	fs.StringVar(&opts.promURL, "prometheus-url", "", "Enable Prometheus metrics with specific bind parameters in format [bind ip]:[bind port]. Example: 0.0.0.0:8880")
+	fs.StringVar(&opts.promAddr, "prometheus-addr", "", "Prometheus exporter listen address [empty = disabled]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
 	systemSpecificFlags(fs, opts)
@@ -104,7 +106,7 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
-	promURL        string
+	promAddr       string
 	dnsTTL         time.Duration
 	sessionTickets bool
 }
@@ -182,9 +184,16 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
-	var promMetrics *prom.PrometheusMetrics
-	if opts.promURL != "" {
-		promMetrics, err = prom.NewPrometheusMetricsWithParams(opts.promURL)
+	// start Prometheus Metrics and Server
+	var promMetrics *prom.Metrics
+	var promServer *http.Server
+	if opts.promAddr != "" {
+		promRegistry := prometheus.NewRegistry()
+		promMetrics, err = prom.NewMetricsWithParams(promRegistry)
+		if err != nil {
+			return err
+		}
+		promServer, err = prom.StartPromServer(opts.promAddr, promRegistry)
 		if err != nil {
 			return err
 		}
@@ -215,7 +224,7 @@ func attack(opts *attackOpts) (err error) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
-	return processAttack(atk, res, enc, sig, promMetrics)
+	return processAttack(atk, res, enc, sig, promMetrics, promServer)
 }
 
 func processAttack(
@@ -223,13 +232,15 @@ func processAttack(
 	res <-chan *vegeta.Result,
 	enc vegeta.Encoder,
 	sig <-chan os.Signal,
-	promMetrics *prom.PrometheusMetrics,
+	promMetrics *prom.Metrics,
+	promServer *http.Server,
 ) error {
 	for {
 		select {
 		case <-sig:
 			if stopSent := atk.Stop(); !stopSent {
 				// Exit immediately on second signal.
+				promServer.Shutdown(context.Background())
 				return nil
 			}
 		case r, ok := <-res:

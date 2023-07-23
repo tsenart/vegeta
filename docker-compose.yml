@@ -7,7 +7,7 @@ services:
     image: tsenart/vegeta
     ports:
       - 8880:8880
-    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=30s -rate=5 -prometheus-url=0.0.0.0:8880'
+    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=300s -rate=5 -prometheus-addr=0.0.0.0:8880 | vegeta report --type=text'
 
   prometheus:
     image: flaviostutz/prometheus
