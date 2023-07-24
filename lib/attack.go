@@ -356,7 +356,9 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				for _, ip := range ips {
 					go func(ip string) {
 						conn, err := dial(ctx, network, net.JoinHostPort(ip, port))
-						cancel()
+						if err == nil {
+							cancel()
+						}
 						ch <- result{conn, err}
 					}(ip)
 				}
