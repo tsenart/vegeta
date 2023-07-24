@@ -1,7 +1,7 @@
 package prom
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,123 +14,69 @@ import (
 
 // Metrics encapsulates Prometheus metrics of an attack.
 type Metrics struct {
-	RequestSecondsHistogram *prometheus.HistogramVec
-	RequestBytesInCounter   *prometheus.CounterVec
-	RequestBytesOutCounter  *prometheus.CounterVec
-	RequestFailCounter      *prometheus.CounterVec
-	Registry                prometheus.Registerer
+	requestLatencyHistogram *prometheus.HistogramVec
+	requestBytesInCounter   *prometheus.CounterVec
+	requestBytesOutCounter  *prometheus.CounterVec
+	requestFailCounter      *prometheus.CounterVec
 }
 
-// NewMetrics returns a new Metrics instance and registers all of them in the given Registry.
-func NewMetrics(registry prometheus.Registerer) (*Metrics, error) {
-	if registry == nil {
-		registry = prometheus.DefaultRegisterer
+// NewMetrics returns a new Metrics instance that must be
+// registered in a Prometheus registry with Register.
+func NewMetrics() *Metrics {
+	baseLabels := []string{"method", "url", "status"}
+	return &Metrics{
+		requestLatencyHistogram: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "request_seconds",
+			Help:    "Request latency",
+			Buckets: prometheus.DefBuckets,
+		}, baseLabels),
+		requestBytesInCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "request_bytes_in",
+			Help: "Bytes received from servers as response to requests",
+		}, baseLabels),
+		requestBytesOutCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "request_bytes_out",
+			Help: "Bytes sent to servers during requests",
+		}, baseLabels),
+		requestFailCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "request_fail_count",
+			Help: "Count of failed requests",
+		}, append(baseLabels[:len(baseLabels):len(baseLabels)], "message")),
 	}
-
-	pm := &Metrics{Registry: registry}
-
-	pm.RequestSecondsHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "request_seconds",
-		Help:    "Request latency",
-		Buckets: prometheus.DefBuckets,
-	}, []string{
-		"method",
-		"url",
-		"status",
-	})
-	err := pm.Registry.Register(pm.RequestSecondsHistogram)
-	if err != nil {
-		return nil, err
-	}
-
-	pm.RequestBytesInCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "request_bytes_in",
-		Help: "Bytes received from servers as response to requests",
-	}, []string{
-		"method",
-		"url",
-		"status",
-	})
-	err = pm.Registry.Register(pm.RequestBytesInCounter)
-	if err != nil {
-		return nil, err
-	}
-
-	pm.RequestBytesOutCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "request_bytes_out",
-		Help: "Bytes sent to servers during requests",
-	}, []string{
-		"method",
-		"url",
-		"status",
-	})
-	err = pm.Registry.Register(pm.RequestBytesOutCounter)
-	if err != nil {
-		return nil, err
-	}
-
-	pm.RequestFailCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "request_fail_count",
-		Help: "Internal failures that prevented a hit to the target server",
-	}, []string{
-		"method",
-		"url",
-		"code",
-		"message",
-	})
-	err = pm.Registry.Register(pm.RequestFailCounter)
-	if err != nil {
-		return nil, err
-	}
-
-	return pm, nil
 }
 
-// Unregister all prometheus collectors
-func (pm *Metrics) Unregister() error {
-	exists := pm.Registry.Unregister(pm.RequestSecondsHistogram)
-	if !exists {
-		return errors.New("'RequestSecondsHistogram' cannot be unregistered because it was not found")
+// Register registers all Prometheus metrics in r.
+func (pm *Metrics) Register(r prometheus.Registerer) error {
+	for _, c := range []prometheus.Collector{
+		pm.requestLatencyHistogram,
+		pm.requestBytesInCounter,
+		pm.requestBytesOutCounter,
+		pm.requestFailCounter,
+	} {
+		if err := r.Register(c); err != nil {
+			return fmt.Errorf("failed to register metric %v: %w", c, err)
+		}
 	}
-
-	exists = pm.Registry.Unregister(pm.RequestBytesInCounter)
-	if !exists {
-		return errors.New("'RequestBytesInCounter' cannot be unregistered because it was not found")
-	}
-
-	exists = pm.Registry.Unregister(pm.RequestBytesOutCounter)
-	if !exists {
-		return errors.New("'RequestBytesOutCounter' cannot be unregistered because it was not found")
-	}
-
-	exists = pm.Registry.Unregister(pm.RequestFailCounter)
-	if !exists {
-		return errors.New("'RequestFailCounter' cannot be unregistered because it was not found")
-	}
-
 	return nil
 }
 
-// Observe metrics with hit results
+// Observe metrics given a vegeta.Result.
 func (pm *Metrics) Observe(res *vegeta.Result) {
 	code := strconv.FormatUint(uint64(res.Code), 10)
-	pm.RequestBytesInCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesIn))
-	pm.RequestBytesOutCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesOut))
-	pm.RequestSecondsHistogram.WithLabelValues(res.Method, res.URL, code).Observe(float64(res.Latency) / float64(time.Second))
+	pm.requestBytesInCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesIn))
+	pm.requestBytesOutCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesOut))
+	pm.requestLatencyHistogram.WithLabelValues(res.Method, res.URL, code).Observe(res.Latency.Seconds())
 	if res.Error != "" {
-		pm.RequestFailCounter.WithLabelValues(res.Method, res.URL, code, res.Error)
+		pm.requestFailCounter.WithLabelValues(res.Method, res.URL, code, res.Error)
 	}
 }
 
-// StartPromServer starts a new Prometheus server with metrics present in promRegistry
-// launches a http server in a new goroutine and returns the http.Server instance
-func StartPromServer(bindAddr string, promRegistry *prometheus.Registry) (*http.Server, error) {
-	srv := http.Server{
-		Addr:    bindAddr,
-		Handler: promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
-	}
-
-	go srv.ListenAndServe()
-
-	return &srv, nil
+// NewHandler returns a new http.Handler that exposes Prometheus
+// metrics registed in r in the OpenMetrics format.
+func NewHandler(r *prometheus.Registry, startTime time.Time) http.Handler {
+	return promhttp.HandlerFor(r, promhttp.HandlerOpts{
+		Registry:          r,
+		EnableOpenMetrics: true,
+		ProcessStartTime:  startTime,
+	})
 }

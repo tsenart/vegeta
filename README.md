@@ -864,11 +864,11 @@ $ ulimit -u # processes / threads
 
 Just pass a new number as the argument to change it.
 
-## Prometheus Support
+## Prometheus support
 
-Vegeta has a built-in Prometheus Exporter that may be enabled during attacks so that you can point any Prometheus instance to Vegeta instances and get some metrics about http requests performance and about the Vegeta process itself.
+Vegeta has a built-in Prometheus Exporter that may be enabled during attacks so that you can point any Prometheus instance to Vegeta attack processes and monitor attack metrics.
 
-To enable the Prometheus Exporter on the command line, use the "prometheus-addr" flag.
+To enable the Prometheus Exporter on the command line, set the "prometheus-addr" flag.
 
 A Prometheus HTTP endpoint will be available only during the lifespan of an attack and will be closed right after the attack is finished.
 
@@ -877,53 +877,22 @@ The following metrics are exposed:
 * `request_bytes_in` - bytes count received from targeted servers by "url", "method" and "status"
 * `request_bytes_out` - bytes count sent to targeted server by "url", "method" and "status"
 * `request_seconds` - histogram with request latency and counters by "url", "method" and "status"
+* `request_fail_count` - count of failed requests by "url", "method", "status" and "message"
 
-<image src="prometheus-sample.png" width="500" />
+<image src="lib/prom/prometheus-sample.png" width="500" />
 
 Check file [lib/prom/grafana.json](lib/prom/grafana.json) with the source of this sample dashboard in Grafana.
 
-### Samples
+### Limitations
 
-If you want to query P90 quantiles, for example, use "histogram_quantile(0.90, sum(rate(request_seconds_bucket[1m])) by (le, status))"
+1. Prometheus scrapes metrics from a running vegeta attack process and assigns timestamps to samples on its server. This means result timestamps aren't accurate (i.e. they're scraping time, not result time).
+2. Configuring Prometheus to scrape vegeta needs to happen out-of-band. That's a hassle!
+3. Since there's no coordination between a vegeta attack process and a Prometheus server, an attack process will finish before Prometheus has the chance to scrape the latest observations.
 
-### Prometheus Exporter example
 
-* Create a docker-compose.yml
+Why aren't we using pushgateway instead? See [this comment](https://github.com/tsenart/vegeta/pull/534#issuecomment-1629943731).
 
-```
-version: '3.5'
-services:
-  vegeta:
-    image: tsenart/vegeta
-    ports:
-      - 8880:8880
-    command: sh -c 'echo "GET https://www.yahoo.com" | vegeta attack -duration=30s -rate=5 -prometheus-addr=0.0.0.0:8880'
-
-  prometheus:
-    image: flaviostutz/prometheus:2.19.2.0
-    ports:
-      - 9090:9090
-    environment:
-      - SCRAPE_INTERVAL=10s
-      - SCRAPE_TIMEOUT=10s
-      - STATIC_SCRAPE_TARGETS=vegeta@vegeta:8880
-```
-
-* Run `docker-compose up -d`
-
-* Run `curl localhost:8880` to see plain Prometheus Exporter endpoint contents
-
-* Open Prometheus server instance with your browser at http://localhost:9090
-
-* Go to "Graph" and execute query `rate(request_seconds_sum[1m])` and then select the "Graph" tab to see a graph with latency over time
-
-#### More resources
-
-* See https://prometheus.io/docs/prometheus/latest/querying/basics/ for query details
-
-* Use Grafana for creating stateful dashboards. Get a sample dashboard for Vegeta [here](grafana.json)
-
-* For more elaborated scenarios, see https://github.com/flaviostutz/promster so that you can automatically register new Vegeta Prometheus Exporter instances to Prometheus in elastic scenarios.
+There's [an issue](https://github.com/tsenart/vegeta/issues/637) tracking the proper solution to all these limitations which is a remote write integration.
 
 ## License
 

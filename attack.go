@@ -183,20 +183,22 @@ func attack(opts *attackOpts) (err error) {
 		return err
 	}
 
-	// Start Prometheus Metrics and Server
 	var pm *prom.Metrics
 	if opts.promAddr != "" {
+		pm = prom.NewMetrics()
+
 		r := prometheus.NewRegistry()
-		pm, err = prom.NewMetrics(r)
-		if err != nil {
-			return err
+		if err := pm.Register(r); err != nil {
+			return fmt.Errorf("error registering prometheus metrics: %s", err)
 		}
-		srv, err := prom.StartPromServer(opts.promAddr, r)
-		if err != nil {
-			return err
+
+		srv := http.Server{
+			Addr:    opts.promAddr,
+			Handler: prom.NewHandler(r, time.Now().UTC()),
 		}
 
 		defer srv.Close()
+		go srv.ListenAndServe()
 	}
 
 	atk := vegeta.NewAttacker(
@@ -245,9 +247,11 @@ func processAttack(
 			if !ok {
 				return nil
 			}
+
 			if pm != nil {
 				pm.Observe(r)
 			}
+
 			if err := enc.Encode(r); err != nil {
 				return err
 			}

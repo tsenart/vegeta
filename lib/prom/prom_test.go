@@ -1,215 +1,90 @@
 package prom
 
 import (
-	"context"
 	"io"
 	"net/http"
-	"strings"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/model/textparse"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-func TestPromMetrics1(t *testing.T) {
-	pm, err := NewMetrics(nil)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-
-	err = pm.Unregister()
-	if err != nil {
-		t.Errorf("Cannot unregister metrics. err=%s", err)
-	}
-}
-
-func TestPromMetrics2(t *testing.T) {
+func TestMetrics_Observe(t *testing.T) {
 	reg := prometheus.NewRegistry()
+	pm := NewMetrics()
 
-	pm, err := NewMetrics(reg)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
+	if err := pm.Register(reg); err != nil {
+		t.Fatal("error registering metrics", err)
 	}
 
-	err = pm.Unregister()
-	if err != nil {
-		t.Errorf("Cannot unregister metrics. err=%s", err)
-	}
+	srv := httptest.NewServer(NewHandler(reg, time.Now().UTC()))
+	defer srv.Close()
 
-	// register again to check if registry was cleared correctly
-	pm, err = NewMetrics(reg)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-
-	err = pm.Unregister()
-	if err != nil {
-		t.Errorf("Cannot unregister metrics. err=%s", err)
-	}
-
-	// register again to check if registry was cleared correctly
-	pm, err = NewMetrics(reg)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-
-	err = pm.Unregister()
-	if err != nil {
-		t.Errorf("Cannot unregister metrics. err=%s", err)
-	}
-
-}
-
-func TestPromServerBasic1(t *testing.T) {
-	r := prometheus.NewRegistry()
-	pm, err := NewMetrics(r)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-
-	srv, err := StartPromServer("0.0.0.0:8880", r)
-	if err != nil {
-		t.Errorf("Error starting server. err=%s", err)
-	}
-
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		t.Errorf("Error shutting down server. err=%s", err)
-	}
-	pm.Unregister()
-}
-
-func TestPromServerBasic2(t *testing.T) {
-	reg := prometheus.NewRegistry()
-
-	pm, err := NewMetrics(reg)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-
-	// start/stop 1
-	srv, err := StartPromServer("0.0.0.0:8880", reg)
-	if err != nil {
-		t.Errorf("Error starting server. err=%s", err)
-	}
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		t.Errorf("Error shutting down server. err=%s", err)
-	}
-
-	// start/stop 2
-	srv, err = StartPromServer("0.0.0.0:8880", reg)
-	if err != nil {
-		t.Errorf("Error starting server. err=%s", err)
-	}
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		t.Errorf("Error shutting down server. err=%s", err)
-	}
-
-	pm.Unregister()
-
-	// start server again after reusing the same registry (sanity check)
-	_, err = NewMetrics(reg)
-	if err != nil {
-		t.Errorf("Error creating metrics. err=%s", err)
-	}
-	// start/stop 1
-	srv, err = StartPromServer("0.0.0.0:8880", reg)
-	if err != nil {
-		t.Errorf("Error starting server. err=%s", err)
-	}
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		t.Errorf("Error shutting down server. err=%s", err)
-	}
-
-}
-
-func TestPromServerObserve(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	pm, err := NewMetrics(reg)
-	if err != nil {
-		if err != nil {
-			t.Errorf("Error launching Prometheus http server. err=%s", err)
-		}
-	}
-
-	srv, err := StartPromServer("0.0.0.0:8880", reg)
-	if err != nil {
-		t.Errorf("Error starting server. err=%s", err)
-	}
+	// XXX: Result timestamps are ignored, since Prometheus aggregates metrics
+	// and only assigns timestamps to series in the server once it scrapes.
+	// To have accurate timestamps we'd have to implement a remote write integration.
 
 	r := &vegeta.Result{
 		URL:      "http://test.com/test1",
 		Method:   "GET",
-		Code:     200,
-		Error:    "",
+		Code:     500,
+		Error:    "Internal Server Error",
 		Latency:  100 * time.Millisecond,
 		BytesIn:  1000,
 		BytesOut: 50,
 	}
-	pm.Observe(r)
-	pm.Observe(r)
-	pm.Observe(r)
+
 	pm.Observe(r)
 
-	time.Sleep(3 * time.Second)
-	resp, err := http.Get("http://localhost:8880")
+	resp, err := http.Get(srv.URL)
 	if err != nil {
-		t.Errorf("Error calling prometheus metrics. err=%s", err)
+		t.Fatalf("failed to get prometheus metrics. err=%s", err)
 	}
+
 	if resp.StatusCode != 200 {
-		t.Errorf("Status code should be 200")
+		t.Fatalf("status code should be 200. code=%d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("Error calling prometheus metrics. err=%s", err)
-	}
-	str := string(data)
-	if len(str) == 0 {
-		t.Errorf("Body not empty. body=%s", str)
-	}
-	if !strings.Contains(str, "request_seconds") {
-		t.Error("Metrics should contain request_seconds")
-	}
-	if !strings.Contains(str, "request_bytes_in") {
-		t.Error("Metrics should contain request_bytes_in")
-	}
-	if !strings.Contains(str, "request_bytes_out") {
-		t.Error("Metrics should contain request_bytes_out")
-	}
-	if strings.Contains(str, "request_fail_count") {
-		t.Error("Metrics should contain request_fail_count")
+		t.Errorf("error reading response body: err=%v", err)
 	}
 
-	r.Code = 500
-	r.Error = "REQUEST FAILED"
-	pm.Observe(r)
-
-	resp, err = http.Get("http://localhost:8880")
+	p, err := textparse.New(data, resp.Header.Get("Content-Type"), true)
 	if err != nil {
-		t.Errorf("Error calling prometheus metrics. err=%s", err)
-	}
-	if resp.StatusCode != 200 {
-		t.Errorf("Status code should be 200")
+		t.Fatalf("error creating prometheus metrics parser. err=%v", err)
 	}
 
-	data, err = io.ReadAll(resp.Body)
-	if err != nil {
-		t.Errorf("Error calling prometheus metrics. err=%s", err)
-	}
-	str = string(data)
-
-	if !strings.Contains(str, "request_fail_count") {
-		t.Error("Metrics should contain request_fail_count")
+	want := map[string]struct{}{
+		"request_seconds":    struct{}{},
+		"request_bytes_in":   struct{}{},
+		"request_bytes_out":  struct{}{},
+		"request_fail_count": struct{}{},
 	}
 
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		t.Errorf("Error shutting down server. err=%s", err)
+	t.Log(string(data))
+
+	for len(want) > 0 {
+		_, err := p.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			t.Fatalf("error parsing prometheus metrics. err=%v", err)
+		}
+
+		name, _ := p.Help()
+		nameStr := string(name)
+
+		if _, ok := want[nameStr]; ok {
+			delete(want, nameStr)
+		}
 	}
-	pm.Unregister()
+
+	if len(want) > 0 {
+		t.Errorf("missing metrics: %v", want)
+	}
 }
