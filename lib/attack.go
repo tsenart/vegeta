@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"syscall"
 
 	"github.com/rs/dnscache"
 	"golang.org/x/net/http2"
@@ -132,6 +133,24 @@ func MaxConnections(n int) func(*Attacker) {
 // body of each request with the chunked transfer encoding.
 func ChunkedBody(b bool) func(*Attacker) {
 	return func(a *Attacker) { a.chunked = b }
+}
+
+// Reuseaddr returns a functional option which makes the attacker set the
+// SO_REUSEADDR option on the socket before binding it.
+func Reuseaddr(b bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if b {
+			a.dialer.Control = func(network, address string, conn syscall.RawConn) error {
+				var syserr error
+				if err := conn.Control(func(fd uintptr) {
+					syserr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+				}); err != nil {
+					return err
+				}
+				return syserr
+			}
+		}
+	}
 }
 
 // Redirects returns a functional option which sets the maximum

@@ -62,6 +62,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.promAddr, "prometheus-addr", "", "Prometheus exporter listen address [empty = disabled]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
+	fs.BoolVar(&opts.reuseaddr, "reuseaddr", false, "Set the SO_REUSEADDR socket option (default false)")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -108,6 +109,7 @@ type attackOpts struct {
 	promAddr       string
 	dnsTTL         time.Duration
 	sessionTickets bool
+	reuseaddr      bool
 }
 
 // attack validates the attack arguments, sets up the
@@ -219,6 +221,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.ChunkedBody(opts.chunked),
 		vegeta.DNSCaching(opts.dnsTTL),
 		vegeta.SessionTickets(opts.sessionTickets),
+		vegeta.Reuseaddr(opts.reuseaddr),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
