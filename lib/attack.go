@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net"
@@ -541,9 +540,9 @@ func (a *Attacker) hit(tr Targeter, atk *attack) *Result {
 		body = io.LimitReader(r.Body, a.maxBody)
 	}
 
-	if res.Body, err = ioutil.ReadAll(body); err != nil {
+	if res.Body, err = io.ReadAll(body); err != nil {
 		return &res
-	} else if _, err = io.Copy(ioutil.Discard, r.Body); err != nil {
+	} else if _, err = io.Copy(io.Discard, r.Body); err != nil {
 		return &res
 	}
 
