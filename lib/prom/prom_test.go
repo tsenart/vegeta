@@ -79,9 +79,7 @@ func TestMetrics_Observe(t *testing.T) {
 		name, _ := p.Help()
 		nameStr := string(name)
 
-		if _, ok := want[nameStr]; ok {
-			delete(want, nameStr)
-		}
+		delete(want, nameStr)
 	}
 
 	if len(want) > 0 {
