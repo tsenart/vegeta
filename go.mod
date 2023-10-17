@@ -12,7 +12,7 @@ require (
 	github.com/influxdata/tdigest v0.0.1
 	github.com/mailru/easyjson v0.7.7
 	github.com/miekg/dns v1.1.56
-	github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/prometheus v0.47.2
 	github.com/rs/dnscache v0.0.0-20211102005908-e0241e321417
 	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d
@@ -31,9 +31,9 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_model v0.4.0 // indirect
+	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
-	github.com/prometheus/procfs v0.11.0 // indirect
+	github.com/prometheus/procfs v0.11.1 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
