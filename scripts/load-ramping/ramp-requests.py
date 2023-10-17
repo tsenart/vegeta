@@ -29,7 +29,6 @@ for rate in rates:
         cmd = 'vegeta attack -duration 5s -rate %i/1000s -output %s' % (1000*rate, filename)
         print(cmd, file=sys.stderr)
         subprocess.run(cmd, shell=True, input=target, encoding='utf-8')
-        time.sleep(5)
 
 
 # Run vegeta report, and extract data for gnuplot
