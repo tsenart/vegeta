@@ -136,6 +136,8 @@ attack command:
     	Number of redirects to follow. -1 will not follow but marks as success (default 10)
   -resolvers value
     	List of addresses (ip:port) to use for DNS resolution. Disables use of local system DNS. (comma separated list)
+  -reuseaddr
+    	Set the SO_REUSEADDR socket option (default false)
   -root-certs value
     	TLS root certificate files (comma separated list)
   -session-tickets
@@ -391,6 +393,12 @@ the response is marked as successful.
 
 Specifies custom DNS resolver addresses to use for name resolution instead of
 the ones configured by the operating system. Works only on non Windows systems.
+
+#### `-resolvers`
+
+Specifies whether to set the SO_REUSEADDR option on the TCP socket before binding
+it. Can reduce the amount of "bind: address already in use" errors when doing many
+connections to the same server and port combination.
 
 #### `-root-certs`
 
