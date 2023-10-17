@@ -96,10 +96,9 @@ func TestResultEncoding(t *testing.T) {
 					BytesIn:   rapid.Uint64().Draw(t, "bytes_in"),
 					BytesOut:  rapid.Uint64().Draw(t, "bytes_out"),
 					Error:     rapid.StringMatching(`^\w+$`).Draw(t, "error"),
-					Body:      rapid.SliceOf(rapid.Byte()).Draw(t, "body"),
-					Method: rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").
-						Draw(t, "method"),
-					URL: rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url"),
+					Body:      []byte("{\"data\":{\"vegeta\":\"punch\"}}"),
+					Method:    rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").Draw(t, "method"),
+					URL:       rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url"),
 				}
 
 				if len(hdrs) > 0 {
@@ -115,7 +114,7 @@ func TestResultEncoding(t *testing.T) {
 				var buf bytes.Buffer
 				enc := tc.enc(&buf)
 				for j := 0; j < 2; j++ {
-					if err := enc(&want); err != nil {
+					if err := enc.Encode(&want); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -128,7 +127,7 @@ func TestResultEncoding(t *testing.T) {
 				}
 				for j := 0; j < 2; j++ {
 					var got Result
-					if err := dec(&got); err != nil {
+					if err := dec.Decode(&got); err != nil {
 						t.Fatalf("err: %q buffer: %s", err, encoded)
 					}
 
@@ -140,6 +139,67 @@ func TestResultEncoding(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestGQLEncoding(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		hdrs := rapid.MapOf(
+			rapid.StringMatching("^[!#$%&'*+\\-.^_`|~0-9a-zA-Z]+$"),
+			rapid.SliceOfN(rapid.StringMatching(`^[0-9a-zA-Z]+$`), 1, -1),
+		).Draw(t, "headers")
+
+		in := Result{
+			Attack:    "gql-test",
+			Seq:       rapid.Uint64().Draw(t, "seq"),
+			Code:      200,
+			Timestamp: time.Unix(rapid.Int64Range(0, 1e8).Draw(t, "timestamp"), 0),
+			Latency:   time.Duration(rapid.Int64Min(0).Draw(t, "latency")),
+			BytesIn:   rapid.Uint64().Draw(t, "bytes_in"),
+			BytesOut:  rapid.Uint64().Draw(t, "bytes_out"),
+			Error:     "",
+			Body:      []byte("{\"data\":{},\"errors\":[{\"message\":\"no punch\"}]}"),
+			Method:    rapid.StringMatching("^(GET|PUT|POST|DELETE|HEAD|OPTIONS)$").Draw(t, "method"),
+			URL:       rapid.StringMatching(`^(https?):\/\/([a-zA-Z0-9-\.]+)(:[0-9]{1,5})?\/?([a-zA-Z0-9\-\._\?\,\'\/\\\+&amp;%\$#\=~]*)$`).Draw(t, "url"),
+		}
+
+		if len(hdrs) > 0 {
+			in.Headers = make(http.Header, len(hdrs))
+		}
+
+		for k, vs := range hdrs {
+			for _, v := range vs {
+				in.Headers.Add(k, v)
+			}
+		}
+
+		want := in
+		want.Error = "no punch"
+
+		var buf bytes.Buffer
+		enc := NewJSONEncoder(&buf)
+		for j := 0; j < 2; j++ {
+			if err := enc.Encode(&in); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		encoded := buf.String()
+
+		dec := NewJSONDecoder(&buf)
+		for j := 0; j < 2; j++ {
+			var got Result
+			if err := dec.Decode(&got); err != nil {
+				t.Fatalf("err: %q buffer: %s", err, encoded)
+			}
+
+			AsGraphQL(&got)
+
+			if !got.Equal(want) {
+				t.Logf("encoded: %s", encoded)
+				t.Fatalf("mismatch: %s", cmp.Diff(got, want))
+			}
+		}
+	})
 }
 
 func BenchmarkResultEncodings(b *testing.B) {

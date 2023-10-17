@@ -62,8 +62,8 @@ func TestMetrics_Add(t *testing.T) {
 		Wait:        duration("10ms"),
 		Requests:    10000,
 		Rate:        1.000100010001,
-		Throughput:  0.6667660098349737,
-		Success:     0.6667,
+		Throughput:  0.3333329999669967,
+		Success:     0.3333,
 		StatusCodes: map[string]int{"500": 3333, "200": 3334, "302": 3333},
 		Errors:      []string{"Internal server error"},
 

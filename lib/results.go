@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/textproto"
@@ -155,8 +157,8 @@ func (dec Decoder) Decode(r *Result) error { return dec(r) }
 type Encoder func(*Result) error
 
 // NewEncoder returns a new Result encoder closure for the given io.Writer
-func NewEncoder(r io.Writer) Encoder {
-	enc := gob.NewEncoder(r)
+func NewEncoder(w io.Writer) Encoder {
+	enc := gob.NewEncoder(w)
 	return func(r *Result) error { return enc.Encode(r) }
 }
 
@@ -205,8 +207,8 @@ func headerBytes(h http.Header) []byte {
 }
 
 // NewCSVDecoder returns a Decoder that decodes CSV encoded Results.
-func NewCSVDecoder(r io.Reader) Decoder {
-	dec := csv.NewReader(r)
+func NewCSVDecoder(rd io.Reader) Decoder {
+	dec := csv.NewReader(rd)
 	dec.FieldsPerRecord = 12
 	dec.TrimLeadingSpace = true
 
@@ -276,27 +278,62 @@ type jsonResult Result
 // NewJSONEncoder returns an Encoder that dumps the given *Results as a JSON
 // object.
 func NewJSONEncoder(w io.Writer) Encoder {
-	var jw jwriter.Writer
+	var enc jwriter.Writer
 	return func(r *Result) error {
-		(*jsonResult)(r).MarshalEasyJSON(&jw)
-		if jw.Error != nil {
-			return jw.Error
+		(*jsonResult)(r).MarshalEasyJSON(&enc)
+		if enc.Error != nil {
+			return enc.Error
 		}
-		jw.RawByte('\n')
-		_, err := jw.DumpTo(w)
+		enc.RawByte('\n')
+		_, err := enc.DumpTo(w)
 		return err
 	}
 }
 
 // NewJSONDecoder returns a Decoder that decodes JSON encoded Results.
-func NewJSONDecoder(r io.Reader) Decoder {
-	rd := bufio.NewReader(r)
+func NewJSONDecoder(rd io.Reader) Decoder {
+	dec := bufio.NewReader(rd)
 	return func(r *Result) (err error) {
 		var jl jlexer.Lexer
-		if jl.Data, err = rd.ReadBytes('\n'); err != nil {
+		if jl.Data, err = dec.ReadBytes('\n'); err != nil {
 			return err
 		}
 		(*jsonResult)(r).UnmarshalEasyJSON(&jl)
 		return jl.Error()
 	}
+}
+
+type GQLResponse struct {
+	Data   interface{}
+	Errors []GQLError
+}
+
+type GQLError struct {
+	Extensions interface{}
+	Message    string
+}
+
+// AsGraphQL re-interprets the given Result with GraphQL semantics, mutating it accordingly
+func AsGraphQL(r *Result) error {
+	if r.Code < 200 || r.Code >= 400 {
+		return nil
+	}
+
+	var res GQLResponse
+	err := json.Unmarshal(r.Body, &res)
+	if err != nil {
+		return err
+	}
+
+	if res.Errors != nil && len(res.Errors) > 0 {
+		for i, e := range res.Errors {
+			if i == 0 {
+				r.Error = e.Message
+			} else {
+				r.Error = fmt.Sprintf("%v, %v", r.Error, e.Message)
+			}
+		}
+	}
+
+	return nil
 }
