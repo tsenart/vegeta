@@ -297,7 +297,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 		}
 		tgt.Method = tokens[0]
 		if _, err = url.ParseRequestURI(tokens[1]); err != nil {
-			return fmt.Errorf("bad URL: %s", tokens[1])
+			return fmt.Errorf("bad URL: %s, %w", tokens[1], err)
 		}
 		tgt.URL = tokens[1]
 		line = strings.TrimSpace(sc.Peek())
@@ -311,7 +311,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 				continue
 			} else if strings.HasPrefix(line, "@") {
 				if tgt.Body, err = os.ReadFile(line[1:]); err != nil {
-					return fmt.Errorf("bad body: %s", err)
+					return fmt.Errorf("bad body: %w", err)
 				}
 				break
 			}

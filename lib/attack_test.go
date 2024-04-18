@@ -407,3 +407,16 @@ func TestVegetaHeaders(t *testing.T) {
 		}
 	}
 }
+
+// https://github.com/tsenart/vegeta/issues/649
+func TestDNSCaching_Issue649(t *testing.T) {
+	defer func() {
+		if err := recover(); err != nil {
+			t.Fatalf("panic: %v", err)
+		}
+	}()
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "https://[2a00:1450:4005:802::200e]"})
+	atk := NewAttacker(DNSCaching(0))
+	_ = atk.hit(tr, &attack{name: "TEST", began: time.Now()})
+}
