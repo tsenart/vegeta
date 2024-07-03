@@ -29,6 +29,7 @@ type Attacker struct {
 	maxBody    int64
 	redirects  int
 	chunked    bool
+	seqmu      sync.Mutex
 }
 
 const (
@@ -400,11 +401,14 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 		began: time.Now(),
 	}
 
+	go readMaxWorkerFromSocket("/tmp/vegeta-max-workers.sock", a)
+
 	results := make(chan *Result)
 	ticks := make(chan struct{})
+	removeWorker := make(chan struct{})
 	for i := uint64(0); i < workers; i++ {
 		wg.Add(1)
-		go a.attack(tr, atk, &wg, ticks, results)
+		go a.attack(tr, atk, &wg, ticks, results, removeWorker)
 	}
 
 	go func() {
@@ -413,6 +417,7 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 			wg.Wait()
 			close(results)
 			a.Stop()
+			close(removeWorker)
 		}()
 
 		count := uint64(0)
@@ -440,8 +445,16 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 					// all workers are blocked. start one more and try again
 					workers++
 					wg.Add(1)
-					go a.attack(tr, atk, &wg, ticks, results)
+					go a.attack(tr, atk, &wg, ticks, results, removeWorker)
 				}
+			}
+
+			if workers > a.maxWorkers {
+				workerChangeCount := workers - a.maxWorkers
+				for _ = range workerChangeCount {
+					removeWorker <- struct{}{}
+				}
+				workers -= workerChangeCount
 			}
 
 			select {
@@ -454,6 +467,12 @@ func (a *Attacker) Attack(tr Targeter, p Pacer, du time.Duration, name string) <
 	}()
 
 	return results
+}
+
+func (a *Attacker) AdjustMaxWokers(maxWorkers uint64) {
+	a.seqmu.Lock()
+	a.maxWorkers = maxWorkers
+	a.seqmu.Unlock()
 }
 
 // Stop stops the current attack. The return value indicates whether this call
@@ -470,10 +489,15 @@ func (a *Attacker) Stop() bool {
 	}
 }
 
-func (a *Attacker) attack(tr Targeter, atk *attack, workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result) {
+func (a *Attacker) attack(tr Targeter, atk *attack, workers *sync.WaitGroup, ticks <-chan struct{}, results chan<- *Result, removeWorker <-chan struct{}) {
 	defer workers.Done()
-	for range ticks {
-		results <- a.hit(tr, atk)
+	for {
+		select {
+		case <-ticks:
+			results <- a.hit(tr, atk)
+		case <-removeWorker:
+			return
+		}
 	}
 }
 
