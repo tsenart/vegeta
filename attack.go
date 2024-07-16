@@ -103,7 +103,7 @@ func attackCmd() command {
 	fs.StringVar(&opts.promAddr, "prometheus-addr", "", "Prometheus exporter listen address [empty = disabled]. Example: 0.0.0.0:8880")
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
-	fs.Var(&opts.connectToList, "connect-to", "The list of IPs or DNS names to use instead of the specified host for a set of names. Format: "+connectToFormat)
+	fs.Var(&opts.connectToList, "connect-to", "The list of IPs or DNS names to use instead of the specified host for a set of names.\nFormat: "+connectToFormat+"\ne.g. to send traffic to localhost, try -connect-to example.com:80@localhost:8080")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
