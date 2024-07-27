@@ -375,6 +375,33 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 	}
 }
 
+// firstOfEachIPFamily returns the first IP of each IP family in the input slice.
+func firstOfEachIPFamily(ips []string) []string {
+	if len(ips) == 0 {
+		return ips
+	}
+
+	var (
+		lastV4 bool
+		each   = ips[:0]
+	)
+
+	for i := 0; i < len(ips) && len(each) < 2; i++ {
+		ip := net.ParseIP(ips[i])
+		if ip == nil {
+			continue
+		}
+
+		isV4 := ip.To4() != nil
+		if len(each) == 0 || isV4 != lastV4 {
+			each = append(each, ips[i])
+			lastV4 = isV4
+		}
+	}
+
+	return each
+}
+
 type attack struct {
 	name  string
 	began time.Time

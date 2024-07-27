@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestAttackRate(t *testing.T) {
@@ -419,4 +421,80 @@ func TestDNSCaching_Issue649(t *testing.T) {
 	tr := NewStaticTargeter(Target{Method: "GET", URL: "https://[2a00:1450:4005:802::200e]"})
 	atk := NewAttacker(DNSCaching(0))
 	_ = atk.hit(tr, &attack{name: "TEST", began: time.Now()})
+}
+
+func TestFirstOfEachIPFamily(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "empty list",
+			input: []string{},
+			want:  []string{},
+		},
+		{
+			name:  "single IPv4",
+			input: []string{"192.168.1.1"},
+			want:  []string{"192.168.1.1"},
+		},
+		{
+			name:  "single IPv6",
+			input: []string{"fe80::1"},
+			want:  []string{"fe80::1"},
+		},
+		{
+			name:  "multiple IPv6",
+			input: []string{"fe80::1", "fe80::2"},
+			want:  []string{"fe80::1"},
+		},
+		{
+			name:  "one IPv4 and one IPv6",
+			input: []string{"192.168.1.1", "fe80::1"},
+			want:  []string{"192.168.1.1", "fe80::1"},
+		},
+		{
+			name:  "one IPv6 and one IPv4",
+			input: []string{"fe80::1", "192.168.1.1"},
+			want:  []string{"fe80::1", "192.168.1.1"},
+		},
+		{
+			name:  "multiple IPs with alternating versions",
+			input: []string{"192.168.1.1", "fe80::1", "192.168.1.2", "fe80::2"},
+			want:  []string{"192.168.1.1", "fe80::1"},
+		},
+		{
+			name:  "multiple IPs with same versions",
+			input: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"},
+			want:  []string{"192.168.1.1"},
+		},
+		{
+			name:  "multiple IPs with non-alternating versions",
+			input: []string{"192.168.1.1", "fe80::1", "192.168.1.2", "192.168.1.3", "fe80::2"},
+			want:  []string{"192.168.1.1", "fe80::1"},
+		},
+		{
+			name:  "invalid IP addresses",
+			input: []string{"invalid", "192.168.1.1", "fe80::1"},
+			want:  []string{"192.168.1.1", "fe80::1"},
+		},
+		{
+			name:  "IPv4 with embedded IPv6",
+			input: []string{"192.168.1.1", "::ffff:c000:280", "fe80::1"},
+			want:  []string{"192.168.1.1", "fe80::1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := firstOfEachIPFamily(tt.input)
+			if len(result) != len(tt.want) {
+				t.Fatalf("want %v, got %v", tt.want, result)
+			}
+			if diff := cmp.Diff(tt.want, result); diff != "" {
+				t.Errorf("unexpected result (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
