@@ -53,7 +53,7 @@ func TestMetrics_Observe(t *testing.T) {
 		t.Errorf("error reading response body: err=%v", err)
 	}
 
-	p, err := textparse.New(data, resp.Header.Get("Content-Type"), true)
+	p, err := textparse.New(data, resp.Header.Get("Content-Type"), true, nil)
 	if err != nil {
 		t.Fatalf("error creating prometheus metrics parser. err=%v", err)
 	}
