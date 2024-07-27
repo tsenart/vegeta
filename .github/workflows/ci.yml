@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
     branches:
       - master
   pull_request:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version'
+        description: "Release version"
         required: true
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: "1.22"
 
       - name: Format Check
         run: |
@@ -46,20 +46,20 @@ jobs:
     strategy:
       matrix:
         target:
-          - 'windows/amd64'
-          - 'windows/386'
-          - 'windows/arm64'
-          - 'linux/amd64'
-          - 'linux/386'
-          - 'linux/arm64'
-          - 'linux/arm'
-          - 'darwin/amd64'
-          - 'darwin/arm64'
-          - 'freebsd/386'
-          - 'freebsd/amd64'
-          - 'freebsd/arm'
-          - 'openbsd/amd64'
-          - 'openbsd/arm64'
+          - "windows/amd64"
+          - "windows/386"
+          - "windows/arm64"
+          - "linux/amd64"
+          - "linux/386"
+          - "linux/arm64"
+          - "linux/arm"
+          - "darwin/amd64"
+          - "darwin/arm64"
+          - "freebsd/386"
+          - "freebsd/amd64"
+          - "freebsd/arm"
+          - "openbsd/amd64"
+          - "openbsd/arm64"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: "1.22"
 
       - name: Set up GOOS and GOARCH
         id: setup_env
