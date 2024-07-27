@@ -329,20 +329,7 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 
 				rng.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
 
-				// In place filtering of ips to only include the first IPv4 and IPv6.
-				j := 0
-				for i := 0; i < len(ips) && j < 2; i++ {
-					ip := net.ParseIP(ips[i])
-					switch {
-					case len(ip) == net.IPv4len && (j == 0 || len(ips[j-1]) == net.IPv6len):
-						fallthrough
-					case len(ip) == net.IPv6len && (j == 0 || len(ips[j-1]) == net.IPv4len):
-						ips[j] = ips[i]
-						j++
-					}
-				}
-
-				ips = ips[:j]
+				ips = firstOfEachIPFamily(ips)
 
 				type result struct {
 					conn net.Conn
