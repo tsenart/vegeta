@@ -49,6 +49,15 @@ $ pkg install vegeta
 ```
 
 ### Source
+When building from source you'll need to install [easyjson](https://github.com/mailru/easyjson) manually.
+
+On Debian-based systems it can be done with:
+
+```shell
+sudo apt install golang-easyjson
+```
+
+Then build vegeta like so:
 
 ```shell
 git clone https://github.com/tsenart/vegeta
