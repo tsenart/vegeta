@@ -36,7 +36,7 @@
   Revert end-to-end attack timeout change
 
 2015-05-23: v5.7.0
-  Allow case sensitve headers in attacks
+  Allow case-sensitive headers in attacks
 
 2015-04-15: v5.6.3
   Expose connections flag in the attack command
