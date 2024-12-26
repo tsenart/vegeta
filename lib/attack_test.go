@@ -299,7 +299,7 @@ func TestUnixSocket(t *testing.T) {
 	t.Parallel()
 	body := []byte("IT'S A UNIX SYSTEM, I KNOW THIS")
 
-	socketDir, err := os.MkdirTemp("", "vegata")
+	socketDir, err := os.MkdirTemp("", "vegeta")
 	if err != nil {
 		t.Fatal("Failed to create socket dir", err)
 	}
