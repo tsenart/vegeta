@@ -13,7 +13,7 @@ set logscale xycb 10
 # Grid
 set mxtics 10
 set mytics 10
-set tics scale 0.0000000001  # Tics themselves can't be styled indepedently, so use grid only
+set tics scale 0.0000000001  # Tics themselves can't be styled independently, so use grid only
 set grid xtics ytics mxtics mytics lc rgb '#888888' lw 0.5 lt 1, lc rgb '#888888' lt 1 lw 0.1
 
 
