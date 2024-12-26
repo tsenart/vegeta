@@ -18,7 +18,7 @@ HTTP services with a constant request rate. [It's over 9000!](https://en.wikiped
 
 ### Pre-compiled executables
 
-Get them [here](http://github.com/tsenart/vegeta/releases).
+Available from [vegeta releases](http://github.com/tsenart/vegeta/releases).
 
 ### macOS
 
