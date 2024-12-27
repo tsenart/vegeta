@@ -147,7 +147,7 @@ func NewDecoder(rd io.Reader) Decoder {
 	return func(r *Result) error { return dec.Decode(r) }
 }
 
-// Decode is an an adapter method calling the Decoder function itself with the
+// Decode is an adapter method calling the Decoder function itself with the
 // given parameters.
 func (dec Decoder) Decode(r *Result) error { return dec(r) }
 
@@ -160,7 +160,7 @@ func NewEncoder(r io.Writer) Encoder {
 	return func(r *Result) error { return enc.Encode(r) }
 }
 
-// Encode is an an adapter method calling the Encoder function itself with the
+// Encode is an adapter method calling the Encoder function itself with the
 // given parameters.
 func (enc Encoder) Encode(r *Result) error { return enc(r) }
 

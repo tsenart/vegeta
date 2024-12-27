@@ -104,7 +104,7 @@ func TestResolver(t *testing.T) {
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read respose body")
+		t.Fatalf("failed to read response body")
 	}
 	if strings.TrimSpace(string(body)) != payload {
 		t.Errorf("body mismatch, got: '%s', expected: '%s'", body, payload)

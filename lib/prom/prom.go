@@ -72,7 +72,7 @@ func (pm *Metrics) Observe(res *vegeta.Result) {
 }
 
 // NewHandler returns a new http.Handler that exposes Prometheus
-// metrics registed in r in the OpenMetrics format.
+// metrics registered in r in the OpenMetrics format.
 func NewHandler(r *prometheus.Registry, startTime time.Time) http.Handler {
 	return promhttp.HandlerFor(r, promhttp.HandlerOpts{
 		Registry:          r,

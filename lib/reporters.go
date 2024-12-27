@@ -18,7 +18,7 @@ type Report interface {
 
 // Closer wraps the optional Report Close method.
 type Closer interface {
-	// Close permantently closes a Report, running any necessary book keeping.
+	// Close permanently closes a Report, running any necessary book keeping.
 	Close()
 }
 
