@@ -50,8 +50,8 @@ $ pkg install vegeta
 
 ### Windows
 
-<a href="https://github.com/ScoopInstaller/Main/blob/master/bucket/atac.json">
-  <img src="https://repology.org/badge/version-for-repo/scoop/atac.svg" alt="Scoop package">
+<a href="https://github.com/ScoopInstaller/Main/blob/master/bucket/vegeta.json">
+  <img src="https://repology.org/badge/version-for-repo/scoop/vegeta.svg" alt="Scoop package">
 </a>
 
 ```shell
