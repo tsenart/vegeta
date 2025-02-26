@@ -48,6 +48,16 @@ On FreeBSD you can install Vegeta with the built in package manager because ther
 $ pkg install vegeta
 ```
 
+### Windows
+
+<a href="https://github.com/ScoopInstaller/Main/blob/master/bucket/vegeta.json">
+  <img src="https://repology.org/badge/version-for-repo/scoop/vegeta.svg" alt="Scoop package">
+</a>
+
+```shell
+$ scoop install vegeta
+```
+
 ### Source
 
 ```shell
