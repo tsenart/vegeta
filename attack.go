@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
+	"github.com/tsenart/vegeta/v12/lib/modal"
 	prom "github.com/tsenart/vegeta/v12/lib/prom"
 )
 
@@ -71,6 +72,31 @@ func attackCmd() command {
 	}}
 }
 
+func attackModalCmd() command {
+	fs := flag.NewFlagSet("vegeta attack modal", flag.ExitOnError)
+	opts := &attackModalOpts{
+		rate:    vegeta.Rate{Freq: 50, Per: time.Second},
+		maxBody: vegeta.DefaultMaxBody,
+	}
+	fs.StringVar(&opts.name, "name", "", "Attack name")
+	fs.StringVar(&opts.targetsf, "targets", "stdin", "Targets file")
+	fs.StringVar(&opts.format, "format", modal.TextTargetFormat,
+		fmt.Sprintf("Targets format [%s]", strings.Join(modal.TargetFormats, ", ")))
+	fs.StringVar(&opts.outputf, "output", "stdout", "Output file")
+	fs.StringVar(&opts.bodyf, "body", "", "Requests body file")
+	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
+	fs.DurationVar(&opts.timeout, "timeout", vegeta.DefaultTimeout, "Requests timeout")
+	fs.Uint64Var(&opts.workers, "workers", vegeta.DefaultWorkers, "Initial number of workers")
+	fs.Uint64Var(&opts.maxWorkers, "max-workers", vegeta.DefaultMaxWorkers, "Maximum number of workers")
+	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
+	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
+
+	return command{fs, func(args []string) error {
+		fs.Parse(args)
+		return attackModal(opts)
+	}}
+}
+
 var (
 	errZeroRate = errors.New("rate frequency and time unit must be bigger than zero")
 	errBadCert  = errors.New("bad certificate")
@@ -110,6 +136,24 @@ type attackOpts struct {
 	dnsTTL         time.Duration
 	sessionTickets bool
 	connectTo      map[string][]string
+}
+
+// attackOpts aggregates the attack function command options
+type attackModalOpts struct {
+	name           string
+	targetsf       string
+	format         string
+	outputf        string
+	bodyf          string
+	duration       time.Duration
+	timeout        time.Duration
+	rate           vegeta.Rate
+	workers        uint64
+	maxWorkers     uint64
+	connections    int
+	maxConnections int
+	maxBody        int64
+	promAddr       string
 }
 
 // attack validates the attack arguments, sets up the
@@ -234,6 +278,127 @@ func attack(opts *attackOpts) (err error) {
 
 func processAttack(
 	atk *vegeta.Attacker,
+	res <-chan *vegeta.Result,
+	enc vegeta.Encoder,
+	sig <-chan os.Signal,
+	pm *prom.Metrics,
+) error {
+	for {
+		select {
+		case <-sig:
+			if stopSent := atk.Stop(); !stopSent {
+				// Exit immediately on second signal.
+				return nil
+			}
+		case r, ok := <-res:
+			if !ok {
+				return nil
+			}
+
+			if pm != nil {
+				pm.Observe(r)
+			}
+
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// attack validates the attack arguments, sets up the
+// required resources, launches the attack and writes the results
+func attackModal(opts *attackModalOpts) (err error) {
+	if opts.maxWorkers == modal.DefaultMaxWorkers && opts.rate.Freq == 0 {
+		return fmt.Errorf("-rate=0 requires setting -max-workers")
+	}
+
+	files := map[string]io.Reader{}
+	for _, filename := range []string{opts.targetsf, opts.bodyf} {
+		if filename == "" {
+			continue
+		}
+		f, err := file(filename, false)
+		if err != nil {
+			return fmt.Errorf("error opening %s: %s", filename, err)
+		}
+		//defer f.Close()
+		files[filename] = f
+	}
+
+	var body []byte
+	if bodyf, ok := files[opts.bodyf]; ok {
+		if body, err = io.ReadAll(bodyf); err != nil {
+			return fmt.Errorf("error reading %s: %s", opts.bodyf, err)
+		}
+	}
+
+	var (
+		tr  modal.Targeter
+		src = files[opts.targetsf]
+	)
+
+	switch opts.format {
+	case modal.JSONTargetFormat:
+		tr = modal.NewJSONTargeter(src, body)
+	case modal.TextTargetFormat:
+		tr = modal.NewTextTargeter(src, body)
+	default:
+		return fmt.Errorf("format %q isn't one of [%s]",
+			opts.format, strings.Join(modal.TargetFormats, ", "))
+	}
+	//if !opts.lazy {
+	targets, err := modal.ReadAllTargets(tr)
+	if err != nil {
+		return err
+	}
+	tr = modal.NewStaticTargeter(targets...)
+	//}
+
+	out, err := file(opts.outputf, true)
+	if err != nil {
+		return fmt.Errorf("error opening %s: %s", opts.outputf, err)
+	}
+	defer out.Close()
+
+	var pm *prom.Metrics
+	if opts.promAddr != "" {
+		pm = prom.NewMetrics()
+
+		r := prometheus.NewRegistry()
+		if err := pm.Register(r); err != nil {
+			return fmt.Errorf("error registering prometheus metrics: %s", err)
+		}
+
+		srv := http.Server{
+			Addr:    opts.promAddr,
+			Handler: prom.NewHandler(r, time.Now().UTC()),
+		}
+
+		defer srv.Close()
+		go srv.ListenAndServe()
+	}
+
+	atk, err := modal.NewAttacker(
+		targets,
+		modal.Workers(opts.workers),
+		modal.MaxWorkers(opts.maxWorkers),
+		modal.MaxBody(opts.maxBody),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create modal attacker: %s", err)
+	}
+
+	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
+	enc := vegeta.NewEncoder(out)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	return processAttackModal(atk, res, enc, sig, pm)
+}
+
+func processAttackModal(
+	atk *modal.Attacker,
 	res <-chan *vegeta.Result,
 	enc vegeta.Encoder,
 	sig <-chan os.Signal,
