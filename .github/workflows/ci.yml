@@ -1,161 +1,161 @@
-name: CI
-on:
-  push:
-    tags:
-      - "v*.*.*"
-    branches:
-      - master
-  pull_request:
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version"
-        required: true
-
-jobs:
-  qa:
-    name: Quality Assurance
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Format Check
-        run: |
-          set -euo pipefail
-          go install golang.org/x/tools/cmd/goimports@latest
-          goimports -w .
-          git diff --exit-code
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test -race ./...
-
-  build:
-    name: Build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - "windows/amd64"
-          - "windows/386"
-          - "windows/arm64"
-          - "linux/amd64"
-          - "linux/386"
-          - "linux/arm64"
-          - "linux/arm"
-          - "darwin/amd64"
-          - "darwin/arm64"
-          - "freebsd/386"
-          - "freebsd/amd64"
-          - "freebsd/arm"
-          - "openbsd/amd64"
-          - "openbsd/arm64"
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Set up GOOS and GOARCH
-        id: setup_env
-        run: |
-          echo "goos=$(echo ${{ matrix.target }} | cut -d'/' -f1)" >> $GITHUB_OUTPUT
-          echo "goarch=$(echo ${{ matrix.target }} | cut -d'/' -f2)" >> $GITHUB_OUTPUT
-
-      - name: Build
-        env:
-          GOOS: ${{ steps.setup_env.outputs.goos }}
-          GOARCH: ${{ steps.setup_env.outputs.goarch }}
-        run: |
-          set -euo pipefail
-
-          make vegeta
-
-          VERSION=${GITHUB_REF#refs/tags/v}
-          NAME="vegeta_${VERSION}_${GOOS}_${GOARCH}"
-          if [[ "$GOOS" != "windows" ]]; then
-            tar -czf "$NAME.tar.gz" vegeta
-          else
-            zip "$NAME.zip" vegeta.exe
-          fi
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: vegeta_${{ steps.setup_env.outputs.goos }}_${{ steps.setup_env.outputs.goarch }}
-          path: |
-            *.zip
-            *.tar.gz
-
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [qa, build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Create checksums and sign them
-        id: sign
-        run: |
-          set -euo pipefail
-
-          mkdir dist
-          mv vegeta*/* dist/
-          cd dist
-
-          VERSION=${GITHUB_REF#refs/tags/v}
-          CHECKSUMS=vegeta_${VERSION}_checksums.txt
-          sha256sum * > $CHECKSUMS
-
-          echo "${{ secrets.VEGETA_GPG_KEY }}" | gpg --batch --yes --pinentry-mode loopback --import
-          gpg --export --armor > vegeta_${VERSION}_pubkey.asc
-          gpg --detach-sign -a $CHECKSUMS
-
-          echo "name=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          set -x
-          set -euo pipefail
-
-          CURRENT_VERSION=${GITHUB_REF#refs/tags/}
-          PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
-          RELEASE_NOTES=${{ github.workspace }}/release-notes.txt
-
-          printf "## Changelog\n\n" > $RELEASE_NOTES
-          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> $RELEASE_NOTES
-          cat $RELEASE_NOTES
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: ${{ steps.sign.outputs.version }}
-          body_path: ${{ github.workspace }}/release-notes.txt
-          files: |
-            dist/*
-          tag_name: ${{ steps.sign.outputs.version }}
-          draft: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#name: CI
+#on:
+#  push:
+#    tags:
+#      - "v*.*.*"
+#    branches:
+#      - master
+#  pull_request:
+#    types: [opened, synchronize, reopened]
+#  workflow_dispatch:
+#    inputs:
+#      version:
+#        description: "Release version"
+#        required: true
+#
+#jobs:
+#  qa:
+#    name: Quality Assurance
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up Go
+#        uses: actions/setup-go@v5
+#        with:
+#          go-version: "1.22"
+#
+#      - name: Format Check
+#        run: |
+#          set -euo pipefail
+#          go install golang.org/x/tools/cmd/goimports@latest
+#          goimports -w .
+#          git diff --exit-code
+#
+#      - name: Vet
+#        run: go vet ./...
+#
+#      - name: Test
+#        run: go test -race ./...
+#
+#  build:
+#    name: Build
+#    if: startsWith(github.ref, 'refs/tags/v')
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        target:
+#          - "windows/amd64"
+#          - "windows/386"
+#          - "windows/arm64"
+#          - "linux/amd64"
+#          - "linux/386"
+#          - "linux/arm64"
+#          - "linux/arm"
+#          - "darwin/amd64"
+#          - "darwin/arm64"
+#          - "freebsd/386"
+#          - "freebsd/amd64"
+#          - "freebsd/arm"
+#          - "openbsd/amd64"
+#          - "openbsd/arm64"
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up Go
+#        uses: actions/setup-go@v5
+#        with:
+#          go-version: "1.22"
+#
+#      - name: Set up GOOS and GOARCH
+#        id: setup_env
+#        run: |
+#          echo "goos=$(echo ${{ matrix.target }} | cut -d'/' -f1)" >> $GITHUB_OUTPUT
+#          echo "goarch=$(echo ${{ matrix.target }} | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+#
+#      - name: Build
+#        env:
+#          GOOS: ${{ steps.setup_env.outputs.goos }}
+#          GOARCH: ${{ steps.setup_env.outputs.goarch }}
+#        run: |
+#          set -euo pipefail
+#
+#          make vegeta
+#
+#          VERSION=${GITHUB_REF#refs/tags/v}
+#          NAME="vegeta_${VERSION}_${GOOS}_${GOARCH}"
+#          if [[ "$GOOS" != "windows" ]]; then
+#            tar -czf "$NAME.tar.gz" vegeta
+#          else
+#            zip "$NAME.zip" vegeta.exe
+#          fi
+#
+#      - name: Upload Artifacts
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: vegeta_${{ steps.setup_env.outputs.goos }}_${{ steps.setup_env.outputs.goarch }}
+#          path: |
+#            *.zip
+#            *.tar.gz
+#
+#  release:
+#    name: Release
+#    if: startsWith(github.ref, 'refs/tags/v')
+#    needs: [qa, build]
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v4
+#
+#      - name: Create checksums and sign them
+#        id: sign
+#        run: |
+#          set -euo pipefail
+#
+#          mkdir dist
+#          mv vegeta*/* dist/
+#          cd dist
+#
+#          VERSION=${GITHUB_REF#refs/tags/v}
+#          CHECKSUMS=vegeta_${VERSION}_checksums.txt
+#          sha256sum * > $CHECKSUMS
+#
+#          echo "${{ secrets.VEGETA_GPG_KEY }}" | gpg --batch --yes --pinentry-mode loopback --import
+#          gpg --export --armor > vegeta_${VERSION}_pubkey.asc
+#          gpg --detach-sign -a $CHECKSUMS
+#
+#          echo "name=${VERSION}" >> $GITHUB_OUTPUT
+#
+#      - name: Generate release notes
+#        id: release_notes
+#        run: |
+#          set -x
+#          set -euo pipefail
+#
+#          CURRENT_VERSION=${GITHUB_REF#refs/tags/}
+#          PREV_VERSION=$(git describe --tags --abbrev=0 $CURRENT_VERSION^)
+#          RELEASE_NOTES=${{ github.workspace }}/release-notes.txt
+#
+#          printf "## Changelog\n\n" > $RELEASE_NOTES
+#          git log ${PREV_VERSION}..${CURRENT_VERSION} --oneline --abbrev-commit >> $RELEASE_NOTES
+#          cat $RELEASE_NOTES
+#
+#      - name: Create GitHub Release
+#        uses: softprops/action-gh-release@v1
+#        with:
+#          name: ${{ steps.sign.outputs.version }}
+#          body_path: ${{ github.workspace }}/release-notes.txt
+#          files: |
+#            dist/*
+#          tag_name: ${{ steps.sign.outputs.version }}
+#          draft: true
+#          prerelease: false
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
