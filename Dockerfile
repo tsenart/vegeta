@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine3.18 AS BUILD
+FROM golang:1.22-alpine3.21 AS build
 
 RUN apk add make build-base git
 
@@ -14,8 +14,8 @@ ADD . /vegeta
 RUN make generate
 RUN make vegeta
 
-FROM alpine:3.18.0
+FROM alpine:3.22.1
 
-COPY --from=BUILD /vegeta/vegeta /bin/vegeta
+COPY --from=build /vegeta/vegeta /bin/vegeta
 
 ENTRYPOINT ["vegeta"]
