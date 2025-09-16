@@ -54,6 +54,7 @@ func TestBuckets_UnmarshalText(t *testing.T) {
 	}
 
 	for value, want := range map[string]Buckets{
+		"[0]":                 {0},
 		"[0,5ms]":             {0, 5 * time.Millisecond},
 		"[0, 5ms]":            {0, 5 * time.Millisecond},
 		"[   0,5ms, 10m    ]": {0, 5 * time.Millisecond, 10 * time.Minute},

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Buckets represents an Histogram's latency buckets.
+// Buckets represents Histogram's latency buckets.
 type Buckets []time.Duration
 
 // Histogram is a bucketed latency Histogram.
@@ -27,7 +27,7 @@ func (h *Histogram) Add(r *Result) {
 
 	var i int
 	for ; i < len(h.Buckets)-1; i++ {
-		if r.Latency >= h.Buckets[i] && r.Latency < h.Buckets[i+1] {
+		if r.Latency < h.Buckets[i+1] {
 			break
 		}
 	}
