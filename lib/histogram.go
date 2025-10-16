@@ -82,5 +82,10 @@ func (bs *Buckets) UnmarshalText(value []byte) error {
 	if len(*bs) == 0 {
 		return fmt.Errorf("bad buckets: %s", value)
 	}
+	for i := range *bs {
+		if i < len(*bs)-1 && (*bs)[i] >= (*bs)[i+1] {
+			return fmt.Errorf("bad buckets, must be growing: %s", (*bs)[i+1])
+		}
+	}
 	return nil
 }
