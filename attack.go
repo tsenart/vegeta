@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -40,6 +41,7 @@ func attackCmd() command {
 	fs.BoolVar(&opts.chunked, "chunked", false, "Send body with chunked transfer encoding")
 	fs.StringVar(&opts.certf, "cert", "", "TLS client PEM encoded certificate file")
 	fs.StringVar(&opts.keyf, "key", "", "TLS client PEM encoded private key file")
+	fs.StringVar(&opts.keyp, "passphrase", "", "private key passphrase")
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
 	fs.BoolVar(&opts.http2, "http2", true, "Send HTTP/2 requests when supported by the server")
 	fs.BoolVar(&opts.h2c, "h2c", false, "Send HTTP/2 requests without TLS encryption")
@@ -85,6 +87,7 @@ type attackOpts struct {
 	bodyf          string
 	certf          string
 	keyf           string
+	keyp           string
 	rootCerts      csl
 	http2          bool
 	h2c            bool
@@ -180,7 +183,7 @@ func attack(opts *attackOpts) (err error) {
 	}
 	defer out.Close()
 
-	tlsc, err := tlsConfig(opts.insecure, opts.certf, opts.keyf, opts.rootCerts)
+	tlsc, err := tlsConfig(opts.insecure, opts.certf, opts.keyf, opts.keyp, opts.rootCerts)
 	if err != nil {
 		return err
 	}
@@ -263,7 +266,7 @@ func processAttack(
 }
 
 // tlsConfig builds a *tls.Config from the given options.
-func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Config, error) {
+func tlsConfig(insecure bool, certf, keyf string, keyp string, rootCerts []string) (*tls.Config, error) {
 	var err error
 	files := map[string][]byte{}
 	filenames := append([]string{certf, keyf}, rootCerts...)
@@ -282,7 +285,7 @@ func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Conf
 			key = cert
 		}
 
-		certificate, err := tls.X509KeyPair(cert, key)
+		certificate, err := loadPasswordProtectedKeyPhrase(cert, key, keyp)
 		if err != nil {
 			return nil, err
 		}
@@ -301,4 +304,41 @@ func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Conf
 	}
 
 	return &c, nil
+}
+
+func loadPasswordProtectedKeyPhrase(certPEM, keyPEM []byte, passphrase string) (tls.Certificate, error) {
+
+	var err error
+
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return tls.Certificate{}, os.ErrInvalid
+	}
+
+	if len(passphrase) > 0 {
+
+		// Attempt to decrypt the private key using the passphrase
+		var decryptedKeyPEM []byte
+
+		//	if x509.IsEncryptedPEMBlock(keyBlock) {
+		decryptedKeyPEM, err = x509.DecryptPEMBlock(keyBlock, []byte(passphrase))
+		if err != nil {
+			return tls.Certificate{}, err
+		}
+		// Re-encode the decrypted key
+		keyBlock = &pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: decryptedKeyPEM,
+		}
+
+	}
+
+	// Marshal the keyblock
+	finalKeyPEM := pem.EncodeToMemory(keyBlock)
+	cert, err := tls.X509KeyPair(certPEM, finalKeyPEM)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return cert, nil
 }
