@@ -313,7 +313,7 @@ func (p *Plot) data() (dataPoints, []string, error) {
 		labels[i+1] = s.attack + ": " + s.label
 	}
 
-	sort.Sort(data)
+	sort.Stable(data)
 
 	return data, labels, nil
 }
