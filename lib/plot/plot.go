@@ -1,5 +1,3 @@
-//go:generate go run -tags=dev assets_gen.go
-
 package plot
 
 import (
@@ -167,25 +165,19 @@ func (p *Plot) Close() {
 
 // WriteTo writes the HTML plot to the give io.Writer.
 func (p *Plot) WriteTo(w io.Writer) (n int64, err error) {
-	type dygraphsOpts struct {
-		Title       string   `json:"title"`
-		Labels      []string `json:"labels,omitempty"`
-		YLabel      string   `json:"ylabel"`
-		XLabel      string   `json:"xlabel"`
-		Colors      []string `json:"colors,omitempty"`
-		Legend      string   `json:"legend"`
-		ShowRoller  bool     `json:"showRoller"`
-		LogScale    bool     `json:"logScale"`
-		StrokeWidth float64  `json:"strokeWidth"`
+	type uiOpts struct {
+		Title  string   `json:"title"`
+		Labels []string `json:"labels,omitempty"`
+		Colors []string `json:"colors,omitempty"`
 	}
 
 	type plotData struct {
-		Title         string
-		DygraphsCSS   template.CSS
-		HTML2CanvasJS template.JS
-		DygraphsJS    template.JS
-		Data          template.JS
-		Opts          template.JS
+		Title     string
+		UPlotCSS  template.CSS
+		UPlotJS   template.JS
+		PluginsJS template.JS
+		Data      template.JS
+		Opts      template.JS
 	}
 
 	dp, labels, err := p.data()
@@ -200,16 +192,10 @@ func (p *Plot) WriteTo(w io.Writer) (n int64, err error) {
 
 	data := dp.Append(make([]byte, 0, sz))
 
-	opts := dygraphsOpts{
-		Title:       p.title,
-		Labels:      labels,
-		YLabel:      "Latency (ms)",
-		XLabel:      "Seconds elapsed",
-		Legend:      "always",
-		ShowRoller:  true,
-		LogScale:    true,
-		StrokeWidth: 1.3,
-		Colors:      labelColors(labels[1:]),
+	opts := uiOpts{
+		Title:  p.title,
+		Labels: labels,
+		Colors: labelColors(labels[1:]),
 	}
 
 	optsJSON, err := json.MarshalIndent(&opts, "    ", " ")
@@ -218,7 +204,7 @@ func (p *Plot) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	assets := map[string][]byte{}
-	for _, path := range []string{"dygraph.min.js", "dygraph.css", "html2canvas.min.js"} {
+	for _, path := range []string{"uPlot.min.js", "uPlot.min.css", "uplot-plugins.js"} {
 		bs, err := asset(path)
 		if err != nil {
 			return 0, err
@@ -228,12 +214,12 @@ func (p *Plot) WriteTo(w io.Writer) (n int64, err error) {
 
 	cw := countingWriter{w: w}
 	err = plotTemplate.Execute(&cw, &plotData{
-		Title:         p.title,
-		DygraphsCSS:   template.CSS(assets["dygraph.css"]),
-		HTML2CanvasJS: template.JS(assets["html2canvas.min.js"]),
-		DygraphsJS:    template.JS(assets["dygraph.min.js"]),
-		Data:          template.JS(data),
-		Opts:          template.JS(optsJSON),
+		Title:     p.title,
+		UPlotCSS:  template.CSS(assets["uPlot.min.css"]),
+		UPlotJS:   template.JS(assets["uPlot.min.js"]),
+		PluginsJS: template.JS(assets["uplot-plugins.js"]),
+		Data:      template.JS(data),
+		Opts:      template.JS(optsJSON),
 	})
 
 	return cw.n, err
@@ -372,7 +358,7 @@ func (ps dataPoints) Append(buf []byte) []byte {
 
 		for j, f := range p {
 			if math.IsNaN(f) {
-				buf = append(buf, "NaN"...)
+				buf = append(buf, "null"...)
 			} else {
 				buf = strconv.AppendFloat(buf, f, 'f', -1, 64)
 			}
