@@ -25,7 +25,7 @@ Get them [here](http://github.com/tsenart/vegeta/releases).
 You can install Vegeta using the [Homebrew](https://github.com/Homebrew/homebrew/):
 
 ```shell
-$ brew update && brew install vegeta
+$ brew upgrade && brew install vegeta
 ```
 
 Or with [MacPorts](https://www.macports.org/):
