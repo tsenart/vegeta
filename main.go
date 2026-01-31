@@ -115,3 +115,4 @@ type command struct {
 	fs *flag.FlagSet
 	fn func(args []string) error
 }
+Y
