@@ -1,5 +1,5 @@
 package main
-
+connectToFlag
 import (
 	"bytes"
 	"fmt"
