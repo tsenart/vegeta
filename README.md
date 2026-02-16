@@ -3,7 +3,7 @@
 Vegeta is a versatile HTTP load testing tool built out of a need to drill
 HTTP services with a constant request rate. [It's over 9000!](https://en.wikipedia.org/wiki/It's_Over_9000)
 
-![Vegeta](http://fc09.deviantart.net/fs49/i/2009/198/c/c/ssj2_vegeta_by_trunks24.jpg)
+![Vegeta](assets/hero.png)
 
 ## Features
 
