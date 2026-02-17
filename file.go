@@ -60,3 +60,4 @@ func (mc multiCloser) Close() error {
 
 	return nil
 }
+TestMetrics_NonNilErrorsOnClose
