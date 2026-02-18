@@ -171,7 +171,7 @@ func (l LatencyMetrics) Quantile(nth float64) time.Duration {
 func (l *LatencyMetrics) init() {
 	if l.estimator == nil {
 		// This compression parameter value is the recommended value
-		// for normal uses as per http://javadox.com/com.tdunning/t-digest/3.0/com/tdunning/math/stats/TDigest.html
+		// for normal uses as per https://github.com/tdunning/t-digest/blob/main/docs/t-digest-paper/histo.pdf
 		l.estimator = newTdigestEstimator(100)
 	}
 }
