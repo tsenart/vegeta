@@ -42,11 +42,14 @@ func TestHistogram_Add(t *testing.T) {
 func TestBuckets_UnmarshalText(t *testing.T) {
 	t.Parallel()
 	for value, want := range map[string]string{
-		"":       "bad buckets: ",
-		" ":      "bad buckets:  ",
-		"{0, 2}": "bad buckets: {0, 2}",
-		"[]":     `time: invalid duration ""`,
-		"[0, 2]": `time: missing unit in duration "2"`,
+		"":              "bad buckets: ",
+		" ":             "bad buckets:  ",
+		"{0, 2}":        "bad buckets: {0, 2}",
+		"[]":            `time: invalid duration ""`,
+		"[0,20ms,10ms]": "bad buckets, must be growing: 10ms",
+		"[0,2ms,2ms]":   "bad buckets, must be growing: 2ms",
+		"[0,0,2ms]":     "bad buckets, must be growing: 0s",
+		"[0, 2]":        `time: missing unit in duration "2"`,
 	} {
 		if got := (&Buckets{}).UnmarshalText([]byte(value)).Error(); got != want {
 			t.Errorf("got: %v, want: %v", got, want)
