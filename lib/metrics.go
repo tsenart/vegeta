@@ -94,7 +94,8 @@ func (m *Metrics) Close() {
 		return
 	}
 
-	m.Rate = float64(m.Requests)
+	floatReq := float64(m.Requests)
+	m.Rate = floatReq
 	m.Throughput = float64(m.success)
 	m.Duration = m.Latest.Sub(m.Earliest)
 	m.Wait = m.End.Sub(m.Latest)
@@ -104,10 +105,10 @@ func (m *Metrics) Close() {
 		m.Throughput /= (m.Duration + m.Wait).Seconds()
 	}
 
-	m.BytesIn.Mean = float64(m.BytesIn.Total) / float64(m.Requests)
-	m.BytesOut.Mean = float64(m.BytesOut.Total) / float64(m.Requests)
-	m.Success = float64(m.success) / float64(m.Requests)
-	m.Latencies.Mean = time.Duration(float64(m.Latencies.Total) / float64(m.Requests))
+	m.BytesIn.Mean = float64(m.BytesIn.Total) / floatReq
+	m.BytesOut.Mean = float64(m.BytesOut.Total) / floatReq
+	m.Success = float64(m.success) / floatReq
+	m.Latencies.Mean = time.Duration(float64(m.Latencies.Total) / floatReq)
 	m.Latencies.P50 = m.Latencies.Quantile(0.50)
 	m.Latencies.P90 = m.Latencies.Quantile(0.90)
 	m.Latencies.P95 = m.Latencies.Quantile(0.95)
