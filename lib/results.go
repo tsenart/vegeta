@@ -112,7 +112,7 @@ func DecoderFor(r io.Reader) Decoder {
 		NewCSVDecoder,
 	} {
 		rd := io.MultiReader(bytes.NewReader(buf.Bytes()), io.TeeReader(r, &buf))
-		if err := dec(rd).Decode(&Result{}); err == nil {
+		if err := dec(rd).Decode(&Result{}); err == nil { // decode and drop result
 			return dec(io.MultiReader(&buf, r))
 		}
 	}
@@ -167,7 +167,8 @@ func (enc Encoder) Encode(r *Result) error { return enc(r) }
 // NewCSVEncoder returns an Encoder that dumps the given *Result as a CSV
 // record. The columns are: UNIX timestamp in ns since epoch,
 // HTTP status code, request latency in ns, bytes out, bytes in,
-// response body, and lastly the error.
+// the error, response body, attack, seq number of the request,
+// method name, URL, and response headers.
 func NewCSVEncoder(w io.Writer) Encoder {
 	enc := csv.NewWriter(w)
 	return func(r *Result) error {
