@@ -291,7 +291,7 @@
           "expr": "rate(request_seconds_count[1m])",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "throughtput {{url}} {{status}}",
+          "legendFormat": "throughput {{url}} {{status}}",
           "refId": "A"
         }
       ],
