@@ -69,7 +69,7 @@ func (m *Metrics) Add(r *Result) {
 		m.End = end
 	}
 
-	if r.Code >= 200 && r.Code < 400 {
+	if r.Code >= 200 && r.Code < 400 && (r.Error == "") {
 		m.success++
 	}
 
