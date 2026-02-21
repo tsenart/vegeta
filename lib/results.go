@@ -164,6 +164,32 @@ func NewEncoder(r io.Writer) Encoder {
 // given parameters.
 func (enc Encoder) Encode(r *Result) error { return enc(r) }
 
+// CSVHeader is the header line for CSV encoded Results.
+var CSVHeader = []string{
+	"timestamp",
+	"code",
+	"latency",
+	"bytes_out",
+	"bytes_in",
+	"error",
+	"body",
+	"attack",
+	"seq",
+	"method",
+	"url",
+	"headers",
+}
+
+// WriteCSVHeader writes the CSV header to the given io.Writer.
+func WriteCSVHeader(w io.Writer) error {
+	wWrapper := csv.NewWriter(w)
+	if err := wWrapper.Write(CSVHeader); err != nil {
+		return err
+	}
+	wWrapper.Flush()
+	return wWrapper.Error()
+}
+
 // NewCSVEncoder returns an Encoder that dumps the given *Result as a CSV
 // record. The columns are: UNIX timestamp in ns since epoch,
 // HTTP status code, request latency in ns, bytes out, bytes in,
