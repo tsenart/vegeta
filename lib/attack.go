@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/dnscache"
 	"golang.org/x/net/http2"
 )
@@ -226,6 +227,19 @@ func H2C(enabled bool) func(*Attacker) {
 				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 					return tr.DialContext(ctx, network, addr)
 				},
+			}
+		}
+	}
+}
+
+// HTTP3 returns a functional option which enables or disables HTTP/3 support
+// on requests performed by an Attacker. When enabled, requests are sent over
+// QUIC. This option must be used after TLSConfig.
+func HTTP3(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if tr, ok := a.client.Transport.(*http.Transport); enabled && ok {
+			a.client.Transport = &http3.Transport{
+				TLSClientConfig: tr.TLSClientConfig,
 			}
 		}
 	}
