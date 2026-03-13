@@ -43,6 +43,7 @@ func attackCmd() command {
 	fs.Var(&opts.rootCerts, "root-certs", "TLS root certificate files (comma separated list)")
 	fs.BoolVar(&opts.http2, "http2", true, "Send HTTP/2 requests when supported by the server")
 	fs.BoolVar(&opts.h2c, "h2c", false, "Send HTTP/2 requests without TLS encryption")
+	fs.BoolVar(&opts.http3, "http3", false, "Send HTTP/3 requests over QUIC")
 	fs.BoolVar(&opts.insecure, "insecure", false, "Ignore invalid server TLS certificates")
 	fs.BoolVar(&opts.lazy, "lazy", false, "Read targets lazily")
 	fs.DurationVar(&opts.duration, "duration", 0, "Duration of the test [0 = forever]")
@@ -88,6 +89,7 @@ type attackOpts struct {
 	rootCerts      csl
 	http2          bool
 	h2c            bool
+	http3          bool
 	insecure       bool
 	lazy           bool
 	chunked        bool
@@ -215,6 +217,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.MaxConnections(opts.maxConnections),
 		vegeta.HTTP2(opts.http2),
 		vegeta.H2C(opts.h2c),
+		vegeta.HTTP3(opts.http3),
 		vegeta.MaxBody(opts.maxBody),
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
