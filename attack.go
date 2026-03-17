@@ -63,6 +63,13 @@ func attackCmd() command {
 	fs.Var(&dnsTTLFlag{&opts.dnsTTL}, "dns-ttl", "Cache DNS lookups for the given duration [-1 = disabled, 0 = forever]")
 	fs.BoolVar(&opts.sessionTickets, "session-tickets", false, "Enable TLS session resumption using session tickets")
 	fs.Var(&connectToFlag{&opts.connectTo}, "connect-to", "A mapping of (ip|host):port to use instead of a target URL's (ip|host):port. Can be repeated multiple times.\nIdentical src:port with different dst:port will round-robin over the different dst:port pairs.\nExample: google.com:80:localhost:6060")
+	fs.BoolVar(&opts.awsSign, "aws-sign", false, "Sign requests with AWS Signature Version 4")
+	fs.StringVar(&opts.awsRegion, "aws-region", "", "AWS region for signing (required with -aws-sign)")
+	fs.StringVar(&opts.awsService, "aws-service", "", "AWS service name for signing, e.g., execute-api, s3, lambda (required with -aws-sign)")
+	fs.StringVar(&opts.awsAccessKey, "aws-access-key", "", "AWS Access Key ID (overrides environment)")
+	fs.StringVar(&opts.awsSecretKey, "aws-secret-key", "", "AWS Secret Access Key (overrides environment)")
+	fs.StringVar(&opts.awsSessionToken, "aws-session-token", "", "AWS Session Token (overrides environment)")
+	fs.StringVar(&opts.awsProfile, "aws-profile", "", "AWS profile name from ~/.aws/credentials")
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
@@ -106,10 +113,17 @@ type attackOpts struct {
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
-	promAddr       string
-	dnsTTL         time.Duration
-	sessionTickets bool
-	connectTo      map[string][]string
+	promAddr        string
+	dnsTTL          time.Duration
+	sessionTickets  bool
+	connectTo       map[string][]string
+	awsSign         bool
+	awsAccessKey    string
+	awsSecretKey    string
+	awsSessionToken string
+	awsRegion       string
+	awsService      string
+	awsProfile      string
 }
 
 // attack validates the attack arguments, sets up the
@@ -223,6 +237,31 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.ConnectTo(opts.connectTo),
 		vegeta.SessionTickets(opts.sessionTickets),
 	)
+
+	// Setup AWS signing if requested
+	if opts.awsSign {
+		if opts.awsRegion == "" || opts.awsService == "" {
+			return fmt.Errorf("--aws-region and --aws-service are required when --aws-sign is enabled")
+		}
+
+		creds, err := vegeta.LoadCredentials(
+			opts.awsAccessKey,
+			opts.awsSecretKey,
+			opts.awsSessionToken,
+			opts.awsProfile,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to load AWS credentials: %w", err)
+		}
+
+		awsSigner, err := vegeta.NewAWSSigner(opts.awsRegion, opts.awsService, creds)
+		if err != nil {
+			return fmt.Errorf("failed to create AWS signer: %w", err)
+		}
+
+		// Apply AWS signing to the attacker
+		vegeta.WithAWSSigner(awsSigner)(atk)
+	}
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)

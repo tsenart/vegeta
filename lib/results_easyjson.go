@@ -4,12 +4,11 @@ package vegeta
 
 import (
 	json "encoding/json"
-	http "net/http"
-	time "time"
-
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
+	http "net/http"
+	time "time"
 )
 
 // suppress unused package warning

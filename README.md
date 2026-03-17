@@ -86,6 +86,20 @@ global flags:
     	Print version and exit
 
 attack command:
+  -aws-access-key string
+    	AWS Access Key ID (overrides environment)
+  -aws-profile string
+    	AWS profile name from ~/.aws/credentials
+  -aws-region string
+    	AWS region for signing (required with -aws-sign)
+  -aws-secret-key string
+    	AWS Secret Access Key (overrides environment)
+  -aws-service string
+    	AWS service name for signing, e.g., execute-api, s3, lambda (required with -aws-sign)
+  -aws-session-token string
+    	AWS Session Token (overrides environment)
+  -aws-sign
+    	Sign requests with AWS Signature Version 4
   -body string
     	Requests body file
   -cert string

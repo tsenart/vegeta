@@ -265,6 +265,26 @@ func Client(c *http.Client) func(*Attacker) {
 	return func(a *Attacker) { a.client = *c }
 }
 
+// WithAWSSigner returns a functional option that wraps the HTTP transport with
+// AWS Signature Version 4 signing. All requests will be signed with the
+// provided AWS credentials, region, and service.
+func WithAWSSigner(signer *AWSSigner) func(*Attacker) {
+	return func(a *Attacker) {
+		if signer == nil {
+			return
+		}
+		tr, ok := a.client.Transport.(*http.Transport)
+		if !ok {
+			return
+		}
+		// Wrap the transport with AWS signing
+		a.client.Transport = &awsSigningTransport{
+			wrapped: tr,
+			signer:  signer,
+		}
+	}
+}
+
 // ProxyHeader returns a functional option that allows you to add your own
 // Proxy CONNECT headers
 func ProxyHeader(h http.Header) func(*Attacker) {
