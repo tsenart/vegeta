@@ -424,6 +424,38 @@ func TestDNSCaching_Issue649(t *testing.T) {
 	_ = atk.hit(tr, &attack{name: "TEST", began: time.Now()})
 }
 
+func TestConnectTo_ConcurrentDialRace(t *testing.T) {
+	t.Parallel()
+
+	addrs := make([]string, 3)
+	for i := range addrs {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		t.Cleanup(srv.Close)
+		u, _ := url.Parse(srv.URL)
+		addrs[i] = u.Host
+	}
+
+	atk := NewAttacker(
+		KeepAlive(false),
+		ConnectTo(map[string][]string{"target.example.com:80": addrs}),
+	)
+
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://target.example.com:80"})
+	a := &attack{name: "race-test", began: time.Now()}
+
+	// Run concurrent hits to trigger the race on the round-robin counter.
+	// With -race enabled, this will detect the unsynchronized access to cm.n.
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			atk.hit(tr, a)
+		}()
+	}
+	wg.Wait()
+}
+
 func TestFirstOfEachIPFamily(t *testing.T) {
 	tests := []struct {
 		name  string
