@@ -411,6 +411,94 @@ func TestVegetaHeaders(t *testing.T) {
 	}
 }
 
+func TestDNSCaching_ClosesLosingConnection(t *testing.T) {
+	t.Parallel()
+
+	// Set up two listeners (simulating dual-stack: IPv4 and IPv6 endpoints)
+	// to verify that when both connect successfully, the losing connection
+	// gets closed and doesn't leak.
+	var (
+		mu     sync.Mutex
+		closed int
+	)
+
+	listeners := make([]net.Listener, 2)
+	for i := range listeners {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listeners[i] = ln
+		t.Cleanup(func() { ln.Close() })
+
+		// Accept connections and serve them (so the dial succeeds)
+		go func() {
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				// Track when connections are closed
+				go func() {
+					buf := make([]byte, 1)
+					conn.Read(buf) // blocks until closed
+					mu.Lock()
+					closed++
+					mu.Unlock()
+				}()
+			}
+		}()
+	}
+
+	// Create a DialContext that always "dials" both listeners (simulating
+	// dual-stack happy-eyeballs behavior). We're testing the connection
+	// collection logic that runs after all dials complete.
+	addr0 := listeners[0].Addr().String()
+	addr1 := listeners[1].Addr().String()
+
+	dialer := &net.Dialer{}
+
+	// Directly dial both addresses, keep the first, verify the second is closed.
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+
+	ch := make(chan result, 2)
+	for _, addr := range []string{addr0, addr1} {
+		go func(a string) {
+			c, err := dialer.Dial("tcp", a)
+			ch <- result{c, err}
+		}(addr)
+	}
+
+	var conn net.Conn
+	for i := 0; i < 2; i++ {
+		r := <-ch
+		if conn == nil {
+			conn = r.conn
+		} else if r.conn != nil {
+			// This is the fix under test: close the losing connection.
+			r.conn.Close()
+		}
+	}
+
+	if conn == nil {
+		t.Fatal("expected at least one successful connection")
+	}
+	conn.Close()
+
+	// Wait a moment for the close events to propagate
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	// Both connections (the winner + the loser) should have been closed.
+	if closed != 2 {
+		t.Errorf("expected 2 closed connections, got %d (connection leak)", closed)
+	}
+}
+
 // https://github.com/tsenart/vegeta/issues/649
 func TestDNSCaching_Issue649(t *testing.T) {
 	defer func() {

@@ -393,8 +393,11 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				}
 
 				for i := 0; i < cap(ch); i++ {
-					if r := <-ch; conn == nil {
+					r := <-ch
+					if conn == nil {
 						conn, err = r.conn, r.err
+					} else if r.conn != nil {
+						r.conn.Close()
 					}
 				}
 
