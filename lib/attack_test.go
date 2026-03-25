@@ -424,6 +424,32 @@ func TestDNSCaching_Issue649(t *testing.T) {
 	_ = atk.hit(tr, &attack{name: "TEST", began: time.Now()})
 }
 
+func TestDNSCaching_ConcurrentDialRace(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(srv.Close)
+
+	// Use "localhost" which resolves via DNS and exercises the rng.Shuffle path.
+	u, _ := url.Parse(srv.URL)
+	target := "http://localhost:" + u.Port()
+
+	atk := NewAttacker(DNSCaching(0))
+	tr := NewStaticTargeter(Target{Method: "GET", URL: target})
+	a := &attack{name: "dns-race-test", began: time.Now()}
+
+	// Fire concurrent hits to trigger the race on the shared rand.Rand.
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			atk.hit(tr, a)
+		}()
+	}
+	wg.Wait()
+}
+
 func TestFirstOfEachIPFamily(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -349,27 +349,29 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				}()
 			}
 
-			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 			tr.DialContext = func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 				host, port, err := net.SplitHostPort(addr)
 				if err != nil {
 					return nil, err
 				}
 
-				ips, err := resolver.LookupHost(ctx, host)
+				cached, err := resolver.LookupHost(ctx, host)
 				if err != nil {
 					return nil, err
 				}
 
-				if len(ips) == 0 {
+				if len(cached) == 0 {
 					return nil, &net.DNSError{Err: "no such host", Name: addr}
 				}
+
+				// Copy the slice to avoid mutating the shared DNS cache entry.
+				ips := make([]string, len(cached))
+				copy(ips, cached)
 
 				// Pick a random IP from each IP family and dial each concurrently.
 				// The first that succeeds wins, the other gets canceled.
 
-				rng.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
+				rand.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
 
 				ips = firstOfEachIPFamily(ips)
 
