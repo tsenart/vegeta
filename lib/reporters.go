@@ -44,7 +44,7 @@ func NewHistogramReporter(h *Histogram) Reporter {
 			pad := strings.Repeat("#", int(ratio*75))
 			_, err = fmt.Fprintf(tw, "[%s,\t%s]\t%d\t%.2f%%\t%s\n", lo, hi, count, ratio*100, pad)
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 
