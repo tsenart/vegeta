@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/rs/dnscache"
 	"golang.org/x/net/http2"
 )
@@ -244,6 +245,45 @@ func UnixSocket(socket string) func(*Attacker) {
 			tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", socket)
 			}
+		}
+	}
+}
+
+// ProxyProtocol returns a functional option which enables HAProxy PROXY
+// protocol support on every new connection with the given version (1 or 2).
+// The PROXY protocol header is written to the connection immediately after
+// dialing, before any TLS handshake or HTTP traffic.
+// When used with options that also wrap DialContext (e.g. DNSCaching,
+// ConnectTo), ProxyProtocol should be applied last.
+func ProxyProtocol(version uint8) func(*Attacker) {
+	return func(a *Attacker) {
+		if version != 1 && version != 2 {
+			return
+		}
+
+		tr, ok := a.client.Transport.(*http.Transport)
+		if !ok {
+			return
+		}
+
+		dial := tr.DialContext
+		if dial == nil {
+			dial = a.dialer.DialContext
+		}
+
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := dial(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			header := proxyproto.HeaderProxyFromAddrs(byte(version), conn.LocalAddr(), conn.RemoteAddr())
+			if _, err := header.WriteTo(conn); err != nil {
+				conn.Close()
+				return nil, fmt.Errorf("proxy protocol: %w", err)
+			}
+
+			return conn, nil
 		}
 	}
 }

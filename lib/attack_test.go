@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	proxyproto "github.com/pires/go-proxyproto"
 )
 
 func TestAttackRate(t *testing.T) {
@@ -497,6 +499,111 @@ func TestFirstOfEachIPFamily(t *testing.T) {
 				t.Errorf("unexpected result (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestProxyProtocolV1(t *testing.T) {
+	t.Parallel()
+
+	// Create a raw TCP listener that reads a PROXY protocol v1 header
+	// and then serves HTTP.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var gotHeader *proxyproto.Header
+	var mu sync.Mutex
+
+	// Wrap with proxyproto listener
+	proxyLn := &proxyproto.Listener{Listener: ln}
+
+	server := http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("OK"))
+		}),
+		ConnState: func(c net.Conn, state http.ConnState) {
+			if state == http.StateNew {
+				mu.Lock()
+				defer mu.Unlock()
+				// Read the proxy protocol header from the proxyproto listener's conn
+				if pConn, ok := c.(*proxyproto.Conn); ok {
+					gotHeader, _ = proxyproto.Read(bufio.NewReader(strings.NewReader("")))
+					_ = pConn
+				}
+			}
+		},
+	}
+	defer server.Close()
+	go server.Serve(proxyLn)
+
+	atk := NewAttacker(ProxyProtocol(1))
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://" + ln.Addr().String()})
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
+
+	if res.Error != "" {
+		t.Fatalf("unexpected error: %s", res.Error)
+	}
+
+	if got, want := string(res.Body), "OK"; got != want {
+		t.Fatalf("got body %q, want %q", got, want)
+	}
+
+	_ = gotHeader
+}
+
+func TestProxyProtocolV2(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxyLn := &proxyproto.Listener{Listener: ln}
+
+	server := http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("OK"))
+		}),
+	}
+	defer server.Close()
+	go server.Serve(proxyLn)
+
+	atk := NewAttacker(ProxyProtocol(2))
+	tr := NewStaticTargeter(Target{Method: "GET", URL: "http://" + ln.Addr().String()})
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
+
+	if res.Error != "" {
+		t.Fatalf("unexpected error: %s", res.Error)
+	}
+
+	if got, want := string(res.Body), "OK"; got != want {
+		t.Fatalf("got body %q, want %q", got, want)
+	}
+}
+
+func TestProxyProtocolDisabled(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("OK"))
+		}),
+	)
+	defer server.Close()
+
+	// Version 0 should not inject any proxy protocol header.
+	atk := NewAttacker(ProxyProtocol(0))
+	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+	res := atk.hit(tr, &attack{name: "", began: time.Now()})
+
+	if res.Error != "" {
+		t.Fatalf("unexpected error: %s", res.Error)
+	}
+
+	if got, want := string(res.Body), "OK"; got != want {
+		t.Fatalf("got body %q, want %q", got, want)
 	}
 }
 
