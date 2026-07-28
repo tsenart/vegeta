@@ -47,7 +47,7 @@ func main() {
 		fmt.Fprintf(fs.Output(), "%s\n", examples)
 	}
 
-	fs.Parse(os.Args[1:])
+	fs.Parse(normalizeBooleanFlagArgs(fs, os.Args[1:]))
 
 	if *version {
 		fmt.Printf("Version: %s\nCommit: %s\nRuntime: %s %s/%s\nDate: %s\n",

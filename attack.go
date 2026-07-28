@@ -66,7 +66,7 @@ func attackCmd() command {
 	systemSpecificFlags(fs, opts)
 
 	return command{fs, func(args []string) error {
-		fs.Parse(args)
+		fs.Parse(normalizeBooleanFlagArgs(fs, args))
 		return attack(opts)
 	}}
 }
