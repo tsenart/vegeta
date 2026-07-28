@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"math"
 	"net"
@@ -14,6 +15,52 @@ import (
 	"github.com/c2h5oh/datasize"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+type boolFlag interface {
+	IsBoolFlag() bool
+}
+
+func normalizeBooleanFlagArgs(fs *flag.FlagSet, args []string) []string {
+	boolFlags := make(map[string]struct{}, fs.NFlag())
+	fs.VisitAll(func(f *flag.Flag) {
+		if _, ok := f.Value.(boolFlag); ok {
+			boolFlags[f.Name] = struct{}{}
+		}
+	})
+
+	normalized := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		if arg == "--" {
+			normalized = append(normalized, args[i:]...)
+			break
+		}
+
+		if !strings.HasPrefix(arg, "-") || arg == "-" {
+			normalized = append(normalized, arg)
+			continue
+		}
+
+		name := strings.TrimLeft(arg, "-")
+		if _, isBool := boolFlags[name]; isBool {
+			if i+1 < len(args) && isBooleanValue(args[i+1]) {
+				normalized = append(normalized, arg+"="+args[i+1])
+				i++
+				continue
+			}
+		}
+
+		normalized = append(normalized, arg)
+	}
+
+	return normalized
+}
+
+func isBooleanValue(value string) bool {
+	_, err := strconv.ParseBool(value)
+	return err == nil
+}
 
 // headers is the http.Header used in each target request
 // it is defined here to implement the flag.Value interface
