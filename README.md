@@ -48,6 +48,14 @@ On FreeBSD you can install Vegeta with the built in package manager because ther
 $ pkg install vegeta
 ```
 
+### Debian
+
+Vegeta is available from the [pkg.haus](https://pkg.haus) APT archive for Debian stable, testing and unstable (amd64 and arm64), built from source at release tags. Set up the archive per the instructions on [pkg.haus](https://pkg.haus), then run:
+
+```shell
+$ sudo apt install vegeta
+```
+
 ### Source
 
 ```shell
