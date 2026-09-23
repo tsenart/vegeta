@@ -12,7 +12,8 @@
 # property that characterizes the code without re-implementing it.
 #
 # A law is never weakened to make a proof go through. A hypothesis says
-# in a comment why the claim is false without it.
+# in a comment why the claim is false without it. Hypotheses are relevant
+# (`for h:`), not erased: a proof can only rewrite with a relevant one.
 
 import Base
 import ./lib/dec.bend as Dec
@@ -164,13 +165,13 @@ law dec_show_value:
 # its value...
 law dec_read_accepts:
   for +s: String
-  for -h: {all_digits(s) == True{} : Bool}
+  for h: {all_digits(s) == True{} : Bool}
   {Dec.read(s) == Some{digits_value(s)} : Maybe<&2, Nat>}
 
 # LAW: ...and rejects everything else.
 law dec_read_rejects:
   for +s: String
-  for -h: {all_digits(s) == False{} : Bool}
+  for h: {all_digits(s) == False{} : Bool}
   {Dec.read(s) == None{} : Maybe<&2, Nat>}
 
 # LAW: pad left-fills with zeros up to width w, never truncating.
@@ -226,15 +227,15 @@ law big_of:
 law big_add:
   for +a: Big.Big
   for +b: Big.Big
-  for -ha: {big_ok(a) == True{} : Bool}
-  for -hb: {big_ok(b) == True{} : Bool}
+  for ha: {big_ok(a) == True{} : Bool}
+  for hb: {big_ok(b) == True{} : Bool}
   {big_val(Big.add(a, b)) == Nat.add(big_val(a), big_val(b)) : Nat} & {big_ok(Big.add(a, b)) == True{} : Bool}
 
 law big_mul:
   for +a: Big.Big
   for +b: Big.Big
-  for -ha: {big_ok(a) == True{} : Bool}
-  for -hb: {big_ok(b) == True{} : Bool}
+  for ha: {big_ok(a) == True{} : Bool}
+  for hb: {big_ok(b) == True{} : Bool}
   {big_val(Big.mul(a, b)) == Nat.mul(big_val(a), big_val(b)) : Nat} & {big_ok(Big.mul(a, b)) == True{} : Bool}
 
 # LAW: division is Euclid's, for a divisor above zero (there is no
@@ -242,9 +243,9 @@ law big_mul:
 law big_divmod:
   for +a: Big.Big
   for +b: Big.Big
-  for -ha: {big_ok(a) == True{} : Bool}
-  for -hb: {big_ok(b) == True{} : Bool}
-  for -hz: {Nat.is_gt(big_val(b), 0n) == True{} : Bool}
+  for ha: {big_ok(a) == True{} : Bool}
+  for hb: {big_ok(b) == True{} : Bool}
+  for hz: {Nat.is_gt(big_val(b), 0n) == True{} : Bool}
   {Nat.add(Nat.mul(big_val(Big.div(a, b)), big_val(b)), big_val(Big.mod(a, b))) == big_val(a) : Nat}
   & {Nat.is_lt(big_val(Big.mod(a, b)), big_val(b)) == True{} : Bool}
   & {big_ok(Big.div(a, b)) == True{} : Bool}
@@ -257,7 +258,7 @@ law big_cmp:
 
 law big_show:
   for +b: Big.Big
-  for -h: {big_ok(b) == True{} : Bool}
+  for h: {big_ok(b) == True{} : Bool}
   {Big.show(b) == Dec.show(big_val(b)) : String}
 
 # =====================================================================
@@ -377,8 +378,8 @@ def in_range(+p: Big.Big, +q: Big.Big) -> Bool:
 # LAW: a Big becomes the double it rounds to
 law f64_of_big:
   for +b: Big.Big
-  for -h0: {big_ok(b) == True{} : Bool}
-  for -h1: {in_range(b, B(1n)) == True{} : Bool}
+  for h0: {big_ok(b) == True{} : Bool}
+  for h1: {in_range(b, B(1n)) == True{} : Bool}
   {is_double(F64.of_big(b)) == True{} : Bool} & {rounds_to(b, B(1n), F64.of_big(b)) == True{} : Bool}
 
 # LAW: of_nat is of_big
@@ -390,18 +391,18 @@ law f64_of_nat:
 law f64_add:
   for +a: F64.F64
   for +b: F64.F64
-  for -ha: {is_double(a) == True{} : Bool}
-  for -hb: {is_double(b) == True{} : Bool}
-  for -hr: {in_range(Big.add(Big.mul(f_num(a), f_den(b)), Big.mul(f_num(b), f_den(a))), Big.mul(f_den(a), f_den(b))) == True{} : Bool}
+  for ha: {is_double(a) == True{} : Bool}
+  for hb: {is_double(b) == True{} : Bool}
+  for hr: {in_range(Big.add(Big.mul(f_num(a), f_den(b)), Big.mul(f_num(b), f_den(a))), Big.mul(f_den(a), f_den(b))) == True{} : Bool}
   {is_double(F64.add(a, b)) == True{} : Bool}
   & {rounds_to(Big.add(Big.mul(f_num(a), f_den(b)), Big.mul(f_num(b), f_den(a))), Big.mul(f_den(a), f_den(b)), F64.add(a, b)) == True{} : Bool}
 
 law f64_mul:
   for +a: F64.F64
   for +b: F64.F64
-  for -ha: {is_double(a) == True{} : Bool}
-  for -hb: {is_double(b) == True{} : Bool}
-  for -hr: {in_range(Big.mul(f_num(a), f_num(b)), Big.mul(f_den(a), f_den(b))) == True{} : Bool}
+  for ha: {is_double(a) == True{} : Bool}
+  for hb: {is_double(b) == True{} : Bool}
+  for hr: {in_range(Big.mul(f_num(a), f_num(b)), Big.mul(f_den(a), f_den(b))) == True{} : Bool}
   {is_double(F64.mul(a, b)) == True{} : Bool}
   & {rounds_to(Big.mul(f_num(a), f_num(b)), Big.mul(f_den(a), f_den(b)), F64.mul(a, b)) == True{} : Bool}
 
@@ -409,9 +410,9 @@ law f64_mul:
 law f64_div:
   for +a: F64.F64
   for +b: F64.F64
-  for -ha: {is_double(a) == True{} : Bool}
-  for -hb: {is_double(b) == True{} : Bool}
-  for -hr: {in_range(Big.mul(f_num(a), f_den(b)), Big.mul(f_den(a), f_num(b))) == True{} : Bool}
+  for ha: {is_double(a) == True{} : Bool}
+  for hb: {is_double(b) == True{} : Bool}
+  for hr: {in_range(Big.mul(f_num(a), f_den(b)), Big.mul(f_den(a), f_num(b))) == True{} : Bool}
   {is_double(F64.div(a, b)) == True{} : Bool}
   & {rounds_to(Big.mul(f_num(a), f_den(b)), Big.mul(f_den(a), f_num(b)), F64.div(a, b)) == True{} : Bool}
 
@@ -419,8 +420,8 @@ law f64_div:
 # values that fit a duration)
 law f64_trunc:
   for +x: F64.F64
-  for -h0: {is_double(x) == True{} : Bool}
-  for -h1: {b_lt(Big.div(f_num(x), f_den(x)), bshl(48n, B(1n))) == True{} : Bool}
+  for h0: {is_double(x) == True{} : Bool}
+  for h1: {b_lt(Big.div(f_num(x), f_den(x)), bshl(48n, B(1n))) == True{} : Bool}
   {F64.trunc(x) == big_val(Big.div(f_num(x), f_den(x))) : Nat}
 
 # ---------------------------------------------------------------------
@@ -481,7 +482,7 @@ def fixed_k(+s: String) -> Big.Big:
 law f64_fixed_text:
   for +d: Nat
   for +x: F64.F64
-  for -h: {is_double(x) == True{} : Bool}
+  for h: {is_double(x) == True{} : Bool}
   {F64.fixed(d, x) == fixed_text(d, fixed_k(F64.fixed(d, x))) : String}
 
 # no d-decimal is closer to x than kk/10^d; on a tie, kk is even (the
@@ -496,8 +497,8 @@ law f64_fixed_nearest:
   for +d: Nat
   for +x: F64.F64
   for +k: Big.Big
-  for -h0: {is_double(x) == True{} : Bool}
-  for -h1: {big_ok(k) == True{} : Bool}
+  for h0: {is_double(x) == True{} : Bool}
+  for h1: {big_ok(k) == True{} : Bool}
   {fixed_nearest(d, x, fixed_k(F64.fixed(d, x)), k) == True{} : Bool}
 
 # ---------------------------------------------------------------------
@@ -622,32 +623,32 @@ def json_layout(+x: F64.F64, +s: String) -> Bool:
 # LAW: the JSON text of x is a literal in Go's layout...
 law f64_json_layout:
   for +x: F64.F64
-  for -h: {is_double(x) == True{} : Bool}
+  for h: {is_double(x) == True{} : Bool}
   {json_layout(x, F64.json(x)) == True{} : Bool}
 
 # LAW: ...that reads back as x...
 law f64_json_rounds:
   for +x: F64.F64
-  for -h: {is_double(x) == True{} : Bool}
+  for h: {is_double(x) == True{} : Bool}
   {rounds_to(lit_num(F64.json(x)), lit_den(F64.json(x)), x) == True{} : Bool}
 
 # LAW: ...with the fewest significant digits of any literal that does...
 law f64_json_shortest:
   for +x: F64.F64
   for +t: String
-  for -h0: {is_double(x) == True{} : Bool}
-  for -h1: {Lit.ok(lit(t)) == True{} : Bool}
-  for -h2: {rounds_to(lit_num(t), lit_den(t), x) == True{} : Bool}
+  for h0: {is_double(x) == True{} : Bool}
+  for h1: {Lit.ok(lit(t)) == True{} : Bool}
+  for h2: {rounds_to(lit_num(t), lit_den(t), x) == True{} : Bool}
   {Nat.is_le(sig(F64.json(x)), sig(t)) == True{} : Bool}
 
 # LAW: ...and, among those, the closest to x.
 law f64_json_closest:
   for +x: F64.F64
   for +t: String
-  for -h0: {is_double(x) == True{} : Bool}
-  for -h1: {Lit.ok(lit(t)) == True{} : Bool}
-  for -h2: {rounds_to(lit_num(t), lit_den(t), x) == True{} : Bool}
-  for -h3: {sig(t) == sig(F64.json(x)) : Nat}
+  for h0: {is_double(x) == True{} : Bool}
+  for h1: {Lit.ok(lit(t)) == True{} : Bool}
+  for h2: {rounds_to(lit_num(t), lit_den(t), x) == True{} : Bool}
+  for h3: {sig(t) == sig(F64.json(x)) : Nat}
   {Cmp.is_gt(dist_cmp(Big.mul(lit_num(F64.json(x)), Big.mul(lit_den(t), f_den(x))),
                       Big.mul(lit_num(t), Big.mul(lit_den(F64.json(x)), f_den(x))),
                       Big.mul(f_num(x), Big.mul(lit_den(F64.json(x)), lit_den(t))))) == False{} : Bool}
@@ -863,15 +864,15 @@ law dur_parse_sign:
 # LAW: parse reads back what show writes.
 law dur_parse_show:
   for +n: Nat
-  for -h: {dur_ok(go_dur(n)) == True{} : Bool}
+  for h: {dur_ok(go_dur(n)) == True{} : Bool}
   {Dur.parse(Dur.show(n)) == Some{n} : Maybe<&2, Nat>}
 
 # LAW: a whole number of a unit parses to its size in ns.
 law dur_parse_term:
   for +k: Nat
   for +i: Nat
-  for -h: {Nat.is_lt(i, 8n) == True{} : Bool}
-  for -hd: {dur_ok(Dec.show(k) ++ unit_name(i)) == True{} : Bool}
+  for h: {Nat.is_lt(i, 8n) == True{} : Bool}
+  for hd: {dur_ok(Dec.show(k) ++ unit_name(i)) == True{} : Bool}
   {Dur.parse(Dec.show(k) ++ unit_name(i)) == Some{of_unit(k, i)} : Maybe<&2, Nat>}
 
 # LAW: a fraction of a unit parses as Go computes it, in float64:
@@ -880,10 +881,10 @@ law dur_parse_frac:
   for +k: Nat
   for +f: String
   for +i: Nat
-  for -h0: {Nat.is_lt(i, 8n) == True{} : Bool}
-  for -h1: {all_digits(f) == True{} : Bool}
-  for -h2: {Nat.is_le(String.length(f), 15n) == True{} : Bool}
-  for -hd: {dur_ok(Dec.show(k) ++ "." ++ f ++ unit_name(i)) == True{} : Bool}
+  for h0: {Nat.is_lt(i, 8n) == True{} : Bool}
+  for h1: {all_digits(f) == True{} : Bool}
+  for h2: {Nat.is_le(String.length(f), 15n) == True{} : Bool}
+  for hd: {dur_ok(Dec.show(k) ++ "." ++ f ++ unit_name(i)) == True{} : Bool}
   {Dur.parse(Dec.show(k) ++ "." ++ f ++ unit_name(i))
    == Some{Nat.add(of_unit(k, i),
        F64.trunc(F64.mul(F64.of_nat(digits_value(f)), F64.div(unit_f64(i), F64.of_nat(pow10(String.length(f)))))))} : Maybe<&2, Nat>}
@@ -895,10 +896,10 @@ law dur_parse_concat:
   for +b: String
   for +x: Nat
   for +y: Nat
-  for -ha: {Dur.parse(a) == Some{x} : Maybe<&2, Nat>}
-  for -hb: {Dur.parse(b) == Some{y} : Maybe<&2, Nat>}
-  for -h0: {Bool.or(String.eq(a, "0"), String.eq(b, "0")) == False{} : Bool}
-  for -hd: {dur_ok(a ++ b) == True{} : Bool}
+  for ha: {Dur.parse(a) == Some{x} : Maybe<&2, Nat>}
+  for hb: {Dur.parse(b) == Some{y} : Maybe<&2, Nat>}
+  for h0: {Bool.or(String.eq(a, "0"), String.eq(b, "0")) == False{} : Bool}
+  for hd: {dur_ok(a ++ b) == True{} : Bool}
   {Dur.parse(a ++ b) == Some{Nat.add(x, y)} : Maybe<&2, Nat>}
 
 # Go's Duration.Round(f * b) for n >= 0 (halves round up), without the
@@ -968,7 +969,7 @@ law civil_days:
   for +y: Nat
   for +m: Nat
   for +d: Nat
-  for -h: {valid_date(y, m, d) == True{} : Bool}
+  for h: {valid_date(y, m, d) == True{} : Bool}
   {Civil.ymd_to_days(y, m, d) == days_of(y, m, d) : Nat}
 
 # LAW: dates and day numbers convert both ways
@@ -976,7 +977,7 @@ law civil_ymd_days:
   for +y: Nat
   for +m: Nat
   for +d: Nat
-  for -h: {valid_date(y, m, d) == True{} : Bool}
+  for h: {valid_date(y, m, d) == True{} : Bool}
   {Civil.days_to_ymd(Civil.ymd_to_days(y, m, d)) == Civil.Ymd{y, m, d} : Civil.Ymd}
 
 def civil_ymd_ok(+n: Nat, +t: Civil.Ymd) -> Bool:
@@ -1035,12 +1036,12 @@ def rfc_text(+t: Civil.Time) -> String:
 
 law civil_rfc3339:
   for +t: Civil.Time
-  for -h: {valid_time(t) == True{} : Bool}
+  for h: {valid_time(t) == True{} : Bool}
   {Civil.rfc3339(t) == rfc_text(t) : String}
 
 law civil_rfc3339_parse:
   for +t: Civil.Time
-  for -h: {valid_time(t) == True{} : Bool}
+  for h: {valid_time(t) == True{} : Bool}
   {Civil.parse_rfc3339(Civil.rfc3339(t)) == Some{t} : Maybe<&2, Civil.Time>}
 
 # LAW: instants compare by their nanosecond count, whatever their zones
@@ -1052,7 +1053,7 @@ law civil_cmp:
 # LAW: the CSV timestamp column is the decimal nanosecond count
 law civil_unix_nanos:
   for +t: Civil.Time
-  for -h: {Nat.is_lt(time_nsec(t), sec()) == True{} : Bool}
+  for h: {Nat.is_lt(time_nsec(t), sec()) == True{} : Bool}
   {Civil.unix_nanos(t) == Dec.show(total_ns(t)) : String}
 
 # LAW: adding moves the instant and keeps the zone; subtracting measures
@@ -1061,7 +1062,7 @@ law civil_add_sub:
   for +t: Civil.Time
   for +u: Civil.Time
   for +n: Nat
-  for -h: {Nat.is_lt(time_nsec(t), sec()) == True{} : Bool}
+  for h: {Nat.is_lt(time_nsec(t), sec()) == True{} : Bool}
   {total_ns(Civil.add_ns(t, n)) == Nat.add(total_ns(t), n) : Nat}
   & {time_off(Civil.add_ns(t, n)) == time_off(t) : Nat}
   & {Nat.is_lt(time_nsec(Civil.add_ns(t, n)), sec()) == True{} : Bool}
@@ -1102,7 +1103,7 @@ law b64_three:
   for +a: U32
   for +b: U32
   for +c: U32
-  for -h: {Bool.and(byte_ok(a), Bool.and(byte_ok(b), byte_ok(c))) == True{} : Bool}
+  for h: {Bool.and(byte_ok(a), Bool.and(byte_ok(b), byte_ok(c))) == True{} : Bool}
   {B64.encode(str1(a) ++ str1(b) ++ str1(c))
    == b64_char((a >> 2n : U32)) ++ b64_char((((a .&. 3) << 4n) .|. (b >> 4n) : U32))
       ++ b64_char((((b .&. 15) << 2n) .|. (c >> 6n) : U32)) ++ b64_char((c .&. 63 : U32)) : String}
@@ -1111,7 +1112,7 @@ law b64_three:
 law b64_tail:
   for +a: U32
   for +b: U32
-  for -h: {Bool.and(byte_ok(a), byte_ok(b)) == True{} : Bool}
+  for h: {Bool.and(byte_ok(a), byte_ok(b)) == True{} : Bool}
   {B64.encode(str1(a) ++ str1(b))
    == b64_char((a >> 2n : U32)) ++ b64_char((((a .&. 3) << 4n) .|. (b >> 4n) : U32)) ++ b64_char(((b .&. 15) << 2n : U32)) ++ "=" : String}
   & {B64.encode(str1(a)) == b64_char((a >> 2n : U32)) ++ b64_char(((a .&. 3) << 4n : U32)) ++ "==" : String}
@@ -1121,14 +1122,14 @@ law b64_tail:
 law b64_concat:
   for +x: String
   for +y: String
-  for -h0: {Nat.mod(String.length(x), 3n) == 0n : Nat}
-  for -h1: {Bool.and(bytes(x), bytes(y)) == True{} : Bool}
+  for h0: {Nat.mod(String.length(x), 3n) == 0n : Nat}
+  for h1: {Bool.and(bytes(x), bytes(y)) == True{} : Bool}
   {B64.encode(x ++ y) == B64.encode(x) ++ B64.encode(y) : String}
 
 # LAW: decoding inverts encoding...
 law b64_decode:
   for +s: String
-  for -h: {bytes(s) == True{} : Bool}
+  for h: {bytes(s) == True{} : Bool}
   {B64.decode(B64.encode(s)) == Some{s} : Maybe<&2, String>}
 
 # =====================================================================
@@ -1214,7 +1215,7 @@ def representable(+fs: List<&2, String>) -> Bool:
 law csv_parse_row:
   for +fs: List<&2, String>
   for +rest: String
-  for -h: {representable(fs) == True{} : Bool}
+  for h: {representable(fs) == True{} : Bool}
   {Csv.parse_row(Csv.row(fs) ++ rest) == Some{(fs, rest)} : Maybe<&1, List<&2, String> & String>}
 
 # =====================================================================
@@ -1307,7 +1308,7 @@ def utf8_ok(+s: String) -> Bool:
 law json_read_str:
   for +s: String
   for +rest: String
-  for -h: {utf8_ok(s) == True{} : Bool}
+  for h: {utf8_ok(s) == True{} : Bool}
   {Json.read_str(Json.str(s) ++ rest) == Some{(s, rest)} : Maybe<&1, String & String>}
 
 # =====================================================================
@@ -1566,13 +1567,13 @@ def json_ok(+h: Hit.Hit) -> Bool:
 law hit_of_csv:
   for +h: Hit.Hit
   for +rest: String
-  for -ok: {csv_ok(h) == True{} : Bool}
+  for ok: {csv_ok(h) == True{} : Bool}
   {Hit.of_csv(Hit.to_csv(h) ++ rest) == Some{(h, rest)} : Maybe<&1, Hit.Hit & String>}
 
 law hit_of_json:
   for +h: Hit.Hit
   for +rest: String
-  for -ok: {json_ok(h) == True{} : Bool}
+  for ok: {json_ok(h) == True{} : Bool}
   {Hit.of_json(Hit.to_json(h) ++ rest) == Some{(h, rest)} : Maybe<&1, Hit.Hit & String>}
 
 # LAW: decode tells the formats apart by their first character
@@ -1613,12 +1614,12 @@ def all_json_ok(hs: List<&2, Hit.Hit>) -> Bool:
 # LAW: a whole results stream reads back, in either format
 law hit_stream_csv:
   for +hs: List<&2, Hit.Hit>
-  for -ok: {all_csv_ok(hs) == True{} : Bool}
+  for ok: {all_csv_ok(hs) == True{} : Bool}
   {Hit.decode_all(csv_stream(hs)) == Some{hs} : Maybe<&2, List<&2, Hit.Hit>>}
 
 law hit_stream_json:
   for +hs: List<&2, Hit.Hit>
-  for -ok: {all_json_ok(hs) == True{} : Bool}
+  for ok: {all_json_ok(hs) == True{} : Bool}
   {Hit.decode_all(json_stream(hs)) == Some{hs} : Maybe<&2, List<&2, Hit.Hit>>}
 
 # =====================================================================
@@ -1685,14 +1686,14 @@ def url_text(+u: Tgt.Url) -> String:
 
 law url_parse:
   for +u: Tgt.Url
-  for -h: {url_ok(u) == True{} : Bool}
+  for h: {url_ok(u) == True{} : Bool}
   {Tgt.parse_url(url_text(u)) == Done{u} : Result<&2, &2, String, Tgt.Url>}
 
 # LAW: a URL without a path means "/", and https is refused by name
 law url_parse_edges:
   for +host: String
   for +rest: String
-  for -h: {Bool.and(Bool.not(String.is_empty(host)), all_host(host)) == True{} : Bool}
+  for h: {Bool.and(Bool.not(String.is_empty(host)), all_host(host)) == True{} : Bool}
   {Tgt.parse_url("http://" ++ host) == Done{Tgt.Url{"http", host, None{}, "/"}} : Result<&2, &2, String, Tgt.Url>}
   & {Tgt.parse_url("https://" ++ rest) == Fail{"https is not supported"} : Result<&2, &2, String, Tgt.Url>}
 
@@ -1840,14 +1841,14 @@ def targets_text(ts: List<&2, Tgt.Target>) -> String:
 
 law targets_parse:
   for +ts: List<&2, Tgt.Target>
-  for -h: {targets_ok(ts) == True{} : Bool}
+  for h: {targets_ok(ts) == True{} : Bool}
   {Tgt.parse_all(targets_text(ts)) == Done{ts} : Result<&2, &2, String, List<&2, Tgt.Target>>}
 
 # LAW: parsing streams: two files back to back are their targets back to back
 law targets_concat:
   for +a: List<&2, Tgt.Target>
   for +b: List<&2, Tgt.Target>
-  for -h: {targets_ok(List.append(&2, Tgt.Target, a, b)) == True{} : Bool}
+  for h: {targets_ok(List.append(&2, Tgt.Target, a, b)) == True{} : Bool}
   {Tgt.parse_all(targets_text(a) ++ "\n" ++ targets_text(b)) == Done{List.append(&2, Tgt.Target, a, b)} : Result<&2, &2, String, List<&2, Tgt.Target>>}
 
 # a line before a target that changes nothing: blank, or a comment
@@ -1872,8 +1873,8 @@ def noise_text(ls: List<&2, String>) -> String:
 law targets_noise:
   for +ns: List<&2, String>
   for +ts: List<&2, Tgt.Target>
-  for -h0: {targets_ok(ts) == True{} : Bool}
-  for -h1: {all_noise(ns) == True{} : Bool}
+  for h0: {targets_ok(ts) == True{} : Bool}
+  for h1: {all_noise(ns) == True{} : Bool}
   {Tgt.parse_all(noise_text(ns) ++ targets_text(ts)) == Done{ts} : Result<&2, &2, String, List<&2, Tgt.Target>>}
 
 def drop_upper(s: String) -> String:
@@ -1897,11 +1898,11 @@ law targets_errors:
   for +rest: String
   for +t: Tgt.Target
   for +l: String
-  for -h0: {Bool.and(Bool.and(printable(tok), Bool.not(has_char(tok, 32))), Bool.and(Bool.not(String.is_empty(tok)), Bool.not(String.starts_with(tok, "#")))) == True{} : Bool}
-  for -h1: {Bool.and(Bool.and(printable(m), Bool.not(has_char(m, 32))), Bool.and(Bool.not(String.is_empty(m)), Bool.not(all_upper(m)))) == True{} : Bool}
-  for -h2: {Bool.and(Bool.and(printable(rest), Bool.not(String.is_empty(trim_ows(rest)))), Bool.not(String.starts_with(m, "#"))) == True{} : Bool}
-  for -h3: {Bool.and(target_ok(t), Maybe.is_none(&2, String, tgt_body(t))) == True{} : Bool}
-  for -h4: {Bool.and(Bool.and(printable(l), Bool.not(has_char(l, 58))), Bool.and(Bool.not(String.is_empty(trim_ows(l))),
+  for h0: {Bool.and(Bool.and(printable(tok), Bool.not(has_char(tok, 32))), Bool.and(Bool.not(String.is_empty(tok)), Bool.not(String.starts_with(tok, "#")))) == True{} : Bool}
+  for h1: {Bool.and(Bool.and(printable(m), Bool.not(has_char(m, 32))), Bool.and(Bool.not(String.is_empty(m)), Bool.not(all_upper(m)))) == True{} : Bool}
+  for h2: {Bool.and(Bool.and(printable(rest), Bool.not(String.is_empty(trim_ows(rest)))), Bool.not(String.starts_with(m, "#"))) == True{} : Bool}
+  for h3: {Bool.and(target_ok(t), Maybe.is_none(&2, String, tgt_body(t))) == True{} : Bool}
+  for h4: {Bool.and(Bool.and(printable(l), Bool.not(has_char(l, 58))), Bool.and(Bool.not(String.is_empty(trim_ows(l))),
      Bool.not(Bool.or(Bool.or(String.starts_with(trim_ows(l), "#"), String.starts_with(trim_ows(l), "@")), starts_method(trim_ows(l)))))) == True{} : Bool}
   {Tgt.parse_all(tok ++ "\n") == Fail{"bad target: " ++ tok} : Result<&2, &2, String, List<&2, Tgt.Target>>}
   & {Tgt.parse_all(m ++ " " ++ rest ++ "\n") == Fail{"bad method: " ++ m} : Result<&2, &2, String, List<&2, Tgt.Target>>}
@@ -2090,7 +2091,7 @@ def parse_eof(+mb: Maybe<&2, Nat>, +head: Bool, +s: String) -> Maybe<&1, Result<
 law http_cl:
   for +r: Http.Resp
   for +rest: String
-  for -h: {resp_cl_ok(r) == True{} : Bool}
+  for h: {resp_cl_ok(r) == True{} : Bool}
   {parse_of(None{}, False{}, render_cl(r) ++ rest) == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: so does a chunked response, however it is chunked
@@ -2098,13 +2099,13 @@ law http_chunked:
   for +r: Http.Resp
   for +sizes: List<&2, Nat>
   for +rest: String
-  for -h: {resp_te_ok(r) == True{} : Bool}
+  for h: {resp_te_ok(r) == True{} : Bool}
   {parse_of(None{}, False{}, render_chunked(r, sizes) ++ rest) == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: a response without a length ends at the close, and not before
 law http_until_close:
   for +r: Http.Resp
-  for -h: {resp_eof_ok(r) == True{} : Bool}
+  for h: {resp_eof_ok(r) == True{} : Bool}
   {parse_eof(None{}, False{}, render_head(r) ++ r_body(r)) == Some{Done{(r, "")}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
   & {parse_of(None{}, False{}, render_head(r) ++ r_body(r)) == None{} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
@@ -2112,16 +2113,16 @@ law http_until_close:
 law http_waits:
   for +r: Http.Resp
   for +k: Nat
-  for -h0: {resp_cl_ok(r) == True{} : Bool}
-  for -h1: {Nat.is_lt(k, String.length(render_cl(r))) == True{} : Bool}
+  for h0: {resp_cl_ok(r) == True{} : Bool}
+  for h1: {Nat.is_lt(k, String.length(render_cl(r))) == True{} : Bool}
   {parse_of(None{}, False{}, String.take(render_cl(r), k)) == None{} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 law http_waits_chunked:
   for +r: Http.Resp
   for +sizes: List<&2, Nat>
   for +k: Nat
-  for -h0: {resp_te_ok(r) == True{} : Bool}
-  for -h1: {Nat.is_lt(k, String.length(render_chunked(r, sizes))) == True{} : Bool}
+  for h0: {resp_te_ok(r) == True{} : Bool}
+  for h1: {Nat.is_lt(k, String.length(render_chunked(r, sizes))) == True{} : Bool}
   {parse_of(None{}, False{}, String.take(render_chunked(r, sizes), k)) == None{} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: the parser reads bytes, not reads: feeding in two pieces is feeding once
@@ -2144,7 +2145,7 @@ law http_max_body:
   for +r: Http.Resp
   for +m: Nat
   for +rest: String
-  for -h: {resp_cl_ok(r) == True{} : Bool}
+  for h: {resp_cl_ok(r) == True{} : Bool}
   {parse_of(Some{m}, False{}, render_cl(r) ++ rest) == Some{Done{(with_body(r, String.take(r_body(r), m)), rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: mid-body, the body read so far is at hand (a timeout keeps it)
@@ -2152,8 +2153,8 @@ law http_partial:
   for +r: Http.Resp
   for +k: Nat
   for +m: Maybe<&2, Nat>
-  for -h0: {resp_cl_ok(r) == True{} : Bool}
-  for -h1: {Nat.is_lt(k, String.length(r_body(r))) == True{} : Bool}
+  for h0: {resp_cl_ok(r) == True{} : Bool}
+  for h1: {Nat.is_lt(k, String.length(r_body(r))) == True{} : Bool}
   {Http.partial(Http.feed(Http.start(m, False{}), render_head(r) ++ String.take(r_body(r), k)))
    == String.take(String.take(r_body(r), k), Maybe.default(&2, Nat, m, k)) : String}
 
@@ -2163,8 +2164,8 @@ law http_interim:
   for +reason: String
   for +r: Http.Resp
   for +rest: String
-  for -h0: {Bool.and(Bool.and(Nat.is_ge(c, 100n), Nat.is_le(c, 199n)), Bool.not(Nat.is_eq(c, 101n))) == True{} : Bool}
-  for -h1: {Bool.and(printable(reason), resp_cl_ok(r)) == True{} : Bool}
+  for h0: {Bool.and(Bool.and(Nat.is_ge(c, 100n), Nat.is_le(c, 199n)), Bool.not(Nat.is_eq(c, 101n))) == True{} : Bool}
+  for h1: {Bool.and(printable(reason), resp_cl_ok(r)) == True{} : Bool}
   {parse_of(None{}, False{}, "HTTP/1.1 " ++ Dec.show(c) ++ " " ++ reason ++ "\r\n\r\n" ++ render_cl(r) ++ rest)
    == parse_of(None{}, False{}, render_cl(r) ++ rest) : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
@@ -2181,7 +2182,7 @@ law http_no_body:
   for +head: Bool
   for +r: Http.Resp
   for +rest: String
-  for -h: {resp_nobody_ok(head, r) == True{} : Bool}
+  for h: {resp_nobody_ok(head, r) == True{} : Bool}
   {parse_of(None{}, head, render_head(r) ++ rest) == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 def pad_vals(vs: List<&2, String>) -> List<&2, String>:
@@ -2202,7 +2203,7 @@ def lower_names(hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
 law http_lenient:
   for +r: Http.Resp
   for +rest: String
-  for -h: {resp_cl_ok(r) == True{} : Bool}
+  for h: {resp_cl_ok(r) == True{} : Bool}
   {parse_of(None{}, False{}, render_cl(Http.Resp{r_code(r), r_status(r), lower_names(r_hdrs(r)), r_body(r), r_keep(r)}) ++ rest)
    == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
@@ -2210,7 +2211,7 @@ law http_lenient:
 law http_10:
   for +r: Http.Resp
   for +rest: String
-  for -h: {resp_base_ok(r) == True{} : Bool}
+  for h: {resp_base_ok(r) == True{} : Bool}
   {parse_of(None{}, False{}, "HTTP/1.0 " ++ String.drop(render_cl(r), 9n) ++ rest)
    == parse_of(None{}, False{}, "HTTP/1.1 " ++ String.drop(render_cl(Http.Resp{r_code(r), r_status(r), r_hdrs(r), r_body(r),
         hdr_is("Connection", "keep-alive", r_hdrs(r))}), 9n) ++ rest) : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
@@ -2229,7 +2230,7 @@ def is_fail(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
 # LAW: anything that does not start like a response is an error, at once
 law http_garbage:
   for +s: String
-  for -h: {Bool.and(Nat.is_ge(String.length(s), 7n), Bool.not(String.starts_with(s, "HTTP/1."))) == True{} : Bool}
+  for h: {Bool.and(Nat.is_ge(String.length(s), 7n), Bool.not(String.starts_with(s, "HTTP/1."))) == True{} : Bool}
   {is_fail(parse_of(None{}, False{}, s)) == True{} : Bool}
 
 # ---------------------------------------------------------------------
@@ -2740,7 +2741,7 @@ law met_span:
   for +bs: List<&2, Nat>
   for +h: Hit.Hit
   for +hs: List<&2, Hit.Hit>
-  for -ok: {Nat.is_lt(time_nsec(h_ts(h)), sec()) == True{} : Bool}
+  for ok: {Nat.is_lt(time_nsec(h_ts(h)), sec()) == True{} : Bool}
   {s_earliest(summary(bs, Con{h, hs})) == Some{utc_at(min_of(total_ns(h_ts(h)), starts(hs)))} : Maybe<&2, Civil.Time>}
   & {s_latest(summary(bs, Con{h, hs})) == Some{utc_at(max_of(total_ns(h_ts(h)), starts(hs)))} : Maybe<&2, Civil.Time>}
   & {s_end(summary(bs, Con{h, hs})) == Some{utc_at(max_of(Nat.add(total_ns(h_ts(h)), h_lat(h)), ends(hs)))} : Maybe<&2, Civil.Time>}
@@ -2794,7 +2795,7 @@ law met_hist:
   for +bs: List<&2, Nat>
   for +hs: List<&2, Hit.Hit>
   for +i: Nat
-  for -h: {Nat.is_lt(i, List.length(&2, Nat, bs)) == True{} : Bool}
+  for h: {Nat.is_lt(i, List.length(&2, Nat, bs)) == True{} : Bool}
   {s_buckets(summary(bs, hs)) == bs : List<&2, Nat>}
   & {List.length(&2, Nat, s_hist(summary(bs, hs))) == List.length(&2, Nat, bs) : Nat}
   & {nth_or0(i, s_hist(summary(bs, hs))) == n_in_bucket(bs, i, lats(hs)) : Nat}
@@ -2855,10 +2856,10 @@ law rate_parse:
 law rate_parse_error:
   for +f: String
   for +rest: String
-  for -h0: {Bool.and(Bool.and(printable(f), Bool.not(all_digits(f))),
+  for h0: {Bool.and(Bool.and(printable(f), Bool.not(all_digits(f))),
      Bool.not(Bool.or(Bool.or(has_char(f, 47), has_char(f, 34)), Bool.or(has_char(f, 92), String.eq(f, "infinity"))))) == True{} : Bool}
-  for -h1: {Bool.or(String.is_empty(rest), String.starts_with(rest, "/")) == True{} : Bool}
-  for -h2: {Bool.not(Bool.or(first_is(f, 43), first_is(f, 45))) == True{} : Bool}
+  for h1: {Bool.or(String.is_empty(rest), String.starts_with(rest, "/")) == True{} : Bool}
+  for h2: {Bool.not(Bool.or(first_is(f, 43), first_is(f, 45))) == True{} : Bool}
   {Pace.parse_rate(f ++ rest) == Fail{"strconv.Atoi: parsing \"" ++ f ++ "\": invalid syntax"} : Result<&2, &2, String, Pace.Rate>}
 
 # =====================================================================
@@ -3022,7 +3023,7 @@ def chk_early(xs: List<&2, Item>, +c: Eng.Cfg) -> Bool:
 law eng_never_early:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {bounded(c) == True{} : Bool}
+  for h: {bounded(c) == True{} : Bool}
   {chk_early(timeline(c, evs), c) == True{} : Bool}
 
 def chk_deadline(xs: List<&2, Item>, +dur: Nat, +last: Nat) -> Bool:
@@ -3045,7 +3046,7 @@ def chk_deadline(xs: List<&2, Item>, +dur: Nat, +last: Nat) -> Bool:
 law eng_deadline:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {Nat.is_gt(e_dur(c), 0n) == True{} : Bool}
+  for h: {Nat.is_gt(e_dur(c), 0n) == True{} : Bool}
   {chk_deadline(timeline(c, evs), e_dur(c), 0n) == True{} : Bool}
 
 def chk_rr(xs: List<&2, Item>, +n: Nat) -> Bool:
@@ -3067,7 +3068,7 @@ def chk_rr(xs: List<&2, Item>, +n: Nat) -> Bool:
 law eng_round_robin:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {cfg_ok(c) == True{} : Bool}
+  for h: {cfg_ok(c) == True{} : Bool}
   {chk_rr(timeline(c, evs), e_targets(c)) == True{} : Bool}
 
 def has_nat(+x: Nat, xs: List<&2, Nat>) -> Bool:
@@ -3191,7 +3192,7 @@ def no_nap(xs: List<&2, Item>) -> Bool:
 law eng_unbounded:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {Bool.or(Nat.is_eq(e_freq(c), 0n), Nat.is_eq(e_per(c), 0n)) == True{} : Bool}
+  for h: {Bool.or(Nat.is_eq(e_freq(c), 0n), Nat.is_eq(e_per(c), 0n)) == True{} : Bool}
   {no_nap(timeline(c, evs)) == True{} : Bool}
 
 def chk_nap(xs: List<&2, Item>, +c: Eng.Cfg, +next: Nat, +now: Nat) -> Bool:
@@ -3215,7 +3216,7 @@ def chk_nap(xs: List<&2, Item>, +c: Eng.Cfg, +next: Nat, +now: Nat) -> Bool:
 law eng_nap:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {bounded(c) == True{} : Bool}
+  for h: {bounded(c) == True{} : Bool}
   {chk_nap(timeline(c, evs), c, 0n, 0n) == True{} : Bool}
 
 # the engine has decided to stop: a hit went out at or past the deadline
@@ -3300,7 +3301,7 @@ def chk_live(xs: List<&2, Item>, +c: Eng.Cfg, +nap: Bool, +grown: Nat, +busy: Li
 law eng_live:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
-  for -h: {cfg_ok(c) == True{} : Bool}
+  for h: {cfg_ok(c) == True{} : Bool}
   {chk_live(timeline(c, evs), c, False{}, 0n, [], False{}, None{}) == True{} : Bool}
 
 def busy_of(xs: List<&2, Item>, +busy: List<&2, Nat>) -> List<&2, Nat>:
@@ -3388,9 +3389,9 @@ law eng_ends:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
   for +t: Nat
-  for -h0: {cfg_ok(c) == True{} : Bool}
-  for -h1: {Nat.is_gt(e_dur(c), 0n) == True{} : Bool}
-  for -h2: {Bool.and(Nat.is_gt(t, e_dur(c)), Nat.is_ge(t, max_time(evs))) == True{} : Bool}
+  for h0: {cfg_ok(c) == True{} : Bool}
+  for h1: {Nat.is_gt(e_dur(c), 0n) == True{} : Bool}
+  for h2: {Bool.and(Nat.is_gt(t, e_dur(c)), Nat.is_ge(t, max_time(evs))) == True{} : Bool}
   {has_quit(timeline(c, respond(4n, c, evs, t))) == True{} : Bool}
 
 # =====================================================================
@@ -4593,7 +4594,7 @@ def tab_text(+s: String) -> String:
 # specially)
 law tab_render:
   for +s: String
-  for -h: {Bool.or(Bool.or(has_char(s, 255), has_char(s, 11)), has_char(s, 12)) == False{} : Bool}
+  for h: {Bool.or(Bool.or(has_char(s, 255), has_char(s, 11)), has_char(s, 12)) == False{} : Bool}
   {Tab.render(s) == tab_text(s) : String}
 
 # =====================================================================
@@ -4779,7 +4780,7 @@ def hist_rows(bs: List<&2, Nat>, +cs: List<&2, Nat>, +total: Nat) -> String:
 # Go's NewHistogramReporter (for at least one request: Go divides by the total)
 law report_hist:
   for +s: Met.Summary
-  for -h: {Nat.is_gt(s_requests(s), 0n) == True{} : Bool}
+  for h: {Nat.is_gt(s_requests(s), 0n) == True{} : Bool}
   {Rep.hist(s) == Tab.render("Bucket\t\t#\t%\tHistogram\n" ++ hist_rows(s_buckets(s), s_hist(s), s_requests(s))) : String}
 
 # =====================================================================
@@ -4889,7 +4890,7 @@ def attack_ok(+a: Flags.Attack) -> Bool:
 # LAW: options survive their command line
 law flags_attack_roundtrip:
   for +a: Flags.Attack
-  for -h: {attack_ok(a) == True{} : Bool}
+  for h: {attack_ok(a) == True{} : Bool}
   {Flags.parse_attack(attack_args(a)) == Done{a} : Result<&2, &2, String, Flags.Attack>}
 
 # the flags that take a value
@@ -4905,7 +4906,7 @@ law flags_forms:
   for +i: Nat
   for +v: String
   for +rest: List<&2, String>
-  for -h: {Nat.is_lt(i, 14n) == True{} : Bool}
+  for h: {Nat.is_lt(i, 14n) == True{} : Bool}
   {Flags.parse_attack(Con{"-" ++ nth_str(i, value_flags()), Con{v, rest}}) == Flags.parse_attack(Con{"-" ++ nth_str(i, value_flags()) ++ "=" ++ v, rest}) : Result<&2, &2, String, Flags.Attack>}
   & {Flags.parse_attack(Con{"--" ++ nth_str(i, value_flags()) ++ "=" ++ v, rest}) == Flags.parse_attack(Con{"-" ++ nth_str(i, value_flags()) ++ "=" ++ v, rest}) : Result<&2, &2, String, Flags.Attack>}
   & {Flags.parse_attack(["-keepalive"]) == Flags.parse_attack(["-keepalive=true"]) : Result<&2, &2, String, Flags.Attack>}
@@ -4922,8 +4923,8 @@ law flags_refused:
   for +i: Nat
   for +f: String
   for +rest: List<&2, String>
-  for -h0: {Nat.is_lt(i, 18n) == True{} : Bool}
-  for -h1: {Bool.and(Bool.and(Bool.and(flag_str_ok(f), Bool.not(has_char(f, 61))), Bool.not(first_is(f, 45))),
+  for h0: {Nat.is_lt(i, 18n) == True{} : Bool}
+  for h1: {Bool.and(Bool.and(Bool.and(flag_str_ok(f), Bool.not(has_char(f, 61))), Bool.not(first_is(f, 45))),
      Bool.not(Bool.or(Bool.or(has_str(f, value_flags()), has_str(f, unsupported())),
        Bool.or(String.eq(f, "keepalive"), Bool.or(String.eq(f, "h"), String.eq(f, "help")))))) == True{} : Bool}
   {Flags.parse_attack(Con{"-" ++ nth_str(i, unsupported()), rest}) == Fail{"flag not supported in the Bend port: -" ++ nth_str(i, unsupported())} : Result<&2, &2, String, Flags.Attack>}
@@ -4941,8 +4942,8 @@ law flags_header:
   for +k: String
   for +v: String
   for +x: String
-  for -h0: {Bool.and(tgt_key_ok(k), Bool.and(flag_str_ok(v), String.eq(trim_ows(v), v))) == True{} : Bool}
-  for -h1: {Bool.and(printable(x), Bool.not(has_char(x, 58))) == True{} : Bool}
+  for h0: {Bool.and(tgt_key_ok(k), Bool.and(flag_str_ok(v), String.eq(trim_ows(v), v))) == True{} : Bool}
+  for h1: {Bool.and(printable(x), Bool.not(has_char(x, 58))) == True{} : Bool}
   {Flags.parse_attack(["-header", k ++ ": " ++ v, "-header", k ++ ":" ++ v])
    == Done{Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, None{},
         [Hdr.Header{k, [v, v]}], None{}, True{}, None{}, Some{10n}, "csv"}} : Result<&2, &2, String, Flags.Attack>}
@@ -4973,10 +4974,10 @@ law flags_report:
   for +bs: List<&2, Nat>
   for +files: List<&2, String>
   for +out: String
-  for -h0: {Bool.not(List.is_empty(&2, Nat, bs)) == True{} : Bool}
-  for -h1: {Bool.and(all_bytes(files), Bool.not(List.any(~&2, ~String, ~(f => String.starts_with(f, "-")), files))) == True{} : Bool}
-  for -h2: {flag_str_ok(out) == True{} : Bool}
-  for -h3: {all_dur_in(bs) == True{} : Bool}
+  for h0: {Bool.not(List.is_empty(&2, Nat, bs)) == True{} : Bool}
+  for h1: {Bool.and(all_bytes(files), Bool.not(List.any(~&2, ~String, ~(f => String.starts_with(f, "-")), files))) == True{} : Bool}
+  for h2: {flag_str_ok(out) == True{} : Bool}
+  for h3: {all_dur_in(bs) == True{} : Bool}
   {Flags.parse_report(files) == Done{Flags.Report{Flags.AsText{}, "stdout", files}} : Result<&2, &2, String, Flags.Report>}
   & {Flags.parse_report(Con{"-type=json", Con{"-output=" ++ out, files}}) == Done{Flags.Report{Flags.AsJson{[]}, out, files}} : Result<&2, &2, String, Flags.Report>}
   & {Flags.parse_report(Con{"-type=json", Con{"-buckets=" ++ buckets_text(bs), files}}) == Done{Flags.Report{Flags.AsJson{with_zero(bs)}, "stdout", files}} : Result<&2, &2, String, Flags.Report>}
