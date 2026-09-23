@@ -3888,16 +3888,40 @@ def is_done_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> B
         case Done{p}:
           True{}
 
+def broken(+r: Conn.Req) -> String:
+  err_prefix(r) ++ "net/http: HTTP/1.x transport connection broken: "
+
+# the request fails at once with a text that starts with p (and no body)
+def fails_prefixed(+p: String, cs: List<&2, Conn.Cmd>) -> Bool:
+  match cs:
+    case Nil{}:
+      False{}
+    case Con{+k, +rest}:
+      match k:
+        case Conn.Finish{o, keep}:
+          match o:
+            case Conn.Failed{m2, pb2}:
+              Bool.and(Bool.and(String.starts_with(m2, p), Maybe.is_none(&2, String, pb2)), Bool.not(keep))
+            case Conn.Answered{a}:
+              False{}
+        case _:
+          fails_prefixed(p, rest)
+
 # a close while reading: before the final head is in (but after some
-# bytes), Go's transport says the connection broke; after it, the body
-# was cut short ("unexpected EOF", with what was read); a complete
-# response or a redirect's pending body are not failures
+# bytes), Go's transport says the connection broke -- "unexpected EOF"
+# when the cut falls at a line's end, else the parser's complaint about
+# the half line; after the head, the body was cut short ("unexpected
+# EOF", with what was read); a complete response or a redirect's pending
+# body are not failures
 def eof_ok(+c: Conn.Cfg, +r: Conn.Req, +head: Bool, +buf: String, +cs: List<&2, Conn.Cmd>) -> Bool:
   +in = String.contains(final_from(buf), "\r\n\r\n")
   pick(Bool, in,
     Bool.or(Bool.or(head_redirect(c, buf), is_done_parse(parse_eof(c_mb(c), head, buf))),
       fails_with("unexpected EOF", timeout_partial(c, head, buf), cs)),
-    Bool.or(String.is_empty(buf), fails_with(err_prefix(r) ++ "net/http: HTTP/1.x transport connection broken: unexpected EOF", None{}, cs)))
+    Bool.or(String.is_empty(buf),
+      pick(Bool, String.ends_with(final_from(buf), "\n"),
+        fails_with(broken(r) ++ "unexpected EOF", None{}, cs),
+        fails_prefixed(broken(r), cs))))
 
 # before the request finishes (and before any redirect: a redirect's own
 # errors name the redirect's URL), a timeout or a failed dial finishes it
@@ -4181,6 +4205,22 @@ def hop_b(+h: Hop) -> String:
   Hop{ok, t, u, b, c} = h
   b
 
+# the redirect's connection stays usable: its body is complete, both
+# sides keep the connection, and nothing extra arrived (as answer_of)
+def kept_of(+ka: Bool, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{res}:
+      match res:
+        case Fail{e}:
+          False{}
+        case Done{p}:
+          (r0, lo0) = p
+          +r = r0
+          +lo = lo0
+          Bool.and(Bool.and(r_keep(r), ka), String.is_empty(lo))
+
 # the next request goes on a new connection: a Shut before any Send, or
 # an Open or Resolve (Go never reuses a connection whose redirect body it
 # left unread)
@@ -4241,7 +4281,7 @@ def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: St
   Bool.or(Bool.not(Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))),
     pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))),
         Bool.and(progresses(batch(rest)),
-          Bool.or(is_done_parse(parse_of(None{}, head, buf)), new_conn(batch(rest), False{})))),
+          Bool.or(kept_of(c_ka(c), parse_of(None{}, head, buf)), new_conn(batch(rest), False{})))),
       fails_with(stop_text(q, head_location(buf), n), None{}, batch(rest))))
 
 # the redirect in the bytes so far is one the client acts on now
@@ -4285,7 +4325,8 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
             case Conn.Eof{}:
               Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest)),
                 chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}, Bool.or(met, due_now(c, head, buf, True{})), done,
-                  Bool.not(Bool.and(met, Bool.and(Nat.is_lt(hops, rd_limit(c_redirects(c))), hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf)))))))
+                  Bool.not(Bool.and(Bool.or(met, due_now(c, head, buf, True{})),
+                    Bool.and(Nat.is_lt(hops, rd_limit(c_redirects(c))), hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf)))))))
             case Conn.ResolveFailed{m}:
               chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
             case Conn.OpenFailed{m}:
