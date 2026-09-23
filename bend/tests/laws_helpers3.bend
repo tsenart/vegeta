@@ -80,6 +80,14 @@ def dial_fail() -> List<&2, L.CItem>:
 def rd(+xs: List<&2, L.CItem>) -> String:
   L.pick(String, L.chk_redirect(xs, cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", None{}, 0n, False{}, "", False{}, False{}, False{}, False{}), "T", "F")
 
+def hints_then(+e: Conn.Ev, +msg: String) -> List<&2, L.CItem>:
+  [L.CICmd{Conn.Send{"GET / HTTP/1.1"}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
+   L.CIEv{Conn.Got{"HTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\n"}}, L.CICmd{Conn.Recv{}}, L.CIEv{e},
+   L.CICmd{Conn.Finish{Conn.Failed{msg, None{}}, False{}}}]
+
+def cf(+xs: List<&2, L.CItem>) -> String:
+  L.pick(String, L.chk_fail(xs, cfg0(), req0(), False{}, None{}, False{}, ""), "T", "F")
+
 def keys(hs: List<&2, Hdr.Header>) -> String:
   match hs:
     case Nil{}:
@@ -111,6 +119,11 @@ def main() -> IO(Unit):
     IO.print(rd(stop_then_eof()) ++ rd(spurious()) ++ rd(dial_fail()))
     IO.print(Nat.show(L.head_code("HTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n")) ++ " "
       ++ L.head_location("HTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n"))
+    IO.print(L.pick(String, L.new_conn([Conn.Send{"x"}], False{}), "T", "F") ++ L.pick(String, L.new_conn([Conn.Shut{}, Conn.Send{"x"}], False{}), "T", "F")
+      ++ L.pick(String, L.new_conn([Conn.Open{"i", 80n}], False{}), "T", "F"))
+    IO.print(cf(hints_then(Conn.Late{}, "Get \"http://h/\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"))
+      ++ cf(hints_then(Conn.Eof{}, "Get \"http://h/\": net/http: HTTP/1.x transport connection broken: unexpected EOF"))
+      ++ cf(hints_then(Conn.Late{}, "context deadline exceeded (Client.Timeout or context cancellation while reading body)")))
     IO.print(L.redirect_method(302n, "PUT") ++ " " ++ L.redirect_method(301n, "DELETE") ++ " " ++ L.redirect_method(302n, "HEAD") ++ " " ++ L.redirect_method(308n, "PUT"))
 
 #|0 999 1000 1499 1500 1500000 1500000 2000000000 59500000000 3600000000000 3660000000000 5400000000000
@@ -128,4 +141,6 @@ def main() -> IO(Unit):
 #|TF
 #|TFT
 #|302 /x
+#|FTT
+#|TTF
 #|GET GET HEAD PUT

@@ -3716,16 +3716,45 @@ def fails_with(+m: String, +pb: Maybe<&2, String>, cs: List<&2, Conn.Cmd>) -> Bo
         case _:
           fails_with(m, pb, rest)
 
+def after_head.go(+fuel: Nat, +s: String) -> String:
+  match fuel:
+    case 0n:
+      ""
+    case 1n+f:
+      pick(String, String.starts_with(s, "\r\n\r\n"), s, after_head.go(f, String.drop(s, 1n)))
+
+def after_head(+s: String) -> String:
+  after_head.go(String.length(s), s)
+
+def code_at(+s: String) -> Nat:
+  digits_value(String.take(String.drop(s, 9n), 3n))
+
+def interim(+k: Nat) -> Bool:
+  Bool.and(Bool.and(Nat.is_ge(k, 100n), Nat.is_le(k, 199n)), Bool.not(Nat.is_eq(k, 101n)))
+
+# the bytes from the final head on: interim heads (1xx but 101) that have
+# fully arrived are skipped, as Go and http_interim skip them
+def final_from.go(+fuel: Nat, +s: String) -> String:
+  match fuel:
+    case 0n:
+      s
+    case 1n+f:
+      pick(String, Bool.and(interim(code_at(s)), String.contains(s, "\r\n\r\n")),
+        final_from.go(f, String.drop(after_head(s), 4n)), s)
+
+def final_from(+buf: String) -> String:
+  final_from.go(String.length(buf), buf)
+
 # Go's texts for a timeout: before the headers are in (a url.Error, with
 # the method and URL), or while reading the body (the bare error, and the
 # body read so far is kept)
 def timeout_text(+r: Conn.Req, +buf: String) -> String:
-  pick(String, String.contains(buf, "\r\n\r\n"),
+  pick(String, String.contains(final_from(buf), "\r\n\r\n"),
     "context deadline exceeded (Client.Timeout or context cancellation while reading body)",
     err_prefix(r) ++ "context deadline exceeded (Client.Timeout exceeded while awaiting headers)")
 
 def timeout_partial(+c: Conn.Cfg, +head: Bool, +buf: String) -> Maybe<&2, String>:
-  pick(Maybe<&2, String>, String.contains(buf, "\r\n\r\n"), Some{Http.partial(Http.feed(Http.start(c_mb(c), head), buf))}, None{})
+  pick(Maybe<&2, String>, String.contains(final_from(buf), "\r\n\r\n"), Some{Http.partial(Http.feed(Http.start(c_mb(c), head), buf))}, None{})
 
 def dial_text(+r: Conn.Req, +m: String) -> String:
   err_prefix(r) ++ "dial tcp " ++ q_ip(r) ++ ":" ++ Dec.show(u_port(q_url(r))) ++ ": connect: " ++ String.to_lower(m)
@@ -3796,34 +3825,11 @@ def loc_url(+u: Tgt.Url, +loc: String) -> String:
 
 
 
-def after_head.go(+fuel: Nat, +s: String) -> String:
-  match fuel:
-    case 0n:
-      ""
-    case 1n+f:
-      pick(String, String.starts_with(s, "\r\n\r\n"), s, after_head.go(f, String.drop(s, 1n)))
 
-def after_head(+s: String) -> String:
-  after_head.go(String.length(s), s)
 
-def code_at(+s: String) -> Nat:
-  digits_value(String.take(String.drop(s, 9n), 3n))
 
-def interim(+k: Nat) -> Bool:
-  Bool.and(Bool.and(Nat.is_ge(k, 100n), Nat.is_le(k, 199n)), Bool.not(Nat.is_eq(k, 101n)))
 
-# the bytes from the final head on: interim heads (1xx but 101) that have
-# fully arrived are skipped, as Go and http_interim skip them
-def final_from.go(+fuel: Nat, +s: String) -> String:
-  match fuel:
-    case 0n:
-      s
-    case 1n+f:
-      pick(String, Bool.and(interim(code_at(s)), String.contains(s, "\r\n\r\n")),
-        final_from.go(f, String.drop(after_head(s), 4n)), s)
 
-def final_from(+buf: String) -> String:
-  final_from.go(String.length(buf), buf)
 
 # a response head that has arrived (its blank line is in), read directly:
 # its status code and its Location, for a redirect whose body is pending
@@ -3882,6 +3888,17 @@ def is_done_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> B
         case Done{p}:
           True{}
 
+# a close while reading: before the final head is in (but after some
+# bytes), Go's transport says the connection broke; after it, the body
+# was cut short ("unexpected EOF", with what was read); a complete
+# response or a redirect's pending body are not failures
+def eof_ok(+c: Conn.Cfg, +r: Conn.Req, +head: Bool, +buf: String, +cs: List<&2, Conn.Cmd>) -> Bool:
+  +in = String.contains(final_from(buf), "\r\n\r\n")
+  pick(Bool, in,
+    Bool.or(Bool.or(head_redirect(c, buf), is_done_parse(parse_eof(c_mb(c), head, buf))),
+      fails_with("unexpected EOF", timeout_partial(c, head, buf), cs)),
+    Bool.or(String.is_empty(buf), fails_with(err_prefix(r) ++ "net/http: HTTP/1.x transport connection broken: unexpected EOF", None{}, cs)))
+
 # before the request finishes (and before any redirect: a redirect's own
 # errors name the redirect's URL), a timeout or a failed dial finishes it
 # at once, with Go's error text and Go's partial body
@@ -3898,9 +3915,7 @@ def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +firs
                 fails_with(redirect_timeout_text(c, r, buf), None{}, batch(rest)),
                 fails_with(timeout_text(r, buf), timeout_partial(c, head, buf), batch(rest))))
             case Conn.Eof{}:
-              Bool.and(Bool.or(Bool.or(done, Bool.or(Bool.not(String.contains(buf, "\r\n\r\n")), head_redirect(c, buf))),
-                  Bool.or(is_done_parse(parse_eof(c_mb(c), head, buf)), fails_with("unexpected EOF", timeout_partial(c, head, buf), batch(rest)))),
-                chk_fail(rest, c, r, done, first, head, buf))
+              Bool.and(Bool.or(done, eof_ok(c, r, head, buf, batch(rest))), chk_fail(rest, c, r, done, first, head, buf))
             case Conn.OpenFailed{m}:
               Bool.or(done, fails_with(dial_text(r, m), None{}, batch(rest)))
             case Conn.Got{d}:
@@ -4166,16 +4181,25 @@ def hop_b(+h: Hop) -> String:
   Hop{ok, t, u, b, c} = h
   b
 
-def finishes(cs: List<&2, Conn.Cmd>) -> Bool:
+# the next request goes on a new connection: a Shut before any Send, or
+# an Open or Resolve (Go never reuses a connection whose redirect body it
+# left unread)
+def new_conn(cs: List<&2, Conn.Cmd>, +shut: Bool) -> Bool:
   match cs:
     case Nil{}:
-      False{}
+      shut
     case Con{+k, +rest}:
       match k:
-        case Conn.Finish{o, keep}:
+        case Conn.Shut{}:
+          new_conn(rest, True{})
+        case Conn.Open{ip, p}:
           True{}
+        case Conn.Resolve{h}:
+          True{}
+        case Conn.Send{d}:
+          shut
         case _:
-          finishes(rest)
+          new_conn(rest, shut)
 
 def is_fail_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
   match m:
@@ -4216,7 +4240,8 @@ def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: St
   +n = rd_limit(c_redirects(c))
   Bool.or(Bool.not(Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))),
     pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))),
-        Bool.and(progresses(batch(rest)), Bool.not(finishes(batch(rest))))),
+        Bool.and(progresses(batch(rest)),
+          Bool.or(is_done_parse(parse_of(None{}, head, buf)), new_conn(batch(rest), False{})))),
       fails_with(stop_text(q, head_location(buf), n), None{}, batch(rest))))
 
 # the redirect in the bytes so far is one the client acts on now
@@ -4259,7 +4284,8 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
                   got_may_fail(c, q, t, u, b, hops, head, buf ++ d, eof)))
             case Conn.Eof{}:
               Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest)),
-                chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}, Bool.or(met, due_now(c, head, buf, True{})), done, True{}))
+                chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}, Bool.or(met, due_now(c, head, buf, True{})), done,
+                  Bool.not(Bool.and(met, Bool.and(Nat.is_lt(hops, rd_limit(c_redirects(c))), hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf)))))))
             case Conn.ResolveFailed{m}:
               chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
             case Conn.OpenFailed{m}:
