@@ -4278,25 +4278,6 @@ def kept_of(+ka: Bool, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>)
           +lo = lo0
           Bool.and(Bool.and(r_keep(r), ka), String.is_empty(lo))
 
-# the next request goes on a new connection: a Shut before any Send, or
-# an Open or Resolve (Go never reuses a connection whose redirect body it
-# left unread)
-def new_conn(cs: List<&2, Conn.Cmd>, +shut: Bool) -> Bool:
-  match cs:
-    case Nil{}:
-      shut
-    case Con{+k, +rest}:
-      match k:
-        case Conn.Shut{}:
-          new_conn(rest, True{})
-        case Conn.Open{ip, p}:
-          True{}
-        case Conn.Resolve{h}:
-          True{}
-        case Conn.Send{d}:
-          shut
-        case _:
-          new_conn(rest, shut)
 
 def is_fail_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
   match m:
@@ -4308,25 +4289,6 @@ def is_fail_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> B
           True{}
         case Done{p}:
           False{}
-
-
-def progresses(cs: List<&2, Conn.Cmd>) -> Bool:
-  match cs:
-    case Nil{}:
-      False{}
-    case Con{+k, +rest}:
-      match k:
-        case Conn.Resolve{h}:
-          True{}
-        case Conn.Open{ip, p}:
-          True{}
-        case Conn.Send{d}:
-          True{}
-        case _:
-          progresses(rest)
-
-
-
 
 
 

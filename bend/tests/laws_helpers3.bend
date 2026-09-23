@@ -127,8 +127,6 @@ def main() -> IO(Unit):
     IO.print(rd(stop_then_eof()) ++ rd(spurious()) ++ rd(dial_fail()))
     IO.print(Nat.show(L.head_code("HTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n")) ++ " "
       ++ L.head_location("HTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 302 Found\r\nLocation: /x\r\n\r\n"))
-    IO.print(L.pick(String, L.new_conn([Conn.Send{"x"}], False{}), "T", "F") ++ L.pick(String, L.new_conn([Conn.Shut{}, Conn.Send{"x"}], False{}), "T", "F")
-      ++ L.pick(String, L.new_conn([Conn.Open{"i", 80n}], False{}), "T", "F"))
     IO.print(cf(hints_then(Conn.Late{}, "Get \"http://h/\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"))
       ++ cf(hints_then(Conn.Eof{}, "Get \"http://h/\": net/http: HTTP/1.x transport connection broken: unexpected EOF"))
       ++ cf(hints_then(Conn.Late{}, "context deadline exceeded (Client.Timeout or context cancellation while reading body)"))
@@ -157,7 +155,6 @@ def main() -> IO(Unit):
 #|TF
 #|TFT
 #|302 /x
-#|FTT
 #|TTFTTTF
 #|TFFTFFT
 #|TF
