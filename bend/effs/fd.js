@@ -17,3 +17,11 @@ function fd_wait(fds, max, ms) {
 function fd_next(max, ns) {
   throw new Error("Fd.next: unsupported on the JS lane");
 }
+
+function fd_send_packed(fd, ws) {
+  throw new Error("Fd.send_packed: unsupported on the JS lane");
+}
+
+function out_packed(xs) {
+  throw new Error("Out.packed: unsupported on the JS lane");
+}

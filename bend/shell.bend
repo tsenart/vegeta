@@ -245,7 +245,7 @@ def min_dl(slots: List<&2, Slot>, +now: Nat, +acc: Nat) -> Nat:
 # what a slot's run ends in: the slot, and the result line if the hit
 # finished
 type Ran is Data:
-  Ran{slot: Slot, line: Maybe<&2, String>}
+  Ran{slot: Slot, line: Maybe<&2, List<&2, U32>>}
 
 type Drv is Type:
   Run{cmds: List<&2, Conn.Cmd>}
@@ -276,7 +276,7 @@ def resolved(r: Result<&1, &1, U32 & String, String>) -> Conn.Ev:
       Conn.ResolveFailed{msg}
 
 # a hit's end: its line, and the connection closed unless kept
-def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: String) -> IO(Ran):
+def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: List<&2, U32>) -> IO(Ran):
   match keep:
     case True{}:
       IO.pure(Ran, Ran{Slot{w, fd, None{}}, Some{line}})
@@ -305,7 +305,7 @@ def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: String) -> IO(Ran):
         case Nil{}:
           do IO<Ran>:
             +t1 : Nat <- Sys.Clock.mono_ns()
-            finish(False{}, w, fd, fly_line(e, f, t1, Conn.Failed{"bend: the client stopped without an answer", None{}}))
+            finish(False{}, w, fd, Sys.Packed.pack(fly_line(e, f, t1, Conn.Failed{"bend: the client stopped without an answer", None{}})))
         case Con{cmd, rest}:
           match cmd:
             case Conn.Recv{}:
@@ -313,7 +313,7 @@ def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: String) -> IO(Ran):
             case Conn.Finish{o, keep}:
               do IO<Ran>:
                 +t1 : Nat <- Sys.Clock.mono_ns()
-                finish(keep, w, fd, fly_line(e, f, t1, o))
+                finish(keep, w, fd, Sys.Packed.pack(fly_line(e, f, t1, o)))
             case Conn.Shut{}:
               do IO<Ran>:
                 close(fd)
@@ -341,13 +341,22 @@ def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: String) -> IO(Ran):
 # ---------------------------------------------------------------------
 
 # a slot with a hit in flight and the event it takes
-type Item is Data:
-  Item{w: Nat, fd: Maybe<&2, U32>, fly: Fly, ev: Conn.Ev}
+# what a connection gave: bytes (packed; none at a close), or its
+# deadline passed
+type Raw is Data:
+  RData{ws: List<&2, U32>}
+  RLate{}
 
-# the step taken: the slot's new machine and commands, and the result line
-# when the commands are just a finish (keep: the connection stays)
+type Item is Data:
+  Item{w: Nat, fd: Maybe<&2, U32>, fly: Fly, raw: Raw}
+
+# the step taken: a finished hit's result line (packed, so the loop never
+# walks it byte by byte; the machine's state is freed in the parallel
+# task) and whether the connection stays; or the slot's new machine and
+# commands, with the first request already packed when there is one
 type Stepped is Data:
-  Stepped{w: Nat, fd: Maybe<&2, U32>, fly: Fly, cmds: List<&2, Conn.Cmd>, done: Maybe<&2, String>, keep: Bool}
+  SDone{w: Nat, fd: Maybe<&2, U32>, line: List<&2, U32>, keep: Bool}
+  SMore{w: Nat, fd: Maybe<&2, U32>, fly: Fly, cmds: List<&2, Conn.Cmd>, sendp: Maybe<&2, List<&2, U32>>}
 
 def fin_only(cs: List<&2, Conn.Cmd>) -> Maybe<&2, Conn.Out>:
   match cs:
@@ -371,19 +380,32 @@ def fin_keep(cs: List<&2, Conn.Cmd>) -> Bool:
     case Nil{}:
       False{}
 
-def done_line(m: Maybe<&2, Conn.Out>, +e: WEnv, +f: Fly, +t1: Nat) -> Maybe<&2, String>:
+def ev_of(d: String) -> Conn.Ev:
+  match d:
+    case SNil{}:
+      Conn.Eof{}
+    case SCon{c, rest}:
+      Conn.Got{SCon{c, rest}}
+
+def ev_raw(r: Raw) -> Conn.Ev:
+  match r:
+    case RLate{}:
+      Conn.Late{}
+    case RData{ws}:
+      ev_of(Sys.Packed.bytes(ws))
+
+def step1.of(m: Maybe<&2, Conn.Out>, +e: WEnv, +t1: Nat, +w: Nat, +fd: Maybe<&2, U32>, +f2: Fly, +cs: List<&2, Conn.Cmd>) -> Stepped:
   match m:
-    case None{}:
-      None{}
     case Some{o}:
-      Some{fly_line(e, f, t1, o)}
+      SDone{w, fd, Sys.Packed.pack(fly_line(e, f2, t1, o)), fin_keep(cs)}
+    case None{}:
+      SMore{w, fd, f2, cs, None{}}
 
 def step1(+e: WEnv, +t1: Nat, it: Item) -> Stepped:
-  Item{w, fd, +f, ev} = it
-  +r = Conn.step(e_cc(e), fly_st(f), ev)
+  Item{w, fd, +f, raw} = it
+  +r = Conn.step(e_cc(e), fly_st(f), ev_raw(raw))
   +cs = cs_of(r)
-  +f2 = fly_with(f, st_of(r))
-  Stepped{w, fd, f2, cs, done_line(fin_only(cs), e, f2, t1), fin_keep(cs)}
+  step1.of(fin_only(cs), e, t1, w, fd, fly_with(f, st_of(r)), cs)
 
 type Tree is Data:
   TNil{}
@@ -454,10 +476,23 @@ def ptree1(xs: List<&2, Pre>) -> PTree:
           +h = Nat.div(Nat.add(k, 2n), 2n)
           PTwo{ptree(h, List.take(&2, Pre, xs, h)), ptree(Nat.sub(Nat.add(k, 2n), h), List.drop(&2, Pre, xs, h))}
 
+# a start whose first command is the Send (a kept connection): the request
+# packed, and the commands after it
+def start_send(cs: List<&2, Conn.Cmd>, +w: Nat, +fd: Maybe<&2, U32>, +f: Fly) -> Stepped:
+  match cs:
+    case Con{c, rest}:
+      match c:
+        case Conn.Send{d}:
+          SMore{w, fd, f, rest, Some{Sys.Packed.pack(d)}}
+        case _:
+          SMore{w, fd, f, Con{c, rest}, None{}}
+    case Nil{}:
+      SMore{w, fd, f, [], None{}}
+
 def start1(+e: WEnv, +h0: Nat, +ts: Civil.Time, p: Pre) -> Stepped:
   Pre{w, +fd, +seq, +ti} = p
   +r0 = Conn.start(e_cc(e), req_of(prep_at(e_preps(e), ti), seq, e_name(e)), Maybe.is_some(&2, U32, fd))
-  Stepped{w, fd, Fly{st_of(r0), seq, ti, h0, ts, deadline(e_cc(e), h0)}, cs_of(r0), None{}, False{}}
+  start_send(cs_of(r0), w, fd, Fly{st_of(r0), seq, ti, h0, ts, deadline(e_cc(e), h0)})
 
 def pstarts(t: PTree, +e: WEnv, +h0: Nat, +ts: Civil.Time) -> List<&2, Stepped>:
   match t:
@@ -479,31 +514,24 @@ def pstarts(t: PTree, +e: WEnv, +h0: Nat, +ts: Civil.Time) -> List<&2, Stepped>:
 type Taken is Data:
   Taken{items: List<&2, Item>, dead: List<&2, Nat>}
 
-def ev_of(d: String) -> Conn.Ev:
-  match d:
-    case SNil{}:
-      Conn.Eof{}
-    case SCon{c, rest}:
-      Conn.Got{SCon{c, rest}}
-
-def take_fly(fly: Maybe<&2, Fly>, +w: Nat, +fd: Maybe<&2, U32>, +d: String, +acc: Taken) -> Taken:
+def take_fly(fly: Maybe<&2, Fly>, +w: Nat, +fd: Maybe<&2, U32>, +d: List<&2, U32>, +acc: Taken) -> Taken:
   match fly:
     case None{}:
       Taken{items, dead} = acc
       Taken{items, Con{w, dead}}
     case Some{f}:
       Taken{items, dead} = acc
-      Taken{Con{Item{w, fd, f, ev_of(d)}, items}, dead}
+      Taken{Con{Item{w, fd, f, RData{d}}, items}, dead}
 
-def take_s(+s: Slot, +d: String, +acc: Taken) -> Taken:
+def take_s(+s: Slot, +d: List<&2, U32>, +acc: Taken) -> Taken:
   Slot{w, fd, fly} = s
   take_fly(fly, w, fd, d, acc)
 
-def take_p(p: Sigma<&2, &2, U32, _ => String>, +slots: Tr, +acc: Taken) -> Taken:
+def take_p(p: Sigma<&2, &2, U32, _ => List<&2, U32>>, +slots: Tr, +acc: Taken) -> Taken:
   (tag, d) = p
   take_s(get_w(slots, U32.to_nat(tag)), d, acc)
 
-def take(rs: List<&2, Sigma<&2, &2, U32, _ => String>>, +slots: Tr, +acc: Taken) -> Taken:
+def take(rs: List<&2, Sigma<&2, &2, U32, _ => List<&2, U32>>>, +slots: Tr, +acc: Taken) -> Taken:
   match rs:
     case Nil{}:
       acc
@@ -511,7 +539,7 @@ def take(rs: List<&2, Sigma<&2, &2, U32, _ => String>>, +slots: Tr, +acc: Taken)
       take(rest, slots, take_p(p, slots, acc))
 
 def item_w(+it: Item) -> Nat:
-  Item{w, fd, f, ev} = it
+  Item{w, fd, f, raw} = it
   w
 
 def has_w(+w: Nat, its: List<&2, Item>) -> Bool:
@@ -534,7 +562,7 @@ def lates.of(fly: Maybe<&2, Fly>, +w: Nat, +fd: Maybe<&2, U32>, +now: Nat, +its:
       its
     case Some{+f}:
       +d = fly_dl(f)
-      lates.add(Bool.and(Bool.and(Nat.is_gt(d, 0n), Nat.is_ge(now, d)), Bool.not(has_w(w, its))), Item{w, fd, f, Conn.Late{}}, its)
+      lates.add(Bool.and(Bool.and(Nat.is_gt(d, 0n), Nat.is_ge(now, d)), Bool.not(has_w(w, its))), Item{w, fd, f, RLate{}}, its)
 
 # hits past their deadline that got nothing this round take a Late (a
 # walk over every slot: only when the next deadline to check has come)
@@ -550,18 +578,33 @@ def lates(slots: List<&2, Slot>, +now: Nat, +its: List<&2, Item>) -> List<&2, It
 # The loop
 # ---------------------------------------------------------------------
 
+# a started hit: its packed request goes out at once (a kept connection),
+# else its commands run
+def send_first(sendp: Maybe<&2, List<&2, U32>>, fd: Maybe<&2, U32>, +e: WEnv, +w: Nat, +f: Fly, cmds: List<&2, Conn.Cmd>) -> IO(Ran):
+  match sendp:
+    case None{}:
+      srun(Run{cmds}, e, w, fd, f)
+    case Some{ws}:
+      match fd:
+        case None{}:
+          srun(Run{cmds}, e, w, None{}, f)
+        case Some{+x}:
+          do IO<Ran>:
+            r : Result<&1, &1, U32 & String, Unit> <- Sys.Fd.send_packed(x, ws)
+            srun(SendRes{r}, e, w, Some{x}, f)
+
 # the loop's state: when the attack began (mono ns), the engine, the
 # slots, the nap's end (attack ns), the workers freed and not yet told
 # to the engine, the result lines not yet written (newest first), and
 # when to look for hits past their deadline (mono ns, 0: none)
 type Lp is Data:
-  Lp{t0: Nat, st: Eng.State, slots: Tr, nap: Maybe<&2, Nat>, freed: List<&2, Nat>, lines: List<&2, String>, dln: Nat}
+  Lp{t0: Nat, st: Eng.State, slots: Tr, nap: Maybe<&2, Nat>, freed: List<&2, Nat>, lines: List<&2, List<&2, U32>>, dln: Nat}
 
 def lp_slots(+l: Lp) -> Tr:
   Lp{t0, st, slots, nap, freed, lines, dln} = l
   slots
 
-def lp_lines(+l: Lp) -> List<&2, String>:
+def lp_lines(+l: Lp) -> List<&2, List<&2, U32>>:
   Lp{t0, st, slots, nap, freed, lines, dln} = l
   lines
 
@@ -581,7 +624,7 @@ def with_nap(+l: Lp, +u: Nat) -> Lp:
   Lp{t0, st, slots, nap, freed, lines, dln} = l
   Lp{t0, st, slots, Some{u}, freed, lines, dln}
 
-def with_line(line: Maybe<&2, String>, +w: Nat, +l: Lp) -> Lp:
+def with_line(line: Maybe<&2, List<&2, U32>>, +w: Nat, +l: Lp) -> Lp:
   match line:
     case None{}:
       l
@@ -655,19 +698,19 @@ def close_dead(dead: List<&2, Nat>, +slots: Tr) -> IO(Tr):
         close(slot_fd(get_w(slots, w)))
         close_dead(rest, put(slots, Slot{w, None{}, None{}}))
 
-def flush(ls: List<&2, String>) -> IO(Unit):
+def flush(ls: List<&2, List<&2, U32>>) -> IO(Unit):
   match ls:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case Con{x, rest}:
-      Sys.Out.lines(Con{x, rest})
+      Sys.Out.packed(Con{x, rest})
 
 # what the engine takes next: the clock when the nap is over, else the
 # next freed worker; None when there is nothing, and the loop waits
 type Nx is Data:
   Nx{l: Lp, cs: Maybe<&2, List<&2, Eng.Cmd>>}
 
-def next_freed(freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +nap: Maybe<&2, Nat>, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_freed(freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +nap: Maybe<&2, Nat>, +lines: List<&2, List<&2, U32>>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match freed:
     case Nil{}:
       Nx{Lp{t0, st, slots, nap, [], lines, dln}, None{}}
@@ -675,7 +718,7 @@ def next_freed(freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +nap:
       +r = Eng.step(ec, st, Eng.Freed{w, t})
       Nx{Lp{t0, est_of(r), slots, nap, rest, lines, dln}, Some{ecs_of(r)}}
 
-def next_nap(due: Bool, +u: Nat, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_nap(due: Bool, +u: Nat, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, List<&2, U32>>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match due:
     case True{}:
       +r = Eng.step(ec, st, Eng.Clock{t})
@@ -683,7 +726,7 @@ def next_nap(due: Bool, +u: Nat, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State
     case False{}:
       next_freed(freed, t0, st, slots, Some{u}, lines, dln, ec, t)
 
-def next_ev.of(nap: Maybe<&2, Nat>, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_ev.of(nap: Maybe<&2, Nat>, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, List<&2, U32>>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match nap:
     case Some{+u}:
       next_nap(Nat.is_ge(t, u), u, freed, t0, st, slots, lines, dln, ec, t)
@@ -704,7 +747,7 @@ type Am is Type:
   Gather{cs: List<&2, Eng.Cmd>, fs: List<&2, Pre>}
   Launch{fs: List<&2, Pre>}
   Launched{fs: List<&2, Pre>, t0: Nat, wall: Nat & Nat & U32}
-  Waited{rs: List<&2, Sigma<&2, &2, U32, _ => String>>, now: Nat}
+  Waited{rs: List<&2, Sigma<&2, &2, U32, _ => List<&2, U32>>>, now: Nat}
   Took{tk: Taken, now: Nat}
   Stepping{xs: List<&2, Stepped>}
 
@@ -723,7 +766,7 @@ type Am is Type:
             case None{}:
               do IO<Nat & Nat>:
                 flush(lp_lines(l2))
-                rs : List<&2, Sigma<&2, &2, U32, _ => String>> <- Sys.Fd.next(65536, wait_ns(l2, now))
+                rs : List<&2, Sigma<&2, &2, U32, _ => List<&2, U32>>> <- Sys.Fd.next(65536, wait_ns(l2, now))
                 +now2 : Nat <- Sys.Clock.mono_ns()
                 attack(Waited{rs, now2}, ec, e, no_lines(l2))
     case Cmds{cs}:
@@ -772,16 +815,14 @@ type Am is Type:
           attack(Idle{}, ec, e, l)
         case Con{x, rest}:
           match x:
-            case Stepped{+w, fd, f, cmds, done, keep}:
-              match done:
-                case Some{line}:
-                  do IO<Nat & Nat>:
-                    r : Ran <- finish(keep, w, fd, line)
-                    attack(Stepping{rest}, ec, e, with_ran(l, r))
-                case None{}:
-                  do IO<Nat & Nat>:
-                    r : Ran <- srun(Run{cmds}, e, w, fd, f)
-                    attack(Stepping{rest}, ec, e, with_ran(l, r))
+            case SDone{+w, fd, line, keep}:
+              do IO<Nat & Nat>:
+                r : Ran <- finish(keep, w, fd, line)
+                attack(Stepping{rest}, ec, e, with_ran(l, r))
+            case SMore{+w, fd, f, cmds, sendp}:
+              do IO<Nat & Nat>:
+                r : Ran <- send_first(sendp, fd, e, w, f, cmds)
+                attack(Stepping{rest}, ec, e, with_ran(l, r))
 
 # runs an attack to its end, writing the results as they come; answers
 # (sent, dropped)

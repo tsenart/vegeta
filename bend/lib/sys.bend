@@ -81,6 +81,19 @@ def Fd.send(fd: U32, data: String) -> IO(Result<&1, &1, U32 & String, Unit>):
   import "../effs/fd.c"
   import "../effs/fd.js"
 
+# all of a packed text, or the failure
+def Fd.send_packed(fd: U32, ws: List<&2, U32>) -> IO(Result<&1, &1, U32 & String, Unit>):
+  import "../effs/bytes.c"
+  import "../effs/fd.c"
+  import "../effs/fd.js"
+
+# writes each packed text of xs to stdout, last first (xs holds lines
+# newest first)
+def Out.packed(xs: List<&2, List<&2, U32>>) -> IO(Unit):
+  import "../effs/bytes.c"
+  import "../effs/fd.c"
+  import "../effs/fd.js"
+
 def Fd.close(fd: U32) -> IO(Unit):
   import "../effs/fd.c"
   import "../effs/fd.js"
@@ -94,9 +107,10 @@ def Fd.wait(fds: List<&2, U32>, max: U32, ms: U32) -> IO(List<&2, Sigma<&2, &2, 
   import "../effs/fd.js"
 
 # waits up to ns for any registered connection to be readable, then reads
-# up to max bytes from each ready one: (tag, bytes) per ready connection,
-# "" at a close or an error; [] when ns passed with none ready
-def Fd.next(max: U32, ns: Nat) -> IO(List<&2, Sigma<&2, &2, U32, _ => String>>):
+# up to max bytes from each ready one: (tag, bytes packed, see Packed) per
+# ready connection, no bytes at a close or an error; [] when ns passed
+# with none ready
+def Fd.next(max: U32, ns: Nat) -> IO(List<&2, Sigma<&2, &2, U32, _ => List<&2, U32>>>):
   import "../effs/bytes.c"
   import "../effs/fd.c"
   import "../effs/fd.js"
@@ -214,6 +228,44 @@ def Packed.bytes(ws: List<&2, U32>) -> String:
           ""
         case Con{+w, more}:
           Packed.go(more, Packed.last(k, w))
+
+def Packed.code(c: Char) -> U32:
+  Chr{k} = c
+  k
+
+def Packed.pack.end(+k: Nat, +w: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  match k:
+    case 0n:
+      match acc:
+        case Nil{}:
+          [0]
+        case Con{x, rest}:
+          Con{4, Con{x, rest}}
+    case 1n+j:
+      Con{U32.from_nat(k), Con{w, acc}}
+
+def Packed.pack.go(s: String, +w: U32, +k: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  match s:
+    case SNil{}:
+      Packed.pack.end(k, w, acc)
+    case SCon{c, rest}:
+      match k:
+        case 0n:
+          Packed.pack.go(rest, Packed.code(c), 1n, acc)
+        case 1n+a:
+          match a:
+            case 0n:
+              Packed.pack.go(rest, (w .|. (Packed.code(c) << 8n) : U32), 2n, acc)
+            case 1n+b:
+              match b:
+                case 0n:
+                  Packed.pack.go(rest, (w .|. (Packed.code(c) << 16n) : U32), 3n, acc)
+                case 1n+d:
+                  Packed.pack.go(rest, 0, 0n, Con{(w .|. (Packed.code(c) << 24n) : U32), acc})
+
+# s packed (the format Packed.bytes reads), in one pass
+def Packed.pack(s: String) -> List<&2, U32>:
+  Packed.pack.go(s, 0, 0n, [])
 
 # the bytes of packed lines, in order
 def Packed.text(ls: List<&2, List<&2, U32>>) -> String:

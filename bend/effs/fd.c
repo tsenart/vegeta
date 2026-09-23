@@ -43,6 +43,74 @@ static int fd_watch(int fd, u32 tag) {
 #endif
 }
 
+
+// Packed text (lib/sys.bend's format): the count of bytes in the last word
+// (0 for none), then the words, last first, four bytes each, the first
+// byte lowest. The attack's parallel step packs and unpacks, so the loop
+// never walks a text byte by byte.
+
+static __attribute__((unused)) Term fd_packed(Env e, const uint8_t* p, u64 n) {
+  Term xs = term_pak(CID_NIL, 0);
+  u64  w  = n / 4;
+  for (u64 i = 0; i < w; i += 1) {
+    const uint8_t* q = p + 4 * i;
+    u32 v = (u32)q[0] | (u32)q[1] << 8 | (u32)q[2] << 16 | (u32)q[3] << 24;
+    xs = io_node(e, CID_CON, (Term)v, xs);
+  }
+  u64 k = n % 4;
+  if (k > 0) {
+    const uint8_t* q = p + 4 * w;
+    u32 v = 0;
+    for (u64 j = 0; j < k; j += 1) {
+      v |= (u32)q[j] << (8 * j);
+    }
+    xs = io_node(e, CID_CON, (Term)v, xs);
+  } else if (w > 0) {
+    k = 4;
+  }
+  return io_node(e, CID_CON, (Term)k, xs);
+}
+
+// a packed text's bytes, into a malloc'ed buffer (the list is consumed)
+static __attribute__((unused)) char* fd_unpacked(Env e, Term l, u64* len) {
+  u64   cap = 16;
+  u64   k   = 0;
+  u32*  ws  = io_mem(malloc(sizeof(u32) * cap));
+  u32   last = 0;
+  int   first = 1;
+  while (term_aux(l) == CID_CON) {
+    Term fb[2];
+    spare_free(e, cls_fit(2), ctr_take(e, l, 2, fb));
+    if (first) {
+      last  = (u32)fb[0];
+      first = 0;
+    } else {
+      if (k == cap) {
+        cap *= 2;
+        ws = io_mem(realloc(ws, sizeof(u32) * cap));
+      }
+      ws[k] = (u32)fb[0];
+      k += 1;
+    }
+    l = fb[1];
+  }
+  u64   n   = k == 0 ? 0 : (k - 1) * 4 + (last == 0 ? 4 : last);
+  char* buf = io_mem(malloc(n + 1));
+  u64   at  = 0;
+  for (u64 i = k; i > 0; i -= 1) {
+    u32 v    = ws[i - 1];
+    u64 take = (i == 1 && last != 0) ? last : 4;
+    for (u64 j = 0; j < take && at < n; j += 1) {
+      buf[at] = (char)((v >> (8 * j)) & 0xFF);
+      at += 1;
+    }
+  }
+  free(ws);
+  buf[n] = 0;
+  *len = n;
+  return buf;
+}
+
 #ifdef CID_FD_CONNECT
 
 // a non-blocking connect, parked until the socket is writable; SO_ERROR
@@ -123,6 +191,75 @@ Term fd_send_run(Env e, Term* f, IoWork* w) {
 
 static void __attribute__((constructor)) fd_send_use(void) {
   io_eff(CID_FD_SEND, fd_send_run, 0);
+}
+
+#endif
+
+#ifdef CID_FD_SEND_PACKED
+
+static Term fd_send_packed_more(Env e, IoWork* w) {
+  int fd = (int)w->hand;
+  while (w->code == 0 && (u64)w->made < w->size) {
+    ssize_t n = send(fd, w->data + w->made, w->size - (u64)w->made, 0);
+    if (n < 0 && errno == EAGAIN) {
+      return io_wait_on(w, fd, POLLOUT, 0, fd_send_packed_more);
+    }
+    if (n < 0 && errno == EINTR) {
+      continue;
+    }
+    w->made += io_sys_end(w, n);
+  }
+  Term r = w->code != 0 ? io_fail(e, w->code, NULL)
+    : io_done(e, term_pak(CID_UNIT, 0));
+  free(w->data);
+  return r;
+}
+
+Term fd_send_packed_run(Env e, Term* f, IoWork* w) {
+  w->hand = (intptr_t)(u32)f[0];
+  w->data = fd_unpacked(e, f[1], &w->size);
+  w->made = 0;
+  w->code = 0;
+  return fd_send_packed_more(e, w);
+}
+
+static void __attribute__((constructor)) fd_send_packed_use(void) {
+  io_eff(CID_FD_SEND_PACKED, fd_send_packed_run, 0);
+}
+
+#endif
+
+#ifdef CID_OUT_PACKED
+
+// writes each packed text of a list, last first, in one write
+Term out_packed_run(Env e, Term* f, IoWork* w) {
+  u64   cap = 0;
+  u64   k   = 0;
+  Term* xs  = NULL;
+  Term  l   = f[0];
+  while (term_aux(l) == CID_CON) {
+    Term fb[2];
+    spare_free(e, cls_fit(2), ctr_take(e, l, 2, fb));
+    if (k == cap) {
+      cap = cap ? cap * 2 : 64;
+      xs  = io_mem(realloc(xs, sizeof(Term) * cap));
+    }
+    xs[k] = fb[0];
+    k += 1;
+    l = fb[1];
+  }
+  for (u64 i = k; i > 0; i -= 1) {
+    u64   n    = 0;
+    char* data = fd_unpacked(e, xs[i - 1], &n);
+    io_out(stdout, data, n);
+    free(data);
+  }
+  free(xs);
+  return term_pak(CID_UNIT, 0);
+}
+
+static void __attribute__((constructor)) out_packed_use(void) {
+  io_eff(CID_OUT_PACKED, out_packed_run, 0);
 }
 
 #endif
@@ -292,7 +429,7 @@ static Term fd_next_pack(Env e, IoWork* w) {
   for (int i = x->n; i > 0; i -= 1) {
     int j = i - 1;
     if (x->len[j] >= 0) {
-      Term s = bytes_str(e, x->buf[j], (u64)x->len[j]);
+      Term s = fd_packed(e, (const uint8_t*)x->buf[j], (u64)x->len[j]);
       xs = io_node(e, CID_CON, io_tup(e, (Term)x->tag[j], s), xs);
     }
     free(x->buf[j]);
