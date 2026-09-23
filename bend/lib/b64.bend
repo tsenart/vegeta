@@ -22,12 +22,22 @@ def str1(k: U32) -> String:
 def in_range32(+k: U32, +lo: U32, +hi: U32) -> Bool:
   Bool.and(U32.is_ge(k, lo), U32.is_le(k, hi))
 
-# the character for a six-bit value
+# the character for a six-bit value (each link of the pick chain has a
+# def of its own, so a proof can name the branches)
+def char.code4(+i: U32) -> U32:
+  pick(U32, U32.is_eq(i, 62), 43, 47)
+
+def char.code3(+i: U32) -> U32:
+  pick(U32, U32.is_lt(i, 62), (i - 4 : U32), char.code4(i))
+
+def char.code2(+i: U32) -> U32:
+  pick(U32, U32.is_lt(i, 52), (71 + i : U32), char.code3(i))
+
+def char.code(+i: U32) -> U32:
+  pick(U32, U32.is_lt(i, 26), (65 + i : U32), char.code2(i))
+
 def char(+i: U32) -> String:
-  str1(pick(U32, U32.is_lt(i, 26), (65 + i : U32),
-       pick(U32, U32.is_lt(i, 52), (71 + i : U32),
-       pick(U32, U32.is_lt(i, 62), (i - 4 : U32),
-       pick(U32, U32.is_eq(i, 62), 43, 47)))))
+  str1(char.code(i))
 
 def three(+a: U32, +b: U32, +c: U32) -> String:
   char((a >> 2n : U32)) ++ char((((a .&. 3) << 4n) .|. (b >> 4n) : U32))
@@ -72,40 +82,136 @@ def prepend(p: String, m: Maybe<&2, String>) -> Maybe<&2, String>:
     case Some{x}:
       Some{p ++ x}
 
+# Bytes are assembled bit by bit (decode's values are below 64, so their
+# low six bits are all there is): the words stay symbolic-friendly for
+# the proofs, where arithmetic on an opaque byte gets stuck.
+def bit0(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          b0
+
+def bit1(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          match w1:
+            case WCon{b1, w2}:
+              b1
+
+def bit2(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          match w1:
+            case WCon{b1, w2}:
+              match w2:
+                case WCon{b2, w3}:
+                  b2
+
+def bit3(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          match w1:
+            case WCon{b1, w2}:
+              match w2:
+                case WCon{b2, w3}:
+                  match w3:
+                    case WCon{b3, w4}:
+                      b3
+
+def bit4(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          match w1:
+            case WCon{b1, w2}:
+              match w2:
+                case WCon{b2, w3}:
+                  match w3:
+                    case WCon{b3, w4}:
+                      match w4:
+                        case WCon{b4, w5}:
+                          b4
+
+def bit5(v: U32) -> Bool:
+  match v:
+    case U32{w0}:
+      match w0:
+        case WCon{b0, w1}:
+          match w1:
+            case WCon{b1, w2}:
+              match w2:
+                case WCon{b2, w3}:
+                  match w3:
+                    case WCon{b3, w4}:
+                      match w4:
+                        case WCon{b4, w5}:
+                          match w5:
+                            case WCon{b5, w6}:
+                              b5
+
+def zeros24() -> Word(24n):
+  WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}
+
+# the byte with bits b0 (lowest) .. b7
+def mk8(b0: Bool, b1: Bool, b2: Bool, b3: Bool, b4: Bool, b5: Bool, b6: Bool, b7: Bool) -> U32:
+  U32{WCon{b0, WCon{b1, WCon{b2, WCon{b3, WCon{b4, WCon{b5, WCon{b6, WCon{b7, zeros24()}}}}}}}}}
+
+# (a << 2) | (b >> 4)
+def byte1(+a: U32, +b: U32) -> U32:
+  mk8(bit4(b), bit5(b), bit0(a), bit1(a), bit2(a), bit3(a), bit4(a), bit5(a))
+
+# ((b & 15) << 4) | (c >> 2)
+def byte2(+b: U32, +c: U32) -> U32:
+  mk8(bit2(c), bit3(c), bit4(c), bit5(c), bit0(b), bit1(b), bit2(b), bit3(b))
+
+# ((c & 3) << 6) | d
+def byte3(+c: U32, +d: U32) -> U32:
+  mk8(bit0(d), bit1(d), bit2(d), bit3(d), bit4(d), bit5(d), bit0(c), bit1(c))
+
 def bytes3(+a: U32, +b: U32, +c: U32, +d: U32) -> String:
-  str1((((a << 2n) .|. (b >> 4n)) .&. 255 : U32)) ++ str1((((b .&. 15) << 4n) .|. (c >> 2n) : U32))
-    ++ str1((((c .&. 3) << 6n) .|. d : U32))
+  str1(byte1(a, b)) ++ str1(byte2(b, c)) ++ str1(byte3(c, d))
 
 def bytes2(+a: U32, +b: U32, +c: U32) -> String:
-  str1((((a << 2n) .|. (b >> 4n)) .&. 255 : U32)) ++ str1((((b .&. 15) << 4n) .|. (c >> 2n) : U32))
+  str1(byte1(a, b)) ++ str1(byte2(b, c))
 
 def bytes1(+a: U32, +b: U32) -> String:
-  str1((((a << 2n) .|. (b >> 4n)) .&. 255 : U32))
+  str1(byte1(a, b))
 
 # a padded quad (only the last): "xxx=" with the low two bits of the
 # third value zero, or "xx==" with the low four bits of the second zero
-def padded(+last: Bool, +a: U32, +b: U32, +c: U32, +d: U32, +kc: U32, +kd: U32) -> Maybe<&2, String>:
+def padded(+oa: Bool, +ob: Bool, +oc: Bool, +last: Bool, +a: U32, +b: U32, +c: U32, +kc: U32, +kd: U32) -> Maybe<&2, String>:
   pick(Maybe<&2, String>,
-    Bool.and(last, Bool.and(Bool.and(ok6(a), ok6(b)), Bool.and(Bool.and(ok6(c), U32.is_eq(kd, 61)), U32.is_eq((c .&. 3 : U32), 0)))),
+    Bool.and(last, Bool.and(Bool.and(oa, ob), Bool.and(Bool.and(oc, U32.is_eq(kd, 61)),
+      Bool.and(Bool.not(bit0(c)), Bool.not(bit1(c)))))),
     Some{bytes2(a, b, c)},
   pick(Maybe<&2, String>,
-    Bool.and(last, Bool.and(Bool.and(ok6(a), ok6(b)), Bool.and(Bool.and(U32.is_eq(kc, 61), U32.is_eq(kd, 61)), U32.is_eq((b .&. 15 : U32), 0)))),
+    Bool.and(last, Bool.and(Bool.and(oa, ob), Bool.and(Bool.and(U32.is_eq(kc, 61), U32.is_eq(kd, 61)),
+      Bool.and(Bool.and(Bool.not(bit0(b)), Bool.not(bit1(b))), Bool.and(Bool.not(bit2(b)), Bool.not(bit3(b))))))),
     Some{bytes1(a, b)},
     None{}))
 
-def quad.of(full: Bool, +last: Bool, +a: U32, +b: U32, +c: U32, +d: U32, +kc: U32, +kd: U32, rest: Maybe<&2, String>) -> Maybe<&2, String>:
+def quad.full(full: Bool, +oa: Bool, +ob: Bool, +oc: Bool, +a: U32, +b: U32, +c: U32, +d: U32, +kc: U32, +kd: U32, +last: Bool, rest: Maybe<&2, String>) -> Maybe<&2, String>:
   match full:
     case True{}:
       prepend(bytes3(a, b, c, d), rest)
     case False{}:
-      padded(last, a, b, c, d, kc, kd)
+      padded(oa, ob, oc, last, a, b, c, kc, kd)
 
-def quad(+ka: U32, +kb: U32, +kc: U32, +kd: U32, +last: Bool, rest: Maybe<&2, String>) -> Maybe<&2, String>:
-  +a = value(ka)
-  +b = value(kb)
-  +c = value(kc)
-  +d = value(kd)
-  quad.of(Bool.and(Bool.and(ok6(a), ok6(b)), Bool.and(ok6(c), ok6(d))), last, a, b, c, d, kc, kd, rest)
+def quad.of(+oa: Bool, +ob: Bool, +oc: Bool, +od: Bool, +a: U32, +b: U32, +c: U32, +d: U32, +kc: U32, +kd: U32, +last: Bool, rest: Maybe<&2, String>) -> Maybe<&2, String>:
+  quad.full(Bool.and(Bool.and(oa, ob), Bool.and(oc, od)), oa, ob, oc, a, b, c, d, kc, kd, last, rest)
+
+# four values (64 for a character outside the alphabet), the last two
+# characters, whether this is the last quad, and the rest decoded
+def quad(+a: U32, +b: U32, +c: U32, +d: U32, +kc: U32, +kd: U32, +last: Bool, rest: Maybe<&2, String>) -> Maybe<&2, String>:
+  quad.of(ok6(a), ok6(b), ok6(c), ok6(d), a, b, c, d, kc, kd, last, rest)
 
 def decode(s: String) -> Maybe<&2, String>:
   match s:
@@ -124,4 +230,4 @@ def decode(s: String) -> Maybe<&2, String>:
                 case SNil{}:
                   None{}
                 case SCon{+d, +r4}:
-                  quad(code(a), code(b), code(c), code(d), String.is_empty(r4), decode(r4))
+                  quad(value(code(a)), value(code(b)), value(code(c)), value(code(d)), code(c), code(d), String.is_empty(r4), decode(r4))

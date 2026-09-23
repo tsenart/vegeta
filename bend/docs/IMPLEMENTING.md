@@ -48,6 +48,9 @@ the hard way on Bend 2.0.25; the examples compile.
 - Bend 2.0.25 miscompiles `Bool.or(x, pick(Bool, <computed cond>, a, b))`
   (tests/compiler_canary.bend). In `lib/`, give such a `pick` a def of its
   own. Compiled unit tests and Go goldens are the last word on behavior.
+- Base's `Nat.min`/`Nat.max` count down one at a time at runtime (two
+  equal values near 2.5e14 overflow the stack). Compare instead:
+  `pick(Nat, Nat.is_lt(a, b), a, b)`.
 - Strings in `lib/` are bytes: one `Chr` per byte (0..255). Bend source
   literals are code points, so write non-ASCII bytes explicitly
   (`SCon{Chr{194}, SCon{Chr{181}, SNil{}}}` for "µ").

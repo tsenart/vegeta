@@ -65,9 +65,10 @@ def req0() -> Conn.Req:
 def cfg0() -> Conn.Cfg:
   Conn.CCfg{True{}, 0n, None{}, Some{0n}}
 
-# -redirects=0: a 302, Go's stop error, then the server closes
+# -redirects=0: a 302, Go's stop error, then the server closes (the
+# request sent is the target's own: conn_redirect pins it)
 def stop_then_eof() -> List<&2, L.CItem>:
-  [L.CICmd{Conn.Send{"GET / HTTP/1.1"}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
+  [L.CICmd{Conn.Send{L.q_text(cfg0(), req0())}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
    L.CIEv{Conn.Got{"HTTP/1.1 302 Found\r\nLocation: /x\r\nContent-Length: 5000\r\n\r\n"}},
    L.CICmd{Conn.Finish{Conn.Failed{"Get \"/x\": stopped after 0 redirects", None{}}, False{}}}, L.CIEv{Conn.Eof{}}]
 
@@ -78,7 +79,7 @@ def dial_fail() -> List<&2, L.CItem>:
   [L.CICmd{Conn.Open{"127.0.0.1", 80n}}, L.CIEv{Conn.OpenFailed{"Connection refused"}}, L.CICmd{Conn.Finish{Conn.Failed{"x", None{}}, False{}}}]
 
 def rd(+xs: List<&2, L.CItem>) -> String:
-  L.pick(String, L.chk_redirect(xs, cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", None{}, 0n, False{}, "", False{}, False{}, False{}, False{}, "127.0.0.1", None{}), "T", "F")
+  L.pick(String, L.chk_redirect(xs, cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", Some{L.q_text(cfg0(), req0())}, 0n, False{}, "", False{}, False{}, False{}, False{}, "127.0.0.1", None{}), "T", "F")
 
 def hints_then(+e: Conn.Ev, +msg: String) -> List<&2, L.CItem>:
   [L.CICmd{Conn.Send{"GET / HTTP/1.1"}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
@@ -91,7 +92,7 @@ def cut(+bytes: String, +msg: String) -> List<&2, L.CItem>:
    L.CICmd{Conn.Finish{Conn.Failed{msg, None{}}, False{}}}]
 
 def cf(+xs: List<&2, L.CItem>) -> String:
-  L.pick(String, L.chk_fail(xs, cfg0(), req0(), False{}, None{}, False{}, ""), "T", "F")
+  L.pick(String, L.chk_fail(xs, cfg0(), req0(), False{}, False{}, False{}, ""), "T", "F")
 
 def dst(+hh: String, +kept: Bool, +k: Conn.Cmd) -> String:
   L.pick(String, L.dest_ok(hh, 80n, "h", 80n, "1.1.1.1", kept, Some{k}), "T", "F")

@@ -1,0 +1,5 @@
+Generates proofs/engine.bend (the engine laws' proofs are one pattern per
+checker, repeated over the engine's loops). The output stands alone; this
+is only needed to re-prove after an engine change:
+
+  cd bend/scripts/gen-engine-proof && python3 gen.py spec.py ../../proofs/engine.bend

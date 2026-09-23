@@ -108,6 +108,9 @@ TLS/HTTPS, HTTP/2 and h2c, gob, `-lazy`, JSON target format, `-unix-socket`,
 - Response headers in JSON results are in sorted key order; Go's are in random map order.
 - Negative durations (`-duration=-1s`) are rejected; any minus-zero (`-0`, `-0s`, `-0m0s`) reads as 0. Go accepts negative durations (a negative `-duration` runs forever). Decided under the owner's go-ahead ("don't stop until you're done"), overridable.
 - Durations from 281474 s (about 78.2 h) up are rejected: the compiled Bend runtime aborts on Nats past 2^48 ns. Go's limit is 2^63 ns. Decided under the owner's go-ahead, overridable (the alternative is carrying durations in `Big`).
+- `report` refuses results whose span (first start to last end) is 281474 s (about 78 h) or more: the summary's duration and wait are runtime Nats. Go reports any span. Same class as the duration bound.
+- Reading results back, a seq, latency or byte count of 2^48−1 or more is rejected (the runtime's largest Nat is 2^48−1); Go reads up to 2^64−1. An attack never produces such values.
+- A result CSV field (attack, error, method, URL) containing CRLF reads back with LF, as in Go; the round-trip laws exclude it.
 - A `-rate` with a bare multi-second unit (`50/m`) behaves as Go's, but no law can state its period (a closed number past the checker's reach); Go goldens pin it.
 - Dial error strings follow Go's shape (`Get "URL": dial tcp IP:PORT:
   connect: connection refused`) but not every Go error text is reproduced.

@@ -183,3 +183,25 @@ def div_mod_eq(+n: Nat, +b: Nat) -> {n == Nat.add(Nat.mul(Nat.div(n, 1n+b), 1n+b
 
 def mod_lt(+n: Nat, +b: Nat) -> {Nat.is_lt(Nat.mod(n, 1n+b), 1n+b) == True{} : Bool}:
   dm_lt(n, b, 0n, 0n, b, {==})
+
+# ---------------------------------------------------------------------
+# Refuting False == True, and x < 0
+# ---------------------------------------------------------------------
+
+def is_false_t(b: Bool) -> Type:
+  match b:
+    case False{}:
+      Unit
+    case True{}:
+      Empty
+
+def false_ne_true(e: {False{} == True{} : Bool}) -> Empty:
+  %e : is_false_t(_)
+  Unit{}
+
+def lt_zero(x: Nat, h: {Nat.is_lt(x, 0n) == True{} : Bool}) -> Empty:
+  match x:
+    case 0n:
+      false_ne_true(h)
+    case 1n+p:
+      false_ne_true(h)

@@ -114,6 +114,18 @@ type Cut is Data:
 type Fld is Data:
   Fld{acc: String, rest: String, cut: Cut}
 
+# the bytes of s after its first n (by n first: n = 0 needs nothing of s)
+def dropn(n: Nat, s: String) -> String:
+  match n:
+    case 0n:
+      s
+    case 1n+p:
+      match s:
+        case SNil{}:
+          SNil{}
+        case SCon{h, t}:
+          dropn(p, t)
+
 # the length of the space rune s starts with, or 0 (a newline is not
 # trimmed: it ends the record)
 def space_len(+s: String) -> Nat:
@@ -132,36 +144,52 @@ def trim.go(fuel: String, stop: Bool, +s: String) -> String:
           s
         case False{}:
           +n = space_len(s)
-          trim.go(f, Nat.is_eq(n, 0n), String.drop(s, n))
+          trim.go(f, Nat.is_eq(n, 0n), dropn(n, s))
 
 # TrimLeadingSpace: drop the space runes a field starts with
 def trim(+s: String) -> String:
   trim.go(SCon{Chr{0}, s}, False{}, s)
 
-# one byte k of a bare field, followed by t
+# one byte k of a bare field, followed by t (each link of the pick chain
+# has a def of its own, so a proof can name the branches)
+def bare.byte.4(+k: U32, +acc: String, +t: String) -> Fld:
+  pick(Fld, U32.is_eq(k, 34), Fld{acc, t, CsvBad{}}, Fld{SCon{Chr{k}, acc}, t, CsvMore{}})
+
+def bare.byte.3(+k: U32, +acc: String, +t: String) -> Fld:
+  pick(Fld, Bool.and(U32.is_eq(k, 13), Bool.or(String.is_empty(t), first_is(t, 10))), Fld{acc, dropn(1n, t), CsvEnd{}},
+    bare.byte.4(k, acc, t))
+
+def bare.byte.2(+k: U32, +acc: String, +t: String) -> Fld:
+  pick(Fld, U32.is_eq(k, 10), Fld{acc, t, CsvEnd{}}, bare.byte.3(k, acc, t))
+
 def bare.byte(+k: U32, +acc: String, +t: String) -> Fld:
-  pick(Fld, U32.is_eq(k, 44), Fld{acc, t, CsvSep{}},
-  pick(Fld, U32.is_eq(k, 10), Fld{acc, t, CsvEnd{}},
-  pick(Fld, Bool.and(U32.is_eq(k, 13), Bool.or(String.is_empty(t), first_is(t, 10))), Fld{acc, String.drop(t, 1n), CsvEnd{}},
-  pick(Fld, U32.is_eq(k, 34), Fld{acc, t, CsvBad{}},
-    Fld{SCon{Chr{k}, acc}, t, CsvMore{}}))))
+  pick(Fld, U32.is_eq(k, 44), Fld{acc, t, CsvSep{}}, bare.byte.2(k, acc, t))
 
 # after a closing quote, followed by t
 def quoted.close(+acc: String, +t: String) -> Fld:
   +b1 = byte_at(t, 0n)
   pick(Fld, String.is_empty(t), Fld{acc, "", CsvEnd{}},
-  pick(Fld, U32.is_eq(b1, 34), Fld{SCon{'"', acc}, String.drop(t, 1n), CsvMore{}},
-  pick(Fld, U32.is_eq(b1, 44), Fld{acc, String.drop(t, 1n), CsvSep{}},
-  pick(Fld, U32.is_eq(b1, 10), Fld{acc, String.drop(t, 1n), CsvEnd{}},
+  pick(Fld, U32.is_eq(b1, 34), Fld{SCon{'"', acc}, dropn(1n, t), CsvMore{}},
+  pick(Fld, U32.is_eq(b1, 44), Fld{acc, dropn(1n, t), CsvSep{}},
+  pick(Fld, U32.is_eq(b1, 10), Fld{acc, dropn(1n, t), CsvEnd{}},
   pick(Fld, Bool.and(U32.is_eq(b1, 13), Bool.or(Nat.is_eq(String.length(String.take(t, 2n)), 1n), U32.is_eq(byte_at(t, 1n), 10))),
-    Fld{acc, String.drop(t, 2n), CsvEnd{}},
+    Fld{acc, dropn(2n, t), CsvEnd{}},
     Fld{acc, t, CsvBad{}})))))
 
 # one byte k inside a quoted field, followed by t
+def quoted.byte.2(+k: U32, +acc: String, +t: String) -> Fld:
+  pick(Fld, Bool.and(U32.is_eq(k, 13), first_is(t, 10)), Fld{SCon{'\n', acc}, dropn(1n, t), CsvMore{}},
+    Fld{SCon{Chr{k}, acc}, t, CsvMore{}})
+
+def quoted.byte.of(q: Bool, +k: U32, +acc: String, +t: String) -> Fld:
+  match q:
+    case True{}:
+      quoted.close(acc, t)
+    case False{}:
+      quoted.byte.2(k, acc, t)
+
 def quoted.byte(+k: U32, +acc: String, +t: String) -> Fld:
-  pick(Fld, U32.is_eq(k, 34), quoted.close(acc, t),
-  pick(Fld, Bool.and(U32.is_eq(k, 13), first_is(t, 10)), Fld{SCon{'\n', acc}, String.drop(t, 1n), CsvMore{}},
-    Fld{SCon{Chr{k}, acc}, t, CsvMore{}}))
+  quoted.byte.of(U32.is_eq(k, 34), k, acc, t)
 
 # one step of a field; an unterminated quote is an error, as in Go
 def step(quoted: Bool, acc: String, s: String) -> Fld:
@@ -199,7 +227,7 @@ def field.go(fuel: String, +quoted: Bool, st: Fld) -> Fld:
 def read_field.of(quoted: Bool, +s: String) -> Fld:
   match quoted:
     case True{}:
-      field.go(SCon{Chr{0}, s}, True{}, Fld{"", String.drop(s, 1n), CsvMore{}})
+      field.go(SCon{Chr{0}, s}, True{}, Fld{"", dropn(1n, s), CsvMore{}})
     case False{}:
       field.go(SCon{Chr{0}, s}, False{}, Fld{"", s, CsvMore{}})
 
@@ -255,7 +283,7 @@ def skip_blank.go(fuel: String, stop: Bool, +s: String) -> String:
           s
         case False{}:
           +n = blank_len(s)
-          skip_blank.go(f, Nat.is_eq(n, 0n), String.drop(s, n))
+          skip_blank.go(f, Nat.is_eq(n, 0n), dropn(n, s))
 
 def parse_row.of(empty: Bool, +s: String) -> Maybe<&1, List<&2, String> & String>:
   match empty:

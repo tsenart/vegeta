@@ -195,6 +195,39 @@ static void __attribute__((constructor)) out_write_err_use(void) {
 
 #endif
 
+#ifdef CID_OUT_TO_FILE
+
+// points stdout at path (created or truncated): Out.write then streams
+// there. Pending output is flushed to the old stdout first.
+Term out_to_file_run(Env e, Term* f, IoWork* w) {
+  u64   n    = 0;
+  char* path = bytes_cstr(e, f[0], &n);
+  if (io_nul(path, n)) {
+    free(path);
+    return io_fail(e, EILSEQ, NULL);
+  }
+  io_sync();
+  fflush(stdout);
+  int fd;
+  do {
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  } while (fd < 0 && errno == EINTR);
+  free(path);
+  if (fd < 0) {
+    return io_fail(e, (u32)errno, NULL);
+  }
+  int ok = dup2(fd, fileno(stdout));
+  u32 code = ok < 0 ? (u32)errno : 0;
+  close(fd);
+  return code ? io_fail(e, code, NULL) : io_done(e, term_pak(CID_UNIT, 0));
+}
+
+static void __attribute__((constructor)) out_to_file_use(void) {
+  io_eff(CID_OUT_TO_FILE, out_to_file_run, 0);
+}
+
+#endif
+
 // Stdin
 // -----
 

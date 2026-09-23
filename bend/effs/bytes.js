@@ -26,6 +26,10 @@ function out_write(data) {
   throw new Error("Out.write: unsupported on the JS lane");
 }
 
+function out_to_file(path) {
+  throw new Error("Out.to_file: unsupported on the JS lane");
+}
+
 function out_write_err(data) {
   throw new Error("Out.write_err: unsupported on the JS lane");
 }

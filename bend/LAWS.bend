@@ -1549,20 +1549,31 @@ def maybe_hdrs_ok(+csv: Bool, +m: Maybe<&2, List<&2, Hdr.Header>>) -> Bool:
     case Some{hs}:
       Bool.and(hdrs_ascending(hs), pick(Bool, csv, hdrs_csv_ok(hs), hdrs_json_ok(hs)))
 
+# below 2^48 - 1 (the runtime's largest Nat is 2^48 - 1, and Dec.show(n)
+# runs n + 1 steps), compared as text so the checker never builds 2^48
+def nat_fits(+n: Nat) -> Bool:
+  Bool.or(Nat.is_lt(String.length(Dec.show(n)), 15n),
+    Bool.and(Nat.is_eq(String.length(Dec.show(n)), 15n), String.is_lt(Dec.show(n), "281474976710655")))
+
+def hit_fits(+seq: Nat, +lat: Nat, +bout: Nat, +bin: Nat) -> Bool:
+  Bool.and(Bool.and(nat_fits(seq), nat_fits(lat)), Bool.and(nat_fits(bout), nat_fits(bin)))
+
 # a result CSV carries unchanged: CSV has no zone (Go reads times back in
-# UTC here), no nil body (Go reads "" back as an empty body), and header
-# names that Go's reader would canonicalize are already canonical
+# UTC here), no nil body (Go reads "" back as an empty body), no CRLF in
+# a text field (Go's CSV reader turns it into LF), and header names that
+# Go's reader would canonicalize are already canonical
 def csv_ok(+h: Hit.Hit) -> Bool:
   Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
   Bool.and(Nat.is_lt(code, 65536n), Bool.and(Nat.is_lt(time_nsec(ts), sec()), Bool.and(Nat.is_eq(time_off(ts), 86400n),
   Bool.and(Maybe.is_some(&2, String, body), Bool.and(bytes(body_or_empty(body)),
-  Bool.and(all_bytes([attack, err, method, url]), maybe_hdrs_ok(True{}, hdrs)))))))
+  Bool.and(Bool.and(all_bytes([attack, err, method, url]), no_crlf_pair([attack, err, method, url])),
+  Bool.and(Bool.and(hit_fits(seq, lat, bout, bin), nat_fits(time_sec(ts))), maybe_hdrs_ok(True{}, hdrs))))))))
 
 # a result JSON carries unchanged: an RFC3339 time, UTF-8 text
 def json_ok(+h: Hit.Hit) -> Bool:
   Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
   Bool.and(Nat.is_lt(code, 65536n), Bool.and(valid_time(ts), Bool.and(bytes(body_or_empty(body)),
-  Bool.and(all_utf8([attack, err, method, url]), maybe_hdrs_ok(False{}, hdrs)))))
+  Bool.and(all_utf8([attack, err, method, url]), Bool.and(hit_fits(seq, lat, bout, bin), maybe_hdrs_ok(False{}, hdrs))))))
 
 law hit_of_csv:
   for +h: Hit.Hit
@@ -1981,9 +1992,39 @@ def some_has_ci(+v: String, +m: Maybe<&2, List<&2, String>>) -> Bool:
 def hdr_is(+k: String, +v: String, +hs: List<&2, Hdr.Header>) -> Bool:
   some_has_ci(v, hdr_get(k, hs))
 
-# the response carries "Connection: close"
+def trim_all(vs: List<&2, String>) -> List<&2, String>:
+  match vs:
+    case Nil{}:
+      []
+    case Con{+v, +rest}:
+      Con{trim_ows(v), trim_all(rest)}
+
+# the comma-separated tokens of a header value, trimmed
+def token_list(+v: String) -> List<&2, String>:
+  trim_all(split_on(44, v))
+
+def any_token(+t: String, vs: List<&2, String>) -> Bool:
+  match vs:
+    case Nil{}:
+      False{}
+    case Con{+v, +rest}:
+      Bool.or(any_ci(t, token_list(v)), any_token(t, rest))
+
+
+def some_token(+t: String, +m: Maybe<&2, List<&2, String>>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{vs}:
+      any_token(t, vs)
+
+# some Connection value has the token t (Go's HeaderValuesContainsToken)
+def conn_token(+t: String, +hs: List<&2, Hdr.Header>) -> Bool:
+  some_token(t, hdr_get("Connection", hs))
+
+# the response says "Connection: close" (as a token, in any value)
 def says_close(+hs: List<&2, Hdr.Header>) -> Bool:
-  hdr_is("Connection", "close", hs)
+  conn_token("close", hs)
 
 def resp_hdr_lines(hs: List<&2, Hdr.Header>) -> String:
   match hs:
@@ -1992,8 +2033,14 @@ def resp_hdr_lines(hs: List<&2, Hdr.Header>) -> String:
     case Con{+h, +rest}:
       hdr_lines(hdr_key(h), hdr_vals(h)) ++ resp_hdr_lines(rest)
 
-# a status line and headers, as a server writes them
+# a status line and headers, as a server writes them; a response the
+# server will not keep says so with "Connection: close" (Go removes that
+# header from the response it hands back, so it is not in r's headers)
 def render_head(+r: Http.Resp) -> String:
+  "HTTP/1.1 " ++ r_status(r) ++ "\r\n" ++ resp_hdr_lines(r_hdrs(r)) ++ pick(String, r_keep(r), "", "Connection: close\r\n") ++ "\r\n"
+
+# the same, with no word about keeping (a response framed by the close)
+def render_plain(+r: Http.Resp) -> String:
   "HTTP/1.1 " ++ r_status(r) ++ "\r\n" ++ resp_hdr_lines(r_hdrs(r)) ++ "\r\n"
 
 def hdrs_resp_ok(hs: List<&2, Hdr.Header>) -> Bool:
@@ -2006,11 +2053,13 @@ def hdrs_resp_ok(hs: List<&2, Hdr.Header>) -> Bool:
       Bool.and(all_clean(hdr_vals(h)), hdrs_resp_ok(rest))))
 
 # a final response Go would hand back as parsed: a status "<code> <reason>",
-# canonical distinct header names with clean values, keep-alive exactly
-# when the server did not say "Connection: close", and a body read whole
+# canonical distinct header names with clean values, no close token left
+# in Connection and no Connection at all when not kept (a close token
+# makes Go delete every Connection value), no Pragma (Go adds Cache-Control for it:
+# see http_pragma), and a body read whole
 def resp_base_ok(+r: Http.Resp) -> Bool:
   +c = r_code(r)
-  Bool.and(Bool.and(Nat.is_ge(c, 200n), Nat.is_le(c, 599n)),
+  Bool.and(Bool.and(Bool.and(Nat.is_ge(c, 200n), Nat.is_le(c, 599n)), Bool.and(Bool.and(Bool.not(says_close(r_hdrs(r))), Bool.or(r_keep(r), Bool.not(has_key("Connection", r_hdrs(r))))), Bool.not(has_key("Pragma", r_hdrs(r))))),
   Bool.and(String.starts_with(r_status(r), Dec.show(c) ++ " "),
   Bool.and(Bool.and(printable(r_status(r)), hdrs_resp_ok(r_hdrs(r))),
   Bool.and(bytes(r_body(r)),
@@ -2036,13 +2085,11 @@ def vals_are(+k: String, +v: String, +hs: List<&2, Hdr.Header>) -> Bool:
 
 # framed by Content-Length (one value: the body's length)
 def resp_cl_ok(+r: Http.Resp) -> Bool:
-  Bool.and(resp_base_ok(r), Bool.and(vals_are("Content-Length", Dec.show(String.length(r_body(r))), r_hdrs(r)),
-    same_bool(r_keep(r), Bool.not(says_close(r_hdrs(r))))))
+  Bool.and(resp_base_ok(r), vals_are("Content-Length", Dec.show(String.length(r_body(r))), r_hdrs(r)))
 
 # framed by chunks: no Content-Length (Go drops Transfer-Encoding from the headers)
 def resp_te_ok(+r: Http.Resp) -> Bool:
-  Bool.and(resp_base_ok(r), Bool.and(Bool.not(has_key("Content-Length", r_hdrs(r))),
-    same_bool(r_keep(r), Bool.not(says_close(r_hdrs(r))))))
+  Bool.and(resp_base_ok(r), Bool.not(has_key("Content-Length", r_hdrs(r))))
 
 # framed by the close: no length at all, so never kept
 def resp_eof_ok(+r: Http.Resp) -> Bool:
@@ -2077,7 +2124,8 @@ def chunks(sizes: List<&2, Nat>, +body: String) -> String:
       pick(String, skip, "", chunk(String.take(body, n))) ++ chunks(rest, pick(String, skip, body, String.drop(body, n)))
 
 def render_chunked(+r: Http.Resp, +sizes: List<&2, Nat>) -> String:
-  "HTTP/1.1 " ++ r_status(r) ++ "\r\n" ++ resp_hdr_lines(r_hdrs(r)) ++ "Transfer-Encoding: chunked\r\n\r\n"
+  "HTTP/1.1 " ++ r_status(r) ++ "\r\n" ++ resp_hdr_lines(r_hdrs(r)) ++ pick(String, r_keep(r), "", "Connection: close\r\n")
+    ++ "Transfer-Encoding: chunked\r\n\r\n"
     ++ chunks(sizes, r_body(r)) ++ "0\r\n\r\n"
 
 def parse_of(+mb: Maybe<&2, Nat>, +head: Bool, +s: String) -> Maybe<&1, Result<&1, &1, String, Http.Resp & String>>:
@@ -2106,8 +2154,8 @@ law http_chunked:
 law http_until_close:
   for +r: Http.Resp
   for h: {resp_eof_ok(r) == True{} : Bool}
-  {parse_eof(None{}, False{}, render_head(r) ++ r_body(r)) == Some{Done{(r, "")}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
-  & {parse_of(None{}, False{}, render_head(r) ++ r_body(r)) == None{} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+  {parse_eof(None{}, False{}, render_plain(r) ++ r_body(r)) == Some{Done{(r, "")}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+  & {parse_of(None{}, False{}, render_plain(r) ++ r_body(r)) == None{} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: the parser never answers before the response is complete
 law http_waits:
@@ -2176,7 +2224,7 @@ def resp_nobody_ok(+head: Bool, +r: Http.Resp) -> Bool:
   Bool.and(Bool.or(head, Bool.or(Nat.is_eq(c, 204n), Nat.is_eq(c, 304n))),
   Bool.and(Bool.and(String.starts_with(r_status(r), Dec.show(c) ++ " "), printable(r_status(r))),
   Bool.and(hdrs_resp_ok(r_hdrs(r)), Bool.and(Bool.not(has_key("Transfer-Encoding", r_hdrs(r))),
-  Bool.and(String.is_empty(r_body(r)), same_bool(r_keep(r), Bool.not(says_close(r_hdrs(r))))))))))
+  Bool.and(String.is_empty(r_body(r)), Bool.and(Bool.and(Bool.not(says_close(r_hdrs(r))), Bool.or(r_keep(r), Bool.not(has_key("Connection", r_hdrs(r))))), Bool.not(has_key("Pragma", r_hdrs(r))))))))))
 
 law http_no_body:
   for +head: Bool
@@ -2207,14 +2255,28 @@ law http_lenient:
   {parse_of(None{}, False{}, render_cl(Http.Resp{r_code(r), r_status(r), lower_names(r_hdrs(r)), r_body(r), r_keep(r)}) ++ rest)
    == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
-# LAW: an HTTP/1.0 response is kept only when it says "Connection: keep-alive"
+# LAW: an HTTP/1.0 response is kept only when it says "Connection:
+# keep-alive", and keeps its Connection header
 law http_10:
   for +r: Http.Resp
   for +rest: String
-  for h: {resp_base_ok(r) == True{} : Bool}
+  for h: {Bool.and(resp_cl_ok(r), r_keep(r)) == True{} : Bool}
   {parse_of(None{}, False{}, "HTTP/1.0 " ++ String.drop(render_cl(r), 9n) ++ rest)
-   == parse_of(None{}, False{}, "HTTP/1.1 " ++ String.drop(render_cl(Http.Resp{r_code(r), r_status(r), r_hdrs(r), r_body(r),
-        hdr_is("Connection", "keep-alive", r_hdrs(r))}), 9n) ++ rest) : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+   == Some{Done{(Http.Resp{r_code(r), r_status(r), r_hdrs(r), r_body(r), conn_token("keep-alive", r_hdrs(r))}, rest)}}
+   : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+
+def with_hdrs(+r: Http.Resp, +hs: List<&2, Hdr.Header>) -> Http.Resp:
+  Http.Resp{r_code(r), r_status(r), hs, r_body(r), r_keep(r)}
+
+# LAW: "Pragma: no-cache" without Cache-Control gains "Cache-Control:
+# no-cache" (Go's fixPragmaCacheControl)
+law http_pragma:
+  for +r: Http.Resp
+  for +rest: String
+  for h: {Bool.and(resp_cl_ok(r), Bool.not(has_key("Cache-Control", r_hdrs(r)))) == True{} : Bool}
+  {parse_of(None{}, False{}, render_cl(with_hdrs(r, List.append(&2, Hdr.Header, r_hdrs(r), [Hdr.Header{"Pragma", ["no-cache"]}]))) ++ rest)
+   == Some{Done{(with_hdrs(r, List.append(&2, Hdr.Header, r_hdrs(r), [Hdr.Header{"Pragma", ["no-cache"]}, Hdr.Header{"Cache-Control", ["no-cache"]}])), rest)}}
+   : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 def is_fail(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
   match m:
@@ -2324,22 +2386,39 @@ def drop_ci(+k: String, hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
       +r = drop_ci(k, rest)
       pick(List<&2, Hdr.Header>, String.eq(canon(hdr_key(h)), k), r, Con{h, r})
 
+# the headers without name k, compared exactly (Go's Header map is keyed
+# by the name as written; Set and the request writer use canonical keys)
+def drop_exact(+k: String, hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
+  match hs:
+    case Nil{}:
+      []
+    case Con{+h, +rest}:
+      +r = drop_exact(k, rest)
+      pick(List<&2, Hdr.Header>, String.eq(hdr_key(h), k), r, Con{h, r})
+
+# Header.Set: every value under k replaced by v
+def set_hdr(+k: String, +v: String, +hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
+  List.append(&2, Hdr.Header, drop_exact(k, hs), [Hdr.Header{k, [v]}])
+
 def needs_length(+m: String, +body: String) -> Bool:
   Bool.or(Bool.not(String.is_empty(body)), Bool.or(String.eq(m, "POST"), Bool.or(String.eq(m, "PUT"), String.eq(m, "PATCH"))))
 
 # the request text Go's transport writes for a target (Go's Accept-Encoding
 # is left out on purpose: bodies arrive as the server sent them): the
-# request line; Host and User-Agent, from the target's headers when it
-# sets them; the length; every other header sorted by name, less the
-# framing headers Go never takes from the user; and Connection: close last
+# request line; Host and User-Agent, from the target's "Host" and
+# "User-Agent" headers when it has them (exact names, as Go looks them
+# up); the length; X-Vegeta-Attack (when named) and X-Vegeta-Seq set as
+# Header.Set does, replacing the target's own; every other header sorted
+# by name, less the framing headers Go never takes from the user (exact
+# names); and Connection: close last
 def wire_request(+t: Tgt.Target, +u: Tgt.Url, +body: String, +seq: Nat, +name: String, +ka: Bool) -> String:
   +hs = tgt_hdrs(t)
-  +extra = pick(List<&2, Hdr.Header>, String.is_empty(name), [], [Hdr.Header{"X-Vegeta-Attack", [name]}])
-  +rest = drop_ci("Host", drop_ci("User-Agent", drop_ci("Content-Length", drop_ci("Transfer-Encoding", drop_ci("Trailer",
-            add_hdrs(Con{Hdr.Header{"X-Vegeta-Seq", [Dec.show(seq)]}, extra}, hs))))))
+  +named = pick(List<&2, Hdr.Header>, String.is_empty(name), hs, set_hdr("X-Vegeta-Attack", name, hs))
+  +rest = drop_exact("Host", drop_exact("User-Agent", drop_exact("Content-Length", drop_exact("Transfer-Encoding", drop_exact("Trailer",
+            set_hdr("X-Vegeta-Seq", Dec.show(seq), named))))))
   tgt_method(t) ++ " " ++ request_uri(url_path(u)) ++ " HTTP/1.1\r\n"
-    ++ "Host: " ++ first_val("Host", hs, url_host(u)) ++ "\r\n"
-    ++ "User-Agent: " ++ first_val("User-Agent", hs, "Go-http-client/1.1") ++ "\r\n"
+    ++ "Host: " ++ first_of(url_host(u), hdr_get("Host", hs)) ++ "\r\n"
+    ++ "User-Agent: " ++ first_of("Go-http-client/1.1", hdr_get("User-Agent", hs)) ++ "\r\n"
     ++ pick(String, needs_length(tgt_method(t), body), "Content-Length: " ++ Dec.show(String.length(body)) ++ "\r\n", "")
     ++ hdrs_text(sort_hdrs(rest))
     ++ pick(String, ka, "", "Connection: close\r\n") ++ "\r\n" ++ body
@@ -2736,12 +2815,15 @@ law met_latencies:
   & {is_rank(s_p99(summary(bs, Con{h, hs})), rank(99n, 1n+List.length(&2, Hit.Hit, hs)), lats(Con{h, hs})) == True{} : Bool}
 
 # LAW: the span: first start, last start, last end (in UTC: the report
-# prints them in the local zone), and the durations between them
+# prints them in the local zone), and the durations between them, for a
+# span (first start to last end) below 2^48 - 1 ns, about 78 h: the
+# durations are runtime Nats (the report refuses longer spans)
 law met_span:
   for +bs: List<&2, Nat>
   for +h: Hit.Hit
   for +hs: List<&2, Hit.Hit>
   for ok: {Nat.is_lt(time_nsec(h_ts(h)), sec()) == True{} : Bool}
+  for fits: {nat_fits(Nat.sub(max_of(Nat.add(total_ns(h_ts(h)), h_lat(h)), ends(hs)), min_of(total_ns(h_ts(h)), starts(hs)))) == True{} : Bool}
   {s_earliest(summary(bs, Con{h, hs})) == Some{utc_at(min_of(total_ns(h_ts(h)), starts(hs)))} : Maybe<&2, Civil.Time>}
   & {s_latest(summary(bs, Con{h, hs})) == Some{utc_at(max_of(total_ns(h_ts(h)), starts(hs)))} : Maybe<&2, Civil.Time>}
   & {s_end(summary(bs, Con{h, hs})) == Some{utc_at(max_of(Nat.add(total_ns(h_ts(h)), h_lat(h)), ends(hs)))} : Maybe<&2, Civil.Time>}
@@ -3561,7 +3643,7 @@ def parse_buf(+eof: Bool, +mb: Maybe<&2, Nat>, +head: Bool, +buf: String) -> May
 def is_redirect(+r: Http.Resp) -> Bool:
   +c = r_code(r)
   Bool.and(Bool.or(Bool.or(Nat.is_eq(c, 301n), Nat.is_eq(c, 302n)), Bool.or(Bool.or(Nat.is_eq(c, 303n), Nat.is_eq(c, 307n)), Nat.is_eq(c, 308n))),
-    has_key("Location", r_hdrs(r)))
+    Bool.not(String.is_empty(first_val("Location", r_hdrs(r), ""))))
 
 def strs_eq(xs: List<&2, String>, +ys: List<&2, String>) -> Bool:
   match xs:
@@ -3783,18 +3865,41 @@ def fails_with(+m: String, +pb: Maybe<&2, String>, cs: List<&2, Conn.Cmd>) -> Bo
         case _:
           fails_with(m, pb, rest)
 
+# a blank line starts at the "\n" here: the end of a head (textproto's
+# lines end in "\n", a "\r" before it dropped)
+def blank_at(+s: String) -> Bool:
+  Bool.or(String.starts_with(s, "\n\n"), String.starts_with(s, "\n\r\n"))
+
+# from the head's blank line on ("" when it has not arrived)
 def after_head.go(+fuel: Nat, +s: String) -> String:
   match fuel:
     case 0n:
       ""
     case 1n+f:
-      pick(String, String.starts_with(s, "\r\n\r\n"), s, after_head.go(f, String.drop(s, 1n)))
+      pick(String, blank_at(s), s, after_head.go(f, String.drop(s, 1n)))
 
 def after_head(+s: String) -> String:
   after_head.go(String.length(s), s)
 
+# the head's blank line has arrived
+def has_head(+s: String) -> Bool:
+  Bool.not(String.is_empty(after_head(s)))
+
+# the bytes after the head's blank line
+def after_blank(+s: String) -> String:
+  String.drop(after_head(s), pick(Nat, String.starts_with(after_head(s), "\n\n"), 2n, 3n))
+
+def trim_sp_l(s: String) -> String:
+  match s:
+    case SNil{}:
+      ""
+    case SCon{+c, +rest}:
+      pick(String, U32.is_eq(code(c), 32), trim_sp_l(rest), SCon{c, rest})
+
+# the status code as ReadResponse reads it: after "HTTP/1.x " and any
+# more spaces
 def code_at(+s: String) -> Nat:
-  digits_value(String.take(String.drop(s, 9n), 3n))
+  digits_value(String.take(trim_sp_l(String.drop(s, 9n)), 3n))
 
 def interim(+k: Nat) -> Bool:
   Bool.and(Bool.and(Nat.is_ge(k, 100n), Nat.is_le(k, 199n)), Bool.not(Nat.is_eq(k, 101n)))
@@ -3806,8 +3911,8 @@ def final_from.go(+fuel: Nat, +s: String) -> String:
     case 0n:
       s
     case 1n+f:
-      pick(String, Bool.and(interim(code_at(s)), String.contains(s, "\r\n\r\n")),
-        final_from.go(f, String.drop(after_head(s), 4n)), s)
+      pick(String, Bool.and(interim(code_at(s)), has_head(s)),
+        final_from.go(f, after_blank(s)), s)
 
 def final_from(+buf: String) -> String:
   final_from.go(String.length(buf), buf)
@@ -3816,12 +3921,12 @@ def final_from(+buf: String) -> String:
 # the method and URL), or while reading the body (the bare error, and the
 # body read so far is kept)
 def timeout_text(+r: Conn.Req, +buf: String) -> String:
-  pick(String, String.contains(final_from(buf), "\r\n\r\n"),
+  pick(String, has_head(final_from(buf)),
     "context deadline exceeded (Client.Timeout or context cancellation while reading body)",
     err_prefix(r) ++ "context deadline exceeded (Client.Timeout exceeded while awaiting headers)")
 
 def timeout_partial(+c: Conn.Cfg, +head: Bool, +buf: String) -> Maybe<&2, String>:
-  pick(Maybe<&2, String>, String.contains(final_from(buf), "\r\n\r\n"), Some{Http.partial(Http.feed(Http.start(c_mb(c), head), buf))}, None{})
+  pick(Maybe<&2, String>, has_head(final_from(buf)), Some{Http.partial(Http.feed(Http.start(c_mb(c), head), buf))}, None{})
 
 def dial_text(+r: Conn.Req, +m: String) -> String:
   err_prefix(r) ++ "dial tcp " ++ q_ip(r) ++ ":" ++ Dec.show(u_port(q_url(r))) ++ ": connect: " ++ String.to_lower(m)
@@ -3919,7 +4024,7 @@ def head_loc_of(ls: List<&2, String>) -> String:
       ""
     case Con{+l, +rest}:
       +kv = split_on(58, strip_cr(l))
-      pick(String, String.eq(canon(trim_ows(Maybe.default(&2, String, List.head(&2, String, kv), ""))), "Location"),
+      pick(String, String.eq(canon(Maybe.default(&2, String, List.head(&2, String, kv), "")), "Location"),
         trim_ows(String.drop(strip_cr(l), 1n+String.length(Maybe.default(&2, String, List.head(&2, String, kv), "")))),
         head_loc_of(rest))
 
@@ -3929,7 +4034,7 @@ def head_location(+buf: String) -> String:
 # the head in buf is a redirect the client would follow
 def head_redirect(+c: Conn.Cfg, +buf: String) -> Bool:
   +k = head_code(buf)
-  Bool.and(Bool.and(String.contains(final_from(buf), "\r\n\r\n"), Maybe.is_some(&2, Nat, c_redirects(c))),
+  Bool.and(Bool.and(has_head(final_from(buf)), Maybe.is_some(&2, Nat, c_redirects(c))),
     Bool.and(Bool.or(Bool.or(Nat.is_eq(k, 301n), Nat.is_eq(k, 302n)), Bool.or(Bool.or(Nat.is_eq(k, 303n), Nat.is_eq(k, 307n)), Nat.is_eq(k, 308n))),
       Bool.not(String.is_empty(head_location(buf)))))
 
@@ -3954,6 +4059,40 @@ def is_done_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> B
           False{}
         case Done{p}:
           True{}
+
+def digits_of(+v: String) -> Maybe<&2, Nat>:
+  pick(Maybe<&2, Nat>, all_digits(v), Some{digits_value(v)}, None{})
+
+def head_cl(ls: List<&2, String>) -> Maybe<&2, Nat>:
+  match ls:
+    case Nil{}:
+      None{}
+    case Con{+l, +rest}:
+      +kv = split_on(58, strip_cr(l))
+      pick(Maybe<&2, Nat>, String.eq(canon(Maybe.default(&2, String, List.head(&2, String, kv), "")), "Content-Length"),
+        digits_of(trim_ows(String.drop(strip_cr(l), 1n+String.length(Maybe.default(&2, String, List.head(&2, String, kv), ""))))),
+        head_cl(rest))
+
+def big_body(+m: Maybe<&2, Nat>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{n}:
+      Nat.is_gt(n, 2048n)
+
+# Go is done with a redirect's body once it is complete, once 2048 bytes
+# of it are read, or at once when its length is over 2048 (io.CopyN of at
+# most maxBodySlurpSize, skipped for a larger Content-Length)
+def drained(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
+  Bool.or(Bool.or(big_body(head_cl(List.drop(&2, String, split_on(10, head_text(buf)), 1n))), eof),
+    Bool.or(is_done_parse(parse_of(None{}, head, buf)),
+      Nat.is_ge(String.length(Http.partial(Http.feed(Http.start(None{}, head), buf))), 2048n)))
+
+# a redirect in the bytes since the last send that the client acts on
+# now: Go is done with its body. A Send then is the next hop; any other
+# Send is the request going out again (a retry).
+def due_now(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
+  Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))
 
 def broken(+r: Conn.Req) -> String:
   err_prefix(r) ++ "net/http: HTTP/1.x transport connection broken: "
@@ -3981,19 +4120,19 @@ def fails_prefixed(+p: String, cs: List<&2, Conn.Cmd>) -> Bool:
 # EOF", with what was read); a complete response or a redirect's pending
 # body are not failures
 def eof_ok(+c: Conn.Cfg, +r: Conn.Req, +head: Bool, +buf: String, +cs: List<&2, Conn.Cmd>) -> Bool:
-  +in = String.contains(final_from(buf), "\r\n\r\n")
-  pick(Bool, in,
-    Bool.or(Bool.or(head_redirect(c, buf), is_done_parse(parse_eof(c_mb(c), head, buf))),
-      fails_with("unexpected EOF", timeout_partial(c, head, buf), cs)),
+  +in = has_head(final_from(buf))
+  Bool.or(is_done_parse(parse_eof(c_mb(c), head, buf)), pick(Bool, in,
+    Bool.or(head_redirect(c, buf), fails_with("unexpected EOF", timeout_partial(c, head, buf), cs)),
     Bool.or(String.is_empty(buf),
       pick(Bool, String.ends_with(final_from(buf), "\n"),
         fails_with(broken(r) ++ "unexpected EOF", None{}, cs),
-        fails_prefixed(broken(r), cs))))
+        fails_prefixed(broken(r), cs)))))
 
 # before the request finishes (and before any redirect: a redirect's own
-# errors name the redirect's URL), a timeout or a failed dial finishes it
-# at once, with Go's error text and Go's partial body
-def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +first: Maybe<&2, String>, +head: Bool, +buf: String) -> Bool:
+# errors, from the moment Go is on to the next hop, name the redirect's
+# URL), a timeout or a failed dial finishes it at once, with Go's error
+# text and Go's partial body
+def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +eof: Bool, +head: Bool, +buf: String) -> Bool:
   match xs:
     case Nil{}:
       True{}
@@ -4006,21 +4145,21 @@ def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +firs
                 fails_with(redirect_timeout_text(c, r, buf), None{}, batch(rest)),
                 fails_with(timeout_text(r, buf), timeout_partial(c, head, buf), batch(rest))))
             case Conn.Eof{}:
-              Bool.and(Bool.or(done, eof_ok(c, r, head, buf, batch(rest))), chk_fail(rest, c, r, done, first, head, buf))
+              Bool.and(Bool.or(done, eof_ok(c, r, head, buf, batch(rest))), chk_fail(rest, c, r, done, True{}, head, buf))
             case Conn.OpenFailed{m}:
-              Bool.or(done, fails_with(dial_text(r, m), None{}, batch(rest)))
+              Bool.or(Bool.or(done, due_now(c, head, buf, eof)), fails_with(dial_text(r, m), None{}, batch(rest)))
             case Conn.Got{d}:
-              chk_fail(rest, c, r, done, first, head, buf ++ d)
+              chk_fail(rest, c, r, done, eof, head, buf ++ d)
             case _:
-              chk_fail(rest, c, r, done, first, head, buf)
+              chk_fail(rest, c, r, done, eof, head, buf)
         case CICmd{k}:
           match k:
             case Conn.Send{d}:
-              Bool.or(is_fresh(first, d), chk_fail(rest, c, r, done, Some{d}, String.starts_with(d, "HEAD "), ""))
+              Bool.or(due_now(c, head, buf, eof), chk_fail(rest, c, r, done, False{}, String.starts_with(d, "HEAD "), ""))
             case Conn.Finish{o, keep}:
-              chk_fail(rest, c, r, True{}, first, head, buf)
+              chk_fail(rest, c, r, True{}, eof, head, buf)
             case _:
-              chk_fail(rest, c, r, done, first, head, buf)
+              chk_fail(rest, c, r, done, eof, head, buf)
 
 # LAW: timeouts, failed dials and bodies cut short, with Go's words
 law conn_fail:
@@ -4028,7 +4167,7 @@ law conn_fail:
   for +r: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {chk_fail(ctimeline(c, r, open, evs), c, r, False{}, None{}, False{}, "") == True{} : Bool}
+  {chk_fail(ctimeline(c, r, open, evs), c, r, False{}, False{}, False{}, "") == True{} : Bool}
 
 def has_key_ci(+k: String, hs: List<&2, Hdr.Header>) -> Bool:
   Maybe.is_some(&2, List<&2, String>, hdr_get_ci(k, hs))
@@ -4039,20 +4178,28 @@ def replayable(+t: Tgt.Target) -> Bool:
   Bool.or(Bool.or(Bool.or(String.eq(m, "GET"), String.eq(m, "HEAD")), Bool.or(String.eq(m, "OPTIONS"), String.eq(m, "TRACE"))),
     Bool.or(has_key_ci("Idempotency-Key", tgt_hdrs(t)), has_key_ci("X-Idempotency-Key", tgt_hdrs(t))))
 
-def count_send(+d: String, xs: List<&2, CItem>) -> Nat:
+# the times the original request went out: the sends before the first
+# redirect hop
+def orig_sends(xs: List<&2, CItem>, +c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Nat:
   match xs:
     case Nil{}:
       0n
     case Con{+x, +rest}:
       match x:
         case CIEv{e}:
-          count_send(d, rest)
+          match e:
+            case Conn.Got{d}:
+              orig_sends(rest, c, head, buf ++ d, eof)
+            case Conn.Eof{}:
+              orig_sends(rest, c, head, buf, True{})
+            case _:
+              orig_sends(rest, c, head, buf, eof)
         case CICmd{k}:
           match k:
-            case Conn.Send{d2}:
-              Nat.add(pick(Nat, String.eq(d, d2), 1n, 0n), count_send(d, rest))
+            case Conn.Send{d}:
+              pick(Nat, due_now(c, head, buf, eof), 0n, 1n+orig_sends(rest, c, String.starts_with(d, "HEAD "), "", False{}))
             case _:
-              count_send(d, rest)
+              orig_sends(rest, c, head, buf, eof)
 
 def opens(cs: List<&2, Conn.Cmd>) -> Bool:
   match cs:
@@ -4070,7 +4217,8 @@ def lost_now(+may: Bool, +sent: Nat, +got: Bool) -> Bool:
 
 # Go retries exactly when a request it may replay was lost on a reused
 # connection before any byte of an answer: the connection closed, or the
-# write failed, after the first send. The retry reconnects at once.
+# write failed, after the first send. The retry reconnects at once
+# (unless the request has finished: nothing follows a Finish).
 def chk_retry(xs: List<&2, CItem>, +may: Bool, +sent: Nat, +got: Bool) -> Bool:
   match xs:
     case Nil{}:
@@ -4091,6 +4239,8 @@ def chk_retry(xs: List<&2, CItem>, +may: Bool, +sent: Nat, +got: Bool) -> Bool:
           match k:
             case Conn.Send{d}:
               chk_retry(rest, may, 1n+sent, got)
+            case Conn.Finish{o, keep}:
+              True{}
             case _:
               chk_retry(rest, may, sent, got)
 
@@ -4125,7 +4275,7 @@ law conn_retry:
   for +r: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {Nat.is_le(count_send(q_text(c, r), ctimeline(c, r, open, evs)),
+  {Nat.is_le(orig_sends(ctimeline(c, r, open, evs), c, False{}, "", False{}),
      pick(Nat, Bool.and(Bool.and(open, replayable(q_target(r))), lost_unanswered(ctimeline(c, r, open, evs), False{}, False{})), 2n, 1n)) == True{} : Bool}
   & {chk_retry(ctimeline(c, r, open, evs), Bool.and(open, replayable(q_target(r))), 0n, False{}) == True{} : Bool}
 
@@ -4220,34 +4370,6 @@ type Hop is Data:
 # the redirect a head announces, as a response (its code and Location)
 def head_resp(+buf: String) -> Http.Resp:
   Http.Resp{head_code(buf), "", [Hdr.Header{"Location", [head_location(buf)]}], "", False{}}
-
-def digits_of(+v: String) -> Maybe<&2, Nat>:
-  pick(Maybe<&2, Nat>, all_digits(v), Some{digits_value(v)}, None{})
-
-def head_cl(ls: List<&2, String>) -> Maybe<&2, Nat>:
-  match ls:
-    case Nil{}:
-      None{}
-    case Con{+l, +rest}:
-      +kv = split_on(58, strip_cr(l))
-      pick(Maybe<&2, Nat>, String.eq(canon(trim_ows(Maybe.default(&2, String, List.head(&2, String, kv), ""))), "Content-Length"),
-        digits_of(trim_ows(String.drop(strip_cr(l), 1n+String.length(Maybe.default(&2, String, List.head(&2, String, kv), ""))))),
-        head_cl(rest))
-
-def big_body(+m: Maybe<&2, Nat>) -> Bool:
-  match m:
-    case None{}:
-      False{}
-    case Some{n}:
-      Nat.is_gt(n, 2048n)
-
-# Go is done with a redirect's body once it is complete, once 2048 bytes
-# of it are read, or at once when its length is over 2048 (io.CopyN of at
-# most maxBodySlurpSize, skipped for a larger Content-Length)
-def drained(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
-  Bool.or(Bool.or(big_body(head_cl(List.drop(&2, String, split_on(10, head_text(buf)), 1n))), eof),
-    Bool.or(is_done_parse(parse_of(None{}, head, buf)),
-      Nat.is_ge(String.length(Http.partial(Http.feed(Http.start(None{}, head), buf))), 2048n)))
 
 def hop_of_head(+orig: String, +t: Tgt.Target, +u: Tgt.Url, +b: String, +buf: String) -> Hop:
   +r = head_resp(buf)
@@ -4378,9 +4500,6 @@ def is_failed(+o: Conn.Out) -> Bool:
     case Conn.Answered{r}:
       False{}
 
-def due_now(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
-  Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))
-
 # after these bytes, may the request fail? When the response is
 # malformed, or it is a redirect Go is done with that is at the limit or
 # cannot be followed
@@ -4389,9 +4508,10 @@ def got_may_fail(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: St
     Bool.and(due_now(c, head, buf, eof),
       Bool.or(Nat.is_ge(hops, rd_limit(c_redirects(c))), Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))))))
 
-# every new request after the first is the redirect of the previous
-# response, once Go is done with its body (a repeat of the same text is a
-# retry); the obligation to act on a redirect holds once per hop (met)
+# a request sent while a redirect Go is done with is in the bytes since
+# the last send is the next hop, as Go builds it and within the limit;
+# any other send repeats the last one (a retry); the obligation to act
+# on a redirect holds once per hop (met)
 # and never after the request finishes (done); and a request fails only
 # right after something failed (fok): a lookup, connect or write, a
 # timeout, a close, a malformed response, or a redirect Go stops at
@@ -4432,12 +4552,12 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
           match k:
             case Conn.Send{d}:
               +hop = hop_of_head(u_host(q_url(q)), t, u, b, buf)
-              +fresh = is_fresh(last, d)
-              pick(Bool, fresh,
-                Bool.and(Bool.and(Bool.and(hop_ok(hop), due_now(c, head, buf, eof)), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
+              pick(Bool, due_now(c, head, buf, eof),
+                Bool.and(Bool.and(hop_ok(hop), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
                   Bool.and(String.eq(d, Http.request(hop_t(hop), hop_u(hop), hop_b(hop), q_seq(q), q_name(q), c_ka(c))),
                     chk_redirect(rest, c, q, hop_t(hop), hop_u(hop), hop_b(hop), Some{d}, 1n+hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok, ip, await))),
-                chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok, ip, await))
+                Bool.and(Bool.not(is_fresh(last, d)),
+                  chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok, ip, await)))
             case Conn.Resolve{h}:
               chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, fok, ip,
                 Some{u_port(hop_u(hop_of_head(u_host(q_url(q)), t, u, b, buf)))})
@@ -4451,7 +4571,7 @@ law conn_redirect:
   for +q: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), None{}, 0n, False{}, "", False{}, False{}, False{}, False{}, q_ip(q), None{}) == True{} : Bool}
+  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), Some{q_text(c, q)}, 0n, False{}, "", False{}, False{}, False{}, False{}, q_ip(q), None{}) == True{} : Bool}
 
 # the commands after the last event
 def last_batch(xs: List<&2, CItem>, +acc: List<&2, Conn.Cmd>) -> List<&2, Conn.Cmd>:
@@ -4798,7 +4918,7 @@ law flags_attack_defaults:
 
 def rate_text(+r: Pace.Rate) -> String:
   Pace.Rate{f, p} = r
-  pick(String, Bool.or(Nat.is_eq(f, 0n), Nat.is_eq(p, 0n)), "infinity", Dec.show(f) ++ "/" ++ Dur.show(p))
+  pick(String, Bool.or(Nat.is_eq(f, 0n), Nat.is_eq(p, 0n)), "0", Dec.show(f) ++ "/" ++ Dur.show(p))
 
 def opt_nat(+flag: String, +none: String, +m: Maybe<&2, Nat>) -> String:
   match m:
@@ -4881,11 +5001,24 @@ def all_dur_in(bs: List<&2, Nat>) -> Bool:
     case Con{+b, +rest}:
       Bool.and(dur_in(b), all_dur_in(rest))
 
+# header names distinct (-header appends a repeated name's values)
+def keys_distinct(hs: List<&2, Hdr.Header>) -> Bool:
+  match hs:
+    case Nil{}:
+      True{}
+    case Con{+h, +rest}:
+      Bool.and(Bool.not(has_key(hdr_key(h), rest)), keys_distinct(rest))
+
+# an unbounded rate needs a worker limit (flags_rate)
+def rate_limited(+r: Pace.Rate, +mw: Maybe<&2, Nat>) -> Bool:
+  Pace.Rate{f, p} = r
+  Bool.or(Nat.is_gt(f, 0n), Maybe.is_some(&2, Nat, mw))
+
 def attack_ok(+a: Flags.Attack) -> Bool:
   Flags.Attack{rate, du, tg, fm, out, name, w, mw, to, hs, body, ka, mb, rd, enc} = a
-  Bool.and(Bool.and(Bool.and(dur_in(du), Bool.and(opt_dur_in(to), rate_dur_in(rate))), Bool.and(rate_ok(rate), Bool.and(flag_str_ok(tg), flag_str_ok(out)))),
+  Bool.and(Bool.and(Bool.and(dur_in(du), Bool.and(opt_dur_in(to), rate_dur_in(rate))), Bool.and(Bool.and(rate_ok(rate), rate_limited(rate, mw)), Bool.and(flag_str_ok(tg), flag_str_ok(out)))),
   Bool.and(Bool.and(printable(name), String.eq(fm, "http")),
-  Bool.and(Bool.and(tgt_hdrs_ok(hs), body_path_ok(body)), Bool.or(String.eq(enc, "csv"), String.eq(enc, "json")))))
+  Bool.and(Bool.and(Bool.and(tgt_hdrs_ok(hs), keys_distinct(hs)), body_path_ok(body)), Bool.or(String.eq(enc, "csv"), String.eq(enc, "json")))))
 
 # LAW: options survive their command line
 law flags_attack_roundtrip:
@@ -4937,17 +5070,19 @@ law flags_rate:
   & {Flags.parse_attack(["-rate=0"]) == Fail{"-rate=0 requires setting -max-workers"} : Result<&2, &2, String, Flags.Attack>}
 
 # LAW: -header is Go's: split at the first colon, both sides trimmed and
-# non-empty, values appended under the name as written
+# non-empty, values appended under the name as written; a bad one is
+# refused in the flag package's words (x has no quote or backslash, which
+# %q would escape)
 law flags_header:
   for +k: String
   for +v: String
   for +x: String
   for h0: {Bool.and(tgt_key_ok(k), Bool.and(flag_str_ok(v), String.eq(trim_ows(v), v))) == True{} : Bool}
-  for h1: {Bool.and(printable(x), Bool.not(has_char(x, 58))) == True{} : Bool}
+  for h1: {Bool.and(Bool.and(printable(x), Bool.not(has_char(x, 58))), Bool.not(Bool.or(has_char(x, 34), has_char(x, 92)))) == True{} : Bool}
   {Flags.parse_attack(["-header", k ++ ": " ++ v, "-header", k ++ ":" ++ v])
    == Done{Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, None{},
         [Hdr.Header{k, [v, v]}], None{}, True{}, None{}, Some{10n}, "csv"}} : Result<&2, &2, String, Flags.Attack>}
-  & {Flags.parse_attack(["-header", x]) == Fail{"header '" ++ x ++ "' has a wrong format"} : Result<&2, &2, String, Flags.Attack>}
+  & {Flags.parse_attack(["-header", x]) == Fail{"invalid value \"" ++ x ++ "\" for flag -header: header '" ++ x ++ "' has a wrong format"} : Result<&2, &2, String, Flags.Attack>}
 
 # Go's Buckets.UnmarshalText: a 0 bucket is added in front of a positive first bound
 def with_zero(+bs: List<&2, Nat>) -> List<&2, Nat>:
