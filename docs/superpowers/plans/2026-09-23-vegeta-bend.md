@@ -18,6 +18,7 @@
 - Runtime `Nat`s must stay below 2^48; values that can grow past that are `Big`.
 - Strings in `lib/` are bytes (one `Chr` per byte, 0–255). Only the shell converts (`Text.utf8` for arguments; byte-faithful effects for IO).
 - No `@unsafe` in `lib/`; `@unsafe` only in `shell.bend`.
+- Bend 2.0.25's native compiler miscompiles `Bool.or(x, pick(Bool, <computed condition>, a, b))` (see `bend/tests/compiler_canary.bend`): a proof guarantees the source, not the binary. In `lib/`, give such a `pick` a def of its own, and treat compiled unit tests, Go goldens and `scripts/e2e.sh` as the last word on behavior. When the canary fails, the compiler changed: re-check and update it.
 - HTTP/1.1 over plain TCP only.
 - `sh bend/scripts/test.sh` passes at the end of every task (with `PROOF.bend` counted as passing once the task's laws are proven: until the last task, run `sh bend/scripts/test.sh <pattern>` for the task's tests and check the task's laws have proof defs).
 

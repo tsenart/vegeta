@@ -31,15 +31,14 @@ for t in tests/*"$pat"*.bend; do
   if ! bend "$t" -o ".build/tests/$name" > ".build/tests/$name.cc" 2>&1; then
     echo "FAIL $name (compile)"; sed 's/^/  /' ".build/tests/$name.cc"; fail=$((fail+1)); continue
   fi
-  ( cd .build/tests && ./"$name" ) < /dev/null > ".build/tests/$name.got" 2>&1 || true
   case "$name" in
     laws_helpers*)
-      # pure helper tests also run on bend's default lane: Bend 2.0.25's
-      # compiler has been seen to miscompile a Bool expression
-      bend "$t" > ".build/tests/$name.lane2" 2>&1 || true
-      if ! diff -q ".build/tests/$name.want" ".build/tests/$name.lane2" > /dev/null; then
-        echo "FAIL $name (default lane)"; diff -u ".build/tests/$name.want" ".build/tests/$name.lane2" | sed 's/^/  /'; fail=$((fail+1))
-      fi;;
+      # LAWS.bend helpers only ever run in the checker, never compiled:
+      # test them on bend's default lane (Bend 2.0.25's native compiler
+      # miscompiles some Bool expressions: see tests/compiler_canary.bend)
+      bend "$t" < /dev/null > ".build/tests/$name.got" 2>&1 || true;;
+    *)
+      ( cd .build/tests && ./"$name" ) < /dev/null > ".build/tests/$name.got" 2>&1 || true;;
   esac
   if diff -u ".build/tests/$name.want" ".build/tests/$name.got" > ".build/tests/$name.diff"; then
     echo "ok   $name"
