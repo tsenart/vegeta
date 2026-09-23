@@ -2780,8 +2780,7 @@ law rate_parse:
   {Pace.parse_rate("0") == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate("0/" ++ s) == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate(Dec.show(1n+n)) == Done{Pace.Rate{1n+n, sec()}} : Result<&2, &2, String, Pace.Rate>}
-  & {Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ micro() ++ "s") == Pace.parse_rate(Dec.show(1n+n) ++ "/1" ++ micro() ++ "s") : Result<&2, &2, String, Pace.Rate>}
-  & {Bool.or(is_unit_name(s), rate_with(1n+n, Dur.parse(s), Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ s))) == True{} : Bool}
+  & {Bool.or(Bool.and(is_unit_name(s), Bool.not(String.eq(s, greek_mu() ++ "s"))), rate_with(1n+n, Dur.parse(s), Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ s))) == True{} : Bool}
   & {pick(Bool, Bool.and(is_unit_name(s), Bool.not(String.eq(s, greek_mu() ++ "s"))),
        rate_same(Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ s), Pace.parse_rate(Dec.show(1n+n) ++ "/1" ++ s)), True{}) == True{} : Bool}
 
@@ -3628,48 +3627,68 @@ law conn_answer:
   for +evs: List<&2, Conn.Ev>
   {chk_answer(ctimeline(c, r, open, evs), c, False{}, "", False{}, False{}) == True{} : Bool}
 
-def rd_ok(+done: Bool, +out: Bool, +recv: Bool) -> Bool:
-  Bool.or(Bool.or(done, Bool.not(out)), recv)
+# what the client is waiting on, as the events answer its commands
+type Wait is Data:
+  Wait{resolve: Bool, open: Bool, send: Bool, recv: Bool, out: Bool, done: Bool}
 
-# while a request is out (sent, not finished) a read is always pending: a
-# Recv the shell has not answered yet with bytes, a close or a timeout
-def chk_recv(xs: List<&2, CItem>, +out: Bool, +recv: Bool, +done: Bool) -> Bool:
+def w_live(+w: Wait) -> Bool:
+  Wait{rs, op, sd, rv, out, done} = w
+  Bool.or(Bool.or(done, rs), Bool.or(Bool.or(op, sd), Bool.and(out, rv)))
+
+def w_ev(+w: Wait, +e: Conn.Ev) -> Wait:
+  Wait{rs, op, sd, rv, out, done} = w
+  match e:
+    case Conn.Resolved{ip}:
+      Wait{False{}, op, sd, rv, out, done}
+    case Conn.ResolveFailed{m}:
+      Wait{False{}, op, sd, rv, out, done}
+    case Conn.Opened{}:
+      Wait{rs, False{}, sd, rv, out, done}
+    case Conn.OpenFailed{m}:
+      Wait{rs, False{}, sd, rv, out, done}
+    case Conn.Sent{}:
+      Wait{rs, op, False{}, rv, True{}, done}
+    case Conn.SendFailed{m}:
+      Wait{rs, op, False{}, rv, out, done}
+    case _:
+      Wait{rs, op, sd, False{}, out, done}
+
+def w_cmd(+w: Wait, +k: Conn.Cmd) -> Wait:
+  Wait{rs, op, sd, rv, out, done} = w
+  match k:
+    case Conn.Resolve{h}:
+      Wait{True{}, op, sd, rv, False{}, done}
+    case Conn.Open{ip, p}:
+      Wait{rs, True{}, sd, rv, False{}, done}
+    case Conn.Send{d}:
+      Wait{rs, op, True{}, rv, False{}, done}
+    case Conn.Recv{}:
+      Wait{rs, op, sd, True{}, out, done}
+    case Conn.Shut{}:
+      Wait{rs, op, sd, rv, False{}, done}
+    case Conn.Finish{o, keep}:
+      Wait{rs, op, sd, rv, out, True{}}
+
+def chk_pending(xs: List<&2, CItem>, +w: Wait) -> Bool:
   match xs:
     case Nil{}:
-      Bool.or(Bool.or(done, Bool.not(out)), recv)
+      w_live(w)
     case Con{+x, +rest}:
       match x:
         case CIEv{e}:
-          match e:
-            case Conn.Sent{}:
-              Bool.and(rd_ok(done, out, recv), chk_recv(rest, True{}, recv, done))
-            case Conn.Got{d}:
-              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
-            case Conn.Eof{}:
-              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
-            case Conn.Late{}:
-              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
-            case _:
-              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, recv, done))
+          Bool.and(w_live(w), chk_pending(rest, w_ev(w, e)))
         case CICmd{k}:
-          match k:
-            case Conn.Send{d}:
-              chk_recv(rest, False{}, recv, done)
-            case Conn.Recv{}:
-              chk_recv(rest, out, True{}, done)
-            case Conn.Finish{o, keep}:
-              chk_recv(rest, out, recv, True{})
-            case _:
-              chk_recv(rest, out, recv, done)
+          chk_pending(rest, w_cmd(w, k))
 
-# LAW: a request on the wire is always being read (no request can hang
-# because the client stopped listening)
-law conn_reads:
+# LAW: an unfinished request is always waiting on something the shell
+# will answer: a lookup, a connect, a write, or (once the request is out)
+# a read. No request can hang because the client stopped asking.
+law conn_live:
   for +c: Conn.Cfg
   for +r: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {chk_recv(ctimeline(c, r, open, evs), False{}, False{}, False{}) == True{} : Bool}
+  {chk_pending(ctimeline(c, r, open, evs), Wait{False{}, False{}, False{}, False{}, False{}, False{}}) == True{} : Bool}
 
 def pb_eq(+a: Maybe<&2, String>, +b: Maybe<&2, String>) -> Bool:
   match a:
@@ -4041,13 +4060,14 @@ def host_of_url(+s: String) -> String:
 
 # the target of the redirect r gets for request t at u, as Go builds it:
 # Go's method rules; the headers copied, less credentials when the host
-# changes to one outside the original's domain and less the body's own
+# changes to one outside the original request's domain (Go compares every
+# hop with the first request: once stripped, they stay stripped) and less the body's own
 # headers when the body is dropped; and a Referer naming the URL
 # redirected from, unless the request set its own
-def redirect_target(+t: Tgt.Target, +u: Tgt.Url, +r: Http.Resp) -> Tgt.Target:
+def redirect_target(+orig: String, +t: Tgt.Target, +u: Tgt.Url, +r: Http.Resp) -> Tgt.Target:
   +next = loc_url(u, location(r))
   +keep_body = Bool.or(Nat.is_eq(r_code(r), 307n), Nat.is_eq(r_code(r), 308n))
-  +hs1 = pick(List<&2, Hdr.Header>, same_domain(u_host(u), host_of_url(next)), tgt_hdrs(t), drop_all_ci(sensitive(), tgt_hdrs(t)))
+  +hs1 = pick(List<&2, Hdr.Header>, same_domain(orig, host_of_url(next)), tgt_hdrs(t), drop_all_ci(sensitive(), tgt_hdrs(t)))
   +hs2 = pick(List<&2, Hdr.Header>, keep_body, hs1, drop_all_ci(body_hdrs(), hs1))
   +hs3 = pick(List<&2, Hdr.Header>, has_key_ci("Referer", hs2), hs2, List.append(&2, Hdr.Header, hs2, [Hdr.Header{"Referer", [tgt_url(t)]}]))
   Tgt.Target{redirect_method(r_code(r), tgt_method(t)), next, hs3, tgt_body(t)}
@@ -4064,20 +4084,44 @@ def u_of(+d: Tgt.Url, r: Result<&2, &2, String, Tgt.Url>) -> Tgt.Url:
 type Hop is Data:
   Hop{ok: Bool, t: Tgt.Target, u: Tgt.Url, b: String, code: Nat}
 
-def hop_of(+t: Tgt.Target, +u: Tgt.Url, +b: String, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Hop:
+# the redirect a head announces, as a response (its code and Location)
+def head_resp(+buf: String) -> Http.Resp:
+  Http.Resp{head_code(buf), "", [Hdr.Header{"Location", [head_location(buf)]}], "", False{}}
+
+def digits_of(+v: String) -> Maybe<&2, Nat>:
+  pick(Maybe<&2, Nat>, all_digits(v), Some{digits_value(v)}, None{})
+
+def head_cl(ls: List<&2, String>) -> Maybe<&2, Nat>:
+  match ls:
+    case Nil{}:
+      None{}
+    case Con{+l, +rest}:
+      +kv = split_on(58, strip_cr(l))
+      pick(Maybe<&2, Nat>, String.eq(canon(trim_ows(Maybe.default(&2, String, List.head(&2, String, kv), ""))), "Content-Length"),
+        digits_of(trim_ows(String.drop(strip_cr(l), 1n+String.length(Maybe.default(&2, String, List.head(&2, String, kv), ""))))),
+        head_cl(rest))
+
+def big_body(+m: Maybe<&2, Nat>) -> Bool:
   match m:
     case None{}:
-      Hop{False{}, t, u, b, 0n}
-    case Some{res}:
-      match res:
-        case Fail{e}:
-          Hop{False{}, t, u, b, 0n}
-        case Done{p}:
-          (r0, lo) = p
-          +r = r0
-          +nt = redirect_target(t, u, r)
-          +ok = Bool.and(is_redirect(r), Result.is_done(&2, &2, String, Tgt.Url, Tgt.parse_url(tgt_url(nt))))
-          Hop{ok, nt, u_of(u, Tgt.parse_url(tgt_url(nt))), redirect_body(r_code(r), b), r_code(r)}
+      False{}
+    case Some{n}:
+      Nat.is_gt(n, 2048n)
+
+# Go is done with a redirect's body once it is complete, once 2048 bytes
+# of it are read, or at once when its length is over 2048 (io.CopyN of at
+# most maxBodySlurpSize, skipped for a larger Content-Length)
+def drained(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
+  Bool.or(Bool.or(big_body(head_cl(List.drop(&2, String, split_on(10, head_text(buf)), 1n))), eof),
+    Bool.or(is_done_parse(parse_of(None{}, head, buf)),
+      Nat.is_ge(String.length(Http.partial(Http.feed(Http.start(None{}, head), buf))), 2048n)))
+
+def hop_of_head(+orig: String, +t: Tgt.Target, +u: Tgt.Url, +b: String, +buf: String) -> Hop:
+  +r = head_resp(buf)
+  +nt = redirect_target(orig, t, u, r)
+  +ok = Bool.and(is_redirect(r), Result.is_done(&2, &2, String, Tgt.Url, Tgt.parse_url(tgt_url(nt))))
+  Hop{ok, nt, u_of(u, Tgt.parse_url(tgt_url(nt))), redirect_body(r_code(r), b), r_code(r)}
+
 
 def hop_ok(+h: Hop) -> Bool:
   Hop{ok, t, u, b, c} = h
@@ -4110,32 +4154,19 @@ def progresses(cs: List<&2, Conn.Cmd>) -> Bool:
         case _:
           progresses(rest)
 
-def resp_of(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Maybe<&2, Http.Resp>:
-  match m:
-    case None{}:
-      None{}
-    case Some{res}:
-      match res:
-        case Fail{e}:
-          None{}
-        case Done{p}:
-          (r0, lo) = p
-          Some{r0}
 
-def due_for(+c: Conn.Cfg, +q: Conn.Req, +hop_ok_: Bool, +hops: Nat, +mr: Maybe<&2, Http.Resp>, +rest: List<&2, CItem>) -> Bool:
-  match mr:
-    case None{}:
-      True{}
-    case Some{r}:
-      +n = rd_limit(c_redirects(c))
-      Bool.or(Bool.not(Bool.and(Maybe.is_some(&2, Nat, c_redirects(c)), is_redirect(r))),
-        pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok_), progresses(batch(rest))),
-          fails_with(stop_text(q, location(r), n), None{}, batch(rest))))
 
-# a complete redirect under -redirects=n: below the limit the client goes
-# on to the next hop at once; at the limit it fails as Go's CheckRedirect
+
+
+
+# a redirect under -redirects=n, once Go is done with its body: below the
+# limit the client goes on to the next hop at once; at the limit it fails
+# as Go's CheckRedirect
 def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +rest: List<&2, CItem>) -> Bool:
-  due_for(c, q, hop_ok(hop_of(t, u, b, parse_buf(eof, c_mb(c), head, buf))), hops, resp_of(parse_buf(eof, c_mb(c), head, buf)), rest)
+  +n = rd_limit(c_redirects(c))
+  Bool.or(Bool.not(Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))),
+    pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))), progresses(batch(rest))),
+      fails_with(stop_text(q, head_location(buf), n), None{}, batch(rest))))
 
 # every new request after the first is the redirect of the previous
 # response (a repeat of the same text is a retry), and there are at most
@@ -4158,7 +4189,7 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
         case CICmd{k}:
           match k:
             case Conn.Send{d}:
-              +hop = hop_of(t, u, b, parse_buf(eof, c_mb(c), head, buf))
+              +hop = hop_of_head(u_host(q_url(q)), t, u, b, buf)
               +fresh = is_fresh(last, d)
               pick(Bool, fresh,
                 Bool.and(Bool.and(hop_ok(hop), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
