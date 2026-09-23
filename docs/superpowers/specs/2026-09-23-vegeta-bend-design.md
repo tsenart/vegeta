@@ -106,7 +106,8 @@ TLS/HTTPS, HTTP/2 and h2c, gob, `-lazy`, JSON target format, `-unix-socket`,
 - Dropped slots are reported by `attack` on stderr (only when non-zero); Go drops them silently.
 - The latency minimum is the true minimum; Go's treats 0 as unset, so a 0 ns latency makes its minimum depend on arrival order.
 - Response headers in JSON results are in sorted key order; Go's are in random map order.
-- Negative durations (`-duration=-1s`) are rejected; Go accepts them. PENDING the owner's approval.
+- Negative durations (`-duration=-1s`) are rejected; any minus-zero (`-0`, `-0s`, `-0m0s`) reads as 0. Go accepts negative durations (a negative `-duration` runs forever). Decided under the owner's go-ahead ("don't stop until you're done"), overridable.
+- Durations from 281474 s (about 78.2 h) up are rejected: the compiled Bend runtime aborts on Nats past 2^48 ns. Go's limit is 2^63 ns. Decided under the owner's go-ahead, overridable (the alternative is carrying durations in `Big`).
 - A `-rate` with a bare multi-second unit (`50/m`) behaves as Go's, but no law can state its period (a closed number past the checker's reach); Go goldens pin it.
 - Dial error strings follow Go's shape (`Get "URL": dial tcp IP:PORT:
   connect: connection refused`) but not every Go error text is reproduced.

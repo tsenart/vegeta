@@ -815,24 +815,82 @@ def terms_ok(+fuel: Nat, +s: String) -> Bool:
       +u = span_unit(SS.b(q))
       Bool.and(Bool.and(num, is_unit_name(SS.a(u))), Bool.or(String.is_empty(SS.b(u)), terms_ok(f, SS.b(u))))
 
-# what time.ParseDuration accepts, less negative durations: "0" or terms,
-# after an optional "+"; and "-0"
-def dur_ok(+s: String) -> Bool:
-  +t = pick(String, first_is(s, 43), String.drop(s, 1n), s)
-  Bool.or(String.eq(s, "-0"), Bool.or(String.eq(t, "0"), terms_ok(String.length(t), t)))
+def has_nonzero_digit(s: String) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      Bool.or(in_range32(code(c), 49, 57), has_nonzero_digit(rest))
 
-# LAW: parse accepts exactly that language (Go also reads "-5s" as a
-# negative duration; Vegeta's durations are never negative, so the port
-# refuses it -- pending the owner's approval)
+# a unit's size in ns as a Big literal (a closed Big.of would make the
+# checker unfold the number)
+def unit_big(+u: String) -> Big.Big:
+  pick(Big.Big, String.eq(u, "ns"), Big.Big{[1n]},
+  pick(Big.Big, Bool.or(Bool.or(String.eq(u, "us"), String.eq(u, micro() ++ "s")), String.eq(u, greek_mu() ++ "s")), Big.Big{[1000n]},
+  pick(Big.Big, String.eq(u, "ms"), Big.Big{[0n, 100n]},
+  pick(Big.Big, String.eq(u, "s"), Big.Big{[0n, 0n, 10n]},
+  pick(Big.Big, String.eq(u, "m"), Big.Big{[0n, 0n, 600n]}, Big.Big{[0n, 0n, 6000n, 3n]})))))
+
+type Frac is Data:
+  Frac{num: Big.Big, den: Big.Big}
+
+def mk_frac(+n: Big.Big, +d: Big.Big) -> Frac:
+  Frac{n, d}
+
+def frac_add(+a: Frac, +b: Frac) -> Frac:
+  Frac{an, ad} = a
+  Frac{bn, bd} = b
+  Frac{Big.add(Big.mul(an, bd), Big.mul(bn, ad)), Big.mul(ad, bd)}
+
+# the exact value in ns of a run of terms (as terms_ok reads them)
+def terms_val(+fuel: Nat, +s: String) -> Frac:
+  match fuel:
+    case 0n:
+      mk_frac(B(0n), B(1n))
+    case 1n+f:
+      +p = span_digits(s)
+      +dot = first_is(SS.b(p), 46)
+      +q = pick(SS, dot, span_digits(String.drop(SS.b(p), 1n)), SS{"", SS.b(p)})
+      +u = span_unit(SS.b(q))
+      +scale = bpow10(String.length(SS.a(q)))
+      +this = mk_frac(Big.mul(Big.add(Big.mul(bdigits(SS.a(p)), scale), bdigits(SS.a(q))), unit_big(SS.a(u))), scale)
+      pick(Frac, String.is_empty(SS.b(u)), this, frac_add(this, terms_val(f, SS.b(u))))
+
+# 281474 s, just under 2^48 ns (the runtime's largest Nat): the port's
+# largest duration. Go's reaches 2^63 ns; this bound is the owner's
+# accepted deviation, with room below 2^48 for Go's float rounding of
+# fractions
+def dur_bound() -> Big.Big:
+  Big.Big{[0n, 0n, 4740n, 281n]}
+
+def frac_below(+x: Frac, +bound: Big.Big) -> Bool:
+  Frac{n, d} = x
+  b_lt(n, Big.mul(bound, d))
+
+def dur_fits(+t: String) -> Bool:
+  frac_below(terms_val(String.length(t), t), dur_bound())
+
+# what the port reads as a duration: time.ParseDuration's language,
+# less negative durations (the owner's accepted deviation: "-" is
+# allowed only before a zero duration, which reads as 0) and less
+# durations past dur_bound
+def dur_ok(+s: String) -> Bool:
+  +neg = first_is(s, 45)
+  +t = pick(String, Bool.or(neg, first_is(s, 43)), String.drop(s, 1n), s)
+  +signed_again = Bool.or(first_is(t, 43), first_is(t, 45))
+  Bool.and(Bool.not(signed_again), Bool.or(String.eq(t, "0"),
+    Bool.and(terms_ok(String.length(t), t), pick(Bool, neg, Bool.not(has_nonzero_digit(t)), dur_fits(t)))))
+
+# LAW: parse accepts exactly that language
 law dur_parse_domain:
   for +s: String
   {Maybe.is_some(&2, Nat, Dur.parse(s)) == dur_ok(s) : Bool}
 
-# LAW: a "+" changes nothing, and "0" and "-0" are zero
+# LAW: a "+" changes nothing; a "-" before a zero duration reads as 0
 law dur_parse_sign:
   for +s: String
   {Dur.parse("+" ++ s) == pick(Maybe<&2, Nat>, Bool.or(first_is(s, 43), first_is(s, 45)), None{}, Dur.parse(s)) : Maybe<&2, Nat>}
-  & {Dur.parse("-0") == Some{0n} : Maybe<&2, Nat>}
+  & {Dur.parse("-" ++ s) == pick(Maybe<&2, Nat>, dur_ok("-" ++ s), Some{0n}, None{}) : Maybe<&2, Nat>}
   & {Dur.parse("0") == Some{0n} : Maybe<&2, Nat>}
 
 # Go's Duration.Round(f * b) for n >= 0 (halves round up), without the
