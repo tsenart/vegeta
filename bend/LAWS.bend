@@ -697,10 +697,6 @@ law dur_show:
   for +n: Nat
   {Dur.show(n) == go_dur(n) : String}
 
-# LAW: parse reads back what show writes.
-law dur_parse_show:
-  for +n: Nat
-  {Dur.parse(Dur.show(n)) == Some{n} : Maybe<&2, Nat>}
 
 # the units time.ParseDuration knows: a name and a size in ns written as
 # factor * base, plus the size as a double (no closed products: the
@@ -753,37 +749,8 @@ def unit_f64(+i: Nat) -> F64.F64:
 def of_unit(+k: Nat, +i: Nat) -> Nat:
   Nat.mul(Nat.mul(k, unit_factor(i)), unit_base(i))
 
-# LAW: a whole number of a unit parses to its size in ns.
-law dur_parse_term:
-  for +k: Nat
-  for +i: Nat
-  for -h: {Nat.is_lt(i, 8n) == True{} : Bool}
-  {Dur.parse(Dec.show(k) ++ unit_name(i)) == Some{of_unit(k, i)} : Maybe<&2, Nat>}
 
-# LAW: a fraction of a unit parses as Go computes it, in float64:
-# int64(float64(f) * (float64(unit) / float64(10^len(f)))), up to 15 digits.
-law dur_parse_frac:
-  for +k: Nat
-  for +f: String
-  for +i: Nat
-  for -h0: {Nat.is_lt(i, 8n) == True{} : Bool}
-  for -h1: {all_digits(f) == True{} : Bool}
-  for -h2: {Nat.is_le(String.length(f), 15n) == True{} : Bool}
-  {Dur.parse(Dec.show(k) ++ "." ++ f ++ unit_name(i))
-   == Some{Nat.add(of_unit(k, i),
-       F64.trunc(F64.mul(F64.of_nat(digits_value(f)), F64.div(unit_f64(i), F64.of_nat(pow10(String.length(f)))))))} : Maybe<&2, Nat>}
 
-# LAW: terms add up: "1h" then "30m" parses as their sum. ("0" alone is a
-# duration but not a term: "1m0" is missing its unit.)
-law dur_parse_concat:
-  for +a: String
-  for +b: String
-  for +x: Nat
-  for +y: Nat
-  for -ha: {Dur.parse(a) == Some{x} : Maybe<&2, Nat>}
-  for -hb: {Dur.parse(b) == Some{y} : Maybe<&2, Nat>}
-  for -h0: {Bool.or(String.eq(a, "0"), String.eq(b, "0")) == False{} : Bool}
-  {Dur.parse(a ++ b) == Some{Nat.add(x, y)} : Maybe<&2, Nat>}
 
 def is_unit_name(+u: String) -> Bool:
   Bool.or(Bool.or(Bool.or(String.eq(u, "ns"), String.eq(u, "us")), Bool.or(String.eq(u, micro() ++ "s"), String.eq(u, greek_mu() ++ "s"))),
@@ -892,6 +859,47 @@ law dur_parse_sign:
   {Dur.parse("+" ++ s) == pick(Maybe<&2, Nat>, Bool.or(first_is(s, 43), first_is(s, 45)), None{}, Dur.parse(s)) : Maybe<&2, Nat>}
   & {Dur.parse("-" ++ s) == pick(Maybe<&2, Nat>, dur_ok("-" ++ s), Some{0n}, None{}) : Maybe<&2, Nat>}
   & {Dur.parse("0") == Some{0n} : Maybe<&2, Nat>}
+
+# LAW: parse reads back what show writes.
+law dur_parse_show:
+  for +n: Nat
+  for -h: {dur_ok(go_dur(n)) == True{} : Bool}
+  {Dur.parse(Dur.show(n)) == Some{n} : Maybe<&2, Nat>}
+
+# LAW: a whole number of a unit parses to its size in ns.
+law dur_parse_term:
+  for +k: Nat
+  for +i: Nat
+  for -h: {Nat.is_lt(i, 8n) == True{} : Bool}
+  for -hd: {dur_ok(Dec.show(k) ++ unit_name(i)) == True{} : Bool}
+  {Dur.parse(Dec.show(k) ++ unit_name(i)) == Some{of_unit(k, i)} : Maybe<&2, Nat>}
+
+# LAW: a fraction of a unit parses as Go computes it, in float64:
+# int64(float64(f) * (float64(unit) / float64(10^len(f)))), up to 15 digits.
+law dur_parse_frac:
+  for +k: Nat
+  for +f: String
+  for +i: Nat
+  for -h0: {Nat.is_lt(i, 8n) == True{} : Bool}
+  for -h1: {all_digits(f) == True{} : Bool}
+  for -h2: {Nat.is_le(String.length(f), 15n) == True{} : Bool}
+  for -hd: {dur_ok(Dec.show(k) ++ "." ++ f ++ unit_name(i)) == True{} : Bool}
+  {Dur.parse(Dec.show(k) ++ "." ++ f ++ unit_name(i))
+   == Some{Nat.add(of_unit(k, i),
+       F64.trunc(F64.mul(F64.of_nat(digits_value(f)), F64.div(unit_f64(i), F64.of_nat(pow10(String.length(f)))))))} : Maybe<&2, Nat>}
+
+# LAW: terms add up: "1h" then "30m" parses as their sum. ("0" alone is a
+# duration but not a term: "1m0" is missing its unit.)
+law dur_parse_concat:
+  for +a: String
+  for +b: String
+  for +x: Nat
+  for +y: Nat
+  for -ha: {Dur.parse(a) == Some{x} : Maybe<&2, Nat>}
+  for -hb: {Dur.parse(b) == Some{y} : Maybe<&2, Nat>}
+  for -h0: {Bool.or(String.eq(a, "0"), String.eq(b, "0")) == False{} : Bool}
+  for -hd: {dur_ok(a ++ b) == True{} : Bool}
+  {Dur.parse(a ++ b) == Some{Nat.add(x, y)} : Maybe<&2, Nat>}
 
 # Go's Duration.Round(f * b) for n >= 0 (halves round up), without the
 # closed product f * b: with q = n / b, a = q mod f and c = n mod b, the
@@ -4851,9 +4859,30 @@ def rate_ok(+r: Pace.Rate) -> Bool:
 
 # options a command line can carry: printable values, an http format, a
 # known encoding, and headers as -header can write them
+def dur_in(+n: Nat) -> Bool:
+  dur_ok(go_dur(n))
+
+def opt_dur_in(+m: Maybe<&2, Nat>) -> Bool:
+  match m:
+    case None{}:
+      True{}
+    case Some{n}:
+      dur_in(n)
+
+def rate_dur_in(+r: Pace.Rate) -> Bool:
+  Pace.Rate{f, p} = r
+  Bool.or(Bool.or(Nat.is_eq(f, 0n), Nat.is_eq(p, 0n)), dur_in(p))
+
+def all_dur_in(bs: List<&2, Nat>) -> Bool:
+  match bs:
+    case Nil{}:
+      True{}
+    case Con{+b, +rest}:
+      Bool.and(dur_in(b), all_dur_in(rest))
+
 def attack_ok(+a: Flags.Attack) -> Bool:
   Flags.Attack{rate, du, tg, fm, out, name, w, mw, to, hs, body, ka, mb, rd, enc} = a
-  Bool.and(Bool.and(rate_ok(rate), Bool.and(flag_str_ok(tg), flag_str_ok(out))),
+  Bool.and(Bool.and(Bool.and(dur_in(du), Bool.and(opt_dur_in(to), rate_dur_in(rate))), Bool.and(rate_ok(rate), Bool.and(flag_str_ok(tg), flag_str_ok(out)))),
   Bool.and(Bool.and(printable(name), String.eq(fm, "http")),
   Bool.and(Bool.and(tgt_hdrs_ok(hs), body_path_ok(body)), Bool.or(String.eq(enc, "csv"), String.eq(enc, "json")))))
 
@@ -4947,6 +4976,7 @@ law flags_report:
   for -h0: {Bool.not(List.is_empty(&2, Nat, bs)) == True{} : Bool}
   for -h1: {Bool.and(all_bytes(files), Bool.not(List.any(~&2, ~String, ~(f => String.starts_with(f, "-")), files))) == True{} : Bool}
   for -h2: {flag_str_ok(out) == True{} : Bool}
+  for -h3: {all_dur_in(bs) == True{} : Bool}
   {Flags.parse_report(files) == Done{Flags.Report{Flags.AsText{}, "stdout", files}} : Result<&2, &2, String, Flags.Report>}
   & {Flags.parse_report(Con{"-type=json", Con{"-output=" ++ out, files}}) == Done{Flags.Report{Flags.AsJson{[]}, out, files}} : Result<&2, &2, String, Flags.Report>}
   & {Flags.parse_report(Con{"-type=json", Con{"-buckets=" ++ buckets_text(bs), files}}) == Done{Flags.Report{Flags.AsJson{with_zero(bs)}, "stdout", files}} : Result<&2, &2, String, Flags.Report>}
