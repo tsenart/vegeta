@@ -32,6 +32,15 @@ for t in tests/*"$pat"*.bend; do
     echo "FAIL $name (compile)"; sed 's/^/  /' ".build/tests/$name.cc"; fail=$((fail+1)); continue
   fi
   ( cd .build/tests && ./"$name" ) < /dev/null > ".build/tests/$name.got" 2>&1 || true
+  case "$name" in
+    laws_helpers*)
+      # pure helper tests also run on bend's default lane: Bend 2.0.25's
+      # compiler has been seen to miscompile a Bool expression
+      bend "$t" > ".build/tests/$name.lane2" 2>&1 || true
+      if ! diff -q ".build/tests/$name.want" ".build/tests/$name.lane2" > /dev/null; then
+        echo "FAIL $name (default lane)"; diff -u ".build/tests/$name.want" ".build/tests/$name.lane2" | sed 's/^/  /'; fail=$((fail+1))
+      fi;;
+  esac
   if diff -u ".build/tests/$name.want" ".build/tests/$name.got" > ".build/tests/$name.diff"; then
     echo "ok   $name"
   else

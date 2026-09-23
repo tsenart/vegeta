@@ -596,7 +596,7 @@ def below_1e_6(+x: F64.F64) -> Bool:
   b_lt(bshl(72n, f_num(x)), Big.mul(Big.Big{[9645n, 8286n, 3664n, 4722n]}, f_den(x)))
 
 def from_1e21(+x: F64.F64) -> Bool:
-  b_le(Big.mul(Big.Big{[0n, 0n, 0n, 0n, 0n, 1000n]}, f_den(x)), f_num(x))
+  b_le(Big.mul(Big.Big{[0n, 0n, 0n, 0n, 0n, 10n]}, f_den(x)), f_num(x))
 
 # 1e9 as a double: 1953125 * 2^9
 def f64_1e9() -> F64.F64:
@@ -2193,7 +2193,7 @@ def valid_encoded(s: String) -> Bool:
     case SNil{}:
       True{}
     case SCon{+c, +rest}:
-      Bool.and(Bool.or(unreserved(code(c)), has_char("!$&'()*+,;=:@/%", code(c))), valid_encoded(rest))
+      Bool.and(Bool.or(unreserved(code(c)), has_char("!$&'()*+,;=:@/%[]", code(c))), valid_encoded(rest))
 
 # %XX sequences decoded (url_ok guarantees they are well formed)
 def unescape.go(+fuel: Nat, +s: String) -> String:
@@ -2202,9 +2202,8 @@ def unescape.go(+fuel: Nat, +s: String) -> String:
       ""
     case 1n+f:
       +pct = Bool.and(first_is(s, 37), Nat.is_ge(String.length(s), 3n))
-      pick(String, String.is_empty(s), "",
-        pick(String, pct, str1((hex_val(byte_at(s, 1n)) * 16 + hex_val(byte_at(s, 2n)) : U32)), String.take(s, 1n))
-          ++ unescape.go(f, String.drop(s, pick(Nat, pct, 3n, 1n))))
+      +v = pick(U32, pct, ((hex_val(byte_at(s, 1n)) * 16 + hex_val(byte_at(s, 2n))) .&. 255 : U32), byte_at(s, 0n))
+      pick(String, String.is_empty(s), "", str1(v) ++ unescape.go(f, String.drop(s, pick(Nat, pct, 3n, 1n))))
 
 def unescape(+s: String) -> String:
   unescape.go(String.length(s), s)
@@ -2738,11 +2737,42 @@ law met_hist:
 # Rates (lib/pacer.bend): the -rate flag
 # =====================================================================
 
+def rate_is(+n: Nat, +p: Nat, +r: Result<&2, &2, String, Pace.Rate>) -> Bool:
+  match r:
+    case Fail{e}:
+      False{}
+    case Done{x}:
+      Pace.Rate{f, q} = x
+      Bool.and(Nat.is_eq(f, n), Nat.is_eq(q, p))
+
+def is_rate_fail(+r: Result<&2, &2, String, Pace.Rate>) -> Bool:
+  match r:
+    case Fail{e}:
+      True{}
+    case Done{x}:
+      False{}
+
+def rate_same(+a: Result<&2, &2, String, Pace.Rate>, +b: Result<&2, &2, String, Pace.Rate>) -> Bool:
+  match a:
+    case Fail{e}:
+      is_rate_fail(b)
+    case Done{x}:
+      Pace.Rate{f, q} = x
+      rate_is(f, q, b)
+
+# "N/D" read as Go does: N per the duration D, or an error when D does not
+# parse (Go's own error text, from time.ParseDuration)
+def rate_with(+n: Nat, +d: Maybe<&2, Nat>, +r: Result<&2, &2, String, Pace.Rate>) -> Bool:
+  match d:
+    case None{}:
+      is_rate_fail(r)
+    case Some{p}:
+      rate_is(n, p, r)
+
 # LAW: -rate reads as Go's rateFlag: a zero rate is unbounded; a bare
-# number is per second; "N/D" is N per duration D. ("infinity" is not a
-# rate: Go's flag ignores it, see flags_rate. A bare unit, "50/m", is Go's
-# too, but its period is a closed number too big for the checker to state;
-# the Go goldens pin it.)
+# number is per second; "N/D" is N per duration D (a D that does not parse
+# fails); a bare unit, "50/m", reads as "50/1m". ("infinity" is not a
+# rate: Go's flag ignores it, see flags_rate.)
 law rate_parse:
   for +n: Nat
   for +d: Nat
@@ -2750,7 +2780,10 @@ law rate_parse:
   {Pace.parse_rate("0") == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate("0/" ++ s) == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate(Dec.show(1n+n)) == Done{Pace.Rate{1n+n, sec()}} : Result<&2, &2, String, Pace.Rate>}
-  & {Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ Dur.show(d)) == Done{Pace.Rate{1n+n, d}} : Result<&2, &2, String, Pace.Rate>}
+  & {Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ micro() ++ "s") == Pace.parse_rate(Dec.show(1n+n) ++ "/1" ++ micro() ++ "s") : Result<&2, &2, String, Pace.Rate>}
+  & {Bool.or(is_unit_name(s), rate_with(1n+n, Dur.parse(s), Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ s))) == True{} : Bool}
+  & {pick(Bool, Bool.and(is_unit_name(s), Bool.not(String.eq(s, greek_mu() ++ "s"))),
+       rate_same(Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ s), Pace.parse_rate(Dec.show(1n+n) ++ "/1" ++ s)), True{}) == True{} : Bool}
 
 
 # LAW: a frequency that is not a number fails as strconv.Atoi does
@@ -3685,6 +3718,124 @@ def is_fresh(+last: Maybe<&2, String>, +d: String) -> Bool:
     case Some{l}:
       Bool.not(String.eq(l, d))
 
+def rd_limit(+m: Maybe<&2, Nat>) -> Nat:
+  Maybe.default(&2, Nat, m, 0n)
+
+
+def after_head.go(+fuel: Nat, +s: String) -> String:
+  match fuel:
+    case 0n:
+      ""
+    case 1n+f:
+      pick(String, String.starts_with(s, "\r\n\r\n"), s, after_head.go(f, String.drop(s, 1n)))
+
+def after_head(+s: String) -> String:
+  after_head.go(String.length(s), s)
+
+def u_host(+u: Tgt.Url) -> String:
+  Tgt.Url{sc, h, p, pa} = u
+  h
+
+def last_slash(s: String, +acc: String, +cut: String) -> String:
+  match s:
+    case SNil{}:
+      cut
+    case SCon{+c, +rest}:
+      +acc2 = acc ++ SCon{c, SNil{}}
+      last_slash(rest, acc2, pick(String, U32.is_eq(code(c), 47), acc2, cut))
+
+# the directory of a path: up to and including its last "/"
+def dir_of(+p: String) -> String:
+  last_slash(p, "", "/")
+
+def rev_drop1(xs: List<&2, String>) -> List<&2, String>:
+  match xs:
+    case Nil{}:
+      []
+    case Con{+x, +rest}:
+      rest
+
+# RFC 3986's remove_dot_segments over the segments of an absolute path,
+# collected in reverse
+def dots(segs: List<&2, String>, +out: List<&2, String>) -> List<&2, String>:
+  match segs:
+    case Nil{}:
+      out
+    case Con{+g, +rest}:
+      +last = List.is_empty(&2, String, rest)
+      +dot = String.eq(g, ".")
+      +up = String.eq(g, "..")
+      +out2 = pick(List<&2, String>, dot, out, pick(List<&2, String>, up, rev_drop1(out), Con{g, out}))
+      dots(rest, pick(List<&2, String>, Bool.and(last, Bool.or(dot, up)), Con{"", out2}, out2))
+
+def remove_dots(+p: String) -> String:
+  "/" ++ join_str("/", List.reverse(&2, String, dots(List.drop(&2, String, split_on(47, p), 1n), [])))
+
+# a Location resolved against the request's URL, as Go's URL.ResolveReference
+def loc_url(+u: Tgt.Url, +loc: String) -> String:
+  +base = "http://" ++ u_host(u) ++ port_text(u_portm(u))
+  +bpath = before_q(url_path(u))
+  +lpath = before_q(loc)
+  +lq = String.drop(loc, String.length(lpath))
+  pick(String, Bool.or(String.starts_with(String.to_lower(loc), "http://"), String.starts_with(String.to_lower(loc), "https://")), loc,
+  pick(String, String.starts_with(loc, "//"), "http:" ++ loc,
+  pick(String, String.starts_with(loc, "/"), base ++ remove_dots(lpath) ++ lq,
+  pick(String, String.is_empty(lpath), base ++ bpath ++ pick(String, String.is_empty(lq), String.drop(url_path(u), String.length(bpath)), lq),
+    base ++ remove_dots(dir_of(bpath) ++ lpath) ++ lq))))
+
+# a response head that has arrived (its blank line is in), read directly:
+# its status code and its Location, for a redirect whose body is pending
+def head_text(+buf: String) -> String:
+  String.take(buf, Nat.sub(String.length(buf), String.length(after_head(buf))))
+
+def head_code(+buf: String) -> Nat:
+  digits_value(String.take(String.drop(buf, 9n), 3n))
+
+def strip_cr(+l: String) -> String:
+  pick(String, String.ends_with(l, "\r"), String.take(l, Nat.sub(String.length(l), 1n)), l)
+
+def head_loc_of(ls: List<&2, String>) -> String:
+  match ls:
+    case Nil{}:
+      ""
+    case Con{+l, +rest}:
+      +kv = split_on(58, strip_cr(l))
+      pick(String, String.eq(canon(trim_ows(Maybe.default(&2, String, List.head(&2, String, kv), ""))), "Location"),
+        trim_ows(String.drop(strip_cr(l), 1n+String.length(Maybe.default(&2, String, List.head(&2, String, kv), "")))),
+        head_loc_of(rest))
+
+def head_location(+buf: String) -> String:
+  head_loc_of(List.drop(&2, String, split_on(10, head_text(buf)), 1n))
+
+# the head in buf is a redirect the client would follow
+def head_redirect(+c: Conn.Cfg, +buf: String) -> Bool:
+  +k = head_code(buf)
+  Bool.and(Bool.and(String.contains(buf, "\r\n\r\n"), Maybe.is_some(&2, Nat, c_redirects(c))),
+    Bool.and(Bool.or(Bool.or(Nat.is_eq(k, 301n), Nat.is_eq(k, 302n)), Bool.or(Bool.or(Nat.is_eq(k, 303n), Nat.is_eq(k, 307n)), Nat.is_eq(k, 308n))),
+      Bool.not(String.is_empty(head_location(buf)))))
+
+def stop_text(+q: Conn.Req, +loc: String, +n: Nat) -> String:
+  op(tgt_method(q_target(q))) ++ " \"" ++ loc ++ "\": stopped after " ++ Dec.show(n) ++ " redirects"
+
+# a timeout once a redirect's head is in: Go has stopped reading it and
+# is on the next request (awaiting its headers, named by its URL), unless
+# the limit is 0 (then the stop is the error)
+def redirect_timeout_text(+c: Conn.Cfg, +q: Conn.Req, +buf: String) -> String:
+  +n = rd_limit(c_redirects(c))
+  pick(String, Nat.is_eq(n, 0n), stop_text(q, head_location(buf), 0n),
+    op(tgt_method(q_target(q))) ++ " \"" ++ loc_url(q_url(q), head_location(buf)) ++ "\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)")
+
+def is_done_parse(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{res}:
+      match res:
+        case Fail{e}:
+          False{}
+        case Done{p}:
+          True{}
+
 # before the request finishes (and before any redirect: a redirect's own
 # errors name the redirect's URL), a timeout or a failed dial finishes it
 # at once, with Go's error text and Go's partial body
@@ -3697,7 +3848,13 @@ def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +firs
         case CIEv{e}:
           match e:
             case Conn.Late{}:
-              Bool.or(done, fails_with(timeout_text(r, buf), timeout_partial(c, head, buf), batch(rest)))
+              Bool.or(done, pick(Bool, head_redirect(c, buf),
+                fails_with(redirect_timeout_text(c, r, buf), None{}, batch(rest)),
+                fails_with(timeout_text(r, buf), timeout_partial(c, head, buf), batch(rest))))
+            case Conn.Eof{}:
+              Bool.and(Bool.or(Bool.or(done, Bool.or(Bool.not(String.contains(buf, "\r\n\r\n")), head_redirect(c, buf))),
+                  Bool.or(is_done_parse(parse_eof(c_mb(c), head, buf)), fails_with("unexpected EOF", timeout_partial(c, head, buf), batch(rest)))),
+                chk_fail(rest, c, r, done, first, head, buf))
             case Conn.OpenFailed{m}:
               Bool.or(done, fails_with(dial_text(r, m), None{}, batch(rest)))
             case Conn.Got{d}:
@@ -3713,7 +3870,7 @@ def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +firs
             case _:
               chk_fail(rest, c, r, done, first, head, buf)
 
-# LAW: timeouts and failed dials, with Go's words
+# LAW: timeouts, failed dials and bodies cut short, with Go's words
 law conn_fail:
   for +c: Conn.Cfg
   for +r: Conn.Req
@@ -3829,65 +3986,71 @@ def redirect_method(+code: Nat, +m: String) -> String:
 def redirect_body(+code: Nat, +b: String) -> String:
   pick(String, Bool.or(Nat.is_eq(code, 307n), Nat.is_eq(code, 308n)), b, "")
 
-def u_host(+u: Tgt.Url) -> String:
-  Tgt.Url{sc, h, p, pa} = u
-  h
 
-def last_slash(s: String, +acc: String, +cut: String) -> String:
-  match s:
-    case SNil{}:
-      cut
-    case SCon{+c, +rest}:
-      +acc2 = acc ++ SCon{c, SNil{}}
-      last_slash(rest, acc2, pick(String, U32.is_eq(code(c), 47), acc2, cut))
 
-# the directory of a path: up to and including its last "/"
-def dir_of(+p: String) -> String:
-  last_slash(p, "", "/")
 
-def rev_drop1(xs: List<&2, String>) -> List<&2, String>:
-  match xs:
-    case Nil{}:
-      []
-    case Con{+x, +rest}:
-      rest
 
-# RFC 3986's remove_dot_segments over the segments of an absolute path,
-# collected in reverse
-def dots(segs: List<&2, String>, +out: List<&2, String>) -> List<&2, String>:
-  match segs:
-    case Nil{}:
-      out
-    case Con{+g, +rest}:
-      +last = List.is_empty(&2, String, rest)
-      +dot = String.eq(g, ".")
-      +up = String.eq(g, "..")
-      +out2 = pick(List<&2, String>, dot, out, pick(List<&2, String>, up, rev_drop1(out), Con{g, out}))
-      dots(rest, pick(List<&2, String>, Bool.and(last, Bool.or(dot, up)), Con{"", out2}, out2))
 
-def remove_dots(+p: String) -> String:
-  "/" ++ join_str("/", List.reverse(&2, String, dots(List.drop(&2, String, split_on(47, p), 1n), [])))
 
-# a Location resolved against the request's URL, as Go's URL.ResolveReference
-def loc_url(+u: Tgt.Url, +loc: String) -> String:
-  +base = "http://" ++ u_host(u) ++ port_text(u_portm(u))
-  +bpath = before_q(url_path(u))
-  +lpath = before_q(loc)
-  +lq = String.drop(loc, String.length(lpath))
-  pick(String, Bool.or(String.starts_with(loc, "http://"), String.starts_with(loc, "https://")), loc,
-  pick(String, String.starts_with(loc, "//"), "http:" ++ loc,
-  pick(String, String.starts_with(loc, "/"), base ++ remove_dots(lpath) ++ lq,
-  pick(String, String.is_empty(lpath), base ++ bpath ++ pick(String, String.is_empty(lq), String.drop(url_path(u), String.length(bpath)), lq),
-    base ++ remove_dots(dir_of(bpath) ++ lpath) ++ lq))))
 
 def location(+r: Http.Resp) -> String:
   first_val("Location", r_hdrs(r), "")
 
-# the target of the redirect r gets for request t at u: Go's method rules,
-# the same headers, and a Referer naming the URL redirected from
+def lower_host(+s: String) -> String:
+  String.to_lower(s)
+
+# Go's shouldCopyHeaderOnRedirect: credentials go along only to the same
+# host or one of its subdomains (ports aside, case aside)
+def same_domain(+src: String, +dst: String) -> Bool:
+  +a = lower_host(src)
+  +b = lower_host(dst)
+  Bool.or(String.eq(a, b), String.ends_with(b, "." ++ a))
+
+def sensitive() -> List<&2, String>:
+  ["Authorization", "Www-Authenticate", "Cookie", "Cookie2", "Proxy-Authorization", "Proxy-Authenticate"]
+
+def body_hdrs() -> List<&2, String>:
+  ["Content-Type", "Content-Encoding", "Content-Language", "Content-Location"]
+
+def drop_all_ci(ks: List<&2, String>, +hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
+  match ks:
+    case Nil{}:
+      hs
+    case Con{+k, +rest}:
+      drop_all_ci(rest, drop_ci(k, hs))
+
+def before_slash(s: String) -> String:
+  match s:
+    case SNil{}:
+      ""
+    case SCon{+c, +rest}:
+      pick(String, Bool.or(U32.is_eq(code(c), 47), U32.is_eq(code(c), 63)), "", SCon{c, before_slash(rest)})
+
+def before_colon(s: String) -> String:
+  match s:
+    case SNil{}:
+      ""
+    case SCon{+c, +rest}:
+      pick(String, U32.is_eq(code(c), 58), "", SCon{c, before_colon(rest)})
+
+def host_of_url(+s: String) -> String:
+  +r = String.drop(s, pick(Nat, String.starts_with(String.to_lower(s), "https://"), 8n, 7n))
+  before_colon(before_slash(r))
+
+
+
+# the target of the redirect r gets for request t at u, as Go builds it:
+# Go's method rules; the headers copied, less credentials when the host
+# changes to one outside the original's domain and less the body's own
+# headers when the body is dropped; and a Referer naming the URL
+# redirected from, unless the request set its own
 def redirect_target(+t: Tgt.Target, +u: Tgt.Url, +r: Http.Resp) -> Tgt.Target:
-  Tgt.Target{redirect_method(r_code(r), tgt_method(t)), loc_url(u, location(r)),
-    List.append(&2, Hdr.Header, drop_ci("Referer", tgt_hdrs(t)), [Hdr.Header{"Referer", [tgt_url(t)]}]), tgt_body(t)}
+  +next = loc_url(u, location(r))
+  +keep_body = Bool.or(Nat.is_eq(r_code(r), 307n), Nat.is_eq(r_code(r), 308n))
+  +hs1 = pick(List<&2, Hdr.Header>, same_domain(u_host(u), host_of_url(next)), tgt_hdrs(t), drop_all_ci(sensitive(), tgt_hdrs(t)))
+  +hs2 = pick(List<&2, Hdr.Header>, keep_body, hs1, drop_all_ci(body_hdrs(), hs1))
+  +hs3 = pick(List<&2, Hdr.Header>, has_key_ci("Referer", hs2), hs2, List.append(&2, Hdr.Header, hs2, [Hdr.Header{"Referer", [tgt_url(t)]}]))
+  Tgt.Target{redirect_method(r_code(r), tgt_method(t)), next, hs3, tgt_body(t)}
 
 def u_of(+d: Tgt.Url, r: Result<&2, &2, String, Tgt.Url>) -> Tgt.Url:
   match r:
@@ -3932,8 +4095,47 @@ def hop_b(+h: Hop) -> String:
   Hop{ok, t, u, b, c} = h
   b
 
-def rd_limit(+m: Maybe<&2, Nat>) -> Nat:
-  Maybe.default(&2, Nat, m, 0n)
+def progresses(cs: List<&2, Conn.Cmd>) -> Bool:
+  match cs:
+    case Nil{}:
+      False{}
+    case Con{+k, +rest}:
+      match k:
+        case Conn.Resolve{h}:
+          True{}
+        case Conn.Open{ip, p}:
+          True{}
+        case Conn.Send{d}:
+          True{}
+        case _:
+          progresses(rest)
+
+def resp_of(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Maybe<&2, Http.Resp>:
+  match m:
+    case None{}:
+      None{}
+    case Some{res}:
+      match res:
+        case Fail{e}:
+          None{}
+        case Done{p}:
+          (r0, lo) = p
+          Some{r0}
+
+def due_for(+c: Conn.Cfg, +q: Conn.Req, +hop_ok_: Bool, +hops: Nat, +mr: Maybe<&2, Http.Resp>, +rest: List<&2, CItem>) -> Bool:
+  match mr:
+    case None{}:
+      True{}
+    case Some{r}:
+      +n = rd_limit(c_redirects(c))
+      Bool.or(Bool.not(Bool.and(Maybe.is_some(&2, Nat, c_redirects(c)), is_redirect(r))),
+        pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok_), progresses(batch(rest))),
+          fails_with(stop_text(q, location(r), n), None{}, batch(rest))))
+
+# a complete redirect under -redirects=n: below the limit the client goes
+# on to the next hop at once; at the limit it fails as Go's CheckRedirect
+def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +rest: List<&2, CItem>) -> Bool:
+  due_for(c, q, hop_ok(hop_of(t, u, b, parse_buf(eof, c_mb(c), head, buf))), hops, resp_of(parse_buf(eof, c_mb(c), head, buf)), rest)
 
 # every new request after the first is the redirect of the previous
 # response (a repeat of the same text is a retry), and there are at most
@@ -3948,9 +4150,9 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
         case CIEv{e}:
           match e:
             case Conn.Got{d}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf ++ d, eof)
+              Bool.and(redirect_due(c, q, t, u, b, hops, head, buf ++ d, eof, rest), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf ++ d, eof))
             case Conn.Eof{}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{})
+              Bool.and(redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}))
             case _:
               chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof)
         case CICmd{k}:
@@ -3984,17 +4186,6 @@ def last_batch(xs: List<&2, CItem>, +acc: List<&2, Conn.Cmd>) -> List<&2, Conn.C
           last_batch(rest, [])
         case CICmd{k}:
           last_batch(rest, List.append(&2, Conn.Cmd, acc, [k]))
-
-# LAW: past the limit, a redirect fails as Go's CheckRedirect does
-law conn_redirect_stop:
-  for +c: Conn.Cfg
-  for +q: Conn.Req
-  for +r: Http.Resp
-  for +n: Nat
-  for -h0: {c_redirects(c) == Some{0n} : Maybe<&2, Nat>}
-  for -h1: {Bool.and(resp_cl_ok(r), is_redirect(r)) == True{} : Bool}
-  {fails_with(op(tgt_method(q_target(q))) ++ " \"" ++ location(r) ++ "\": stopped after 0 redirects", None{},
-     last_batch(ctimeline(c, q, True{}, [Conn.Sent{}, Conn.Got{render_cl(r)}]), [])) == True{} : Bool}
 
 # LAW: on a fresh connection, a close before any answer is Go's EOF error
 law conn_eof:
@@ -4443,7 +4634,6 @@ law flags_refused:
 # LAW: -rate=infinity is no rate at all to Go's flag (it keeps the
 # default), and an unbounded rate needs a worker limit
 law flags_rate:
-  for +n: Nat
   {Flags.parse_attack(["-rate=infinity"]) == Flags.parse_attack([]) : Result<&2, &2, String, Flags.Attack>}
   & {Flags.parse_attack(["-rate=0"]) == Fail{"-rate=0 requires setting -max-workers"} : Result<&2, &2, String, Flags.Attack>}
 
