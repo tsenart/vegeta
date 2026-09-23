@@ -4205,6 +4205,63 @@ def hop_b(+h: Hop) -> String:
   Hop{ok, t, u, b, c} = h
   b
 
+# the first command that moves the request toward a connection
+def first_conn(cs: List<&2, Conn.Cmd>) -> Maybe<&2, Conn.Cmd>:
+  match cs:
+    case Nil{}:
+      None{}
+    case Con{+k, +rest}:
+      match k:
+        case Conn.Resolve{h}:
+          Some{k}
+        case Conn.Open{i, p}:
+          Some{k}
+        case Conn.Send{d}:
+          Some{k}
+        case _:
+          first_conn(rest)
+
+def same_host(+a: String, +b: String) -> Bool:
+  String.eq(String.to_lower(a), String.to_lower(b))
+
+# where a redirect hop goes, as Go's connection pool (keyed by host and
+# port) sends it: another host is looked up first; the same host on a
+# connection that is not kept is dialed at the current address on the
+# hop's port; only the same host and port on a kept connection reuse it
+def dest_ok(+hh: String, +hp: Nat, +ch: String, +cp: Nat, +ip: String, +kept: Bool, +m: Maybe<&2, Conn.Cmd>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{k}:
+      match k:
+        case Conn.Resolve{h}:
+          Bool.and(Bool.not(same_host(hh, ch)), same_host(h, hh))
+        case Conn.Open{i, p}:
+          Bool.and(same_host(hh, ch), Bool.and(String.eq(i, ip), Nat.is_eq(p, hp)))
+        case Conn.Send{d}:
+          Bool.and(same_host(hh, ch), Bool.and(kept, Nat.is_eq(hp, cp)))
+        case _:
+          False{}
+
+# the connection opened after a lookup goes to the address it gave
+def opens_at(+ip: String, +p: Nat, +m: Maybe<&2, Conn.Cmd>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{k}:
+      match k:
+        case Conn.Open{i, q}:
+          Bool.and(String.eq(i, ip), Nat.is_eq(q, p))
+        case _:
+          False{}
+
+def awaited_open(+ip: String, +await: Maybe<&2, Nat>, +rest: List<&2, CItem>) -> Bool:
+  match await:
+    case None{}:
+      True{}
+    case Some{p}:
+      opens_at(ip, p, first_conn(batch(rest)))
+
 # the redirect's connection stays usable: its body is complete, both
 # sides keep the connection, and nothing extra arrived (as answer_of)
 def kept_of(+ka: Bool, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
@@ -4276,12 +4333,12 @@ def progresses(cs: List<&2, Conn.Cmd>) -> Bool:
 # a redirect under -redirects=n, once Go is done with its body: below the
 # limit the client goes on to the next hop at once; at the limit it fails
 # as Go's CheckRedirect
-def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +rest: List<&2, CItem>) -> Bool:
+def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +ip: String, +rest: List<&2, CItem>) -> Bool:
   +n = rd_limit(c_redirects(c))
+  +hop = hop_of_head(u_host(q_url(q)), t, u, b, buf)
   Bool.or(Bool.not(Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))),
-    pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))),
-        Bool.and(progresses(batch(rest)),
-          Bool.or(kept_of(c_ka(c), parse_of(None{}, head, buf)), new_conn(batch(rest), False{})))),
+    pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop)),
+        dest_ok(u_host(hop_u(hop)), u_port(hop_u(hop)), u_host(u), u_port(u), ip, kept_of(c_ka(c), parse_of(None{}, head, buf)), first_conn(batch(rest)))),
       fails_with(stop_text(q, head_location(buf), n), None{}, batch(rest))))
 
 # the redirect in the bytes so far is one the client acts on now
@@ -4310,7 +4367,8 @@ def got_may_fail(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: St
 # right after something failed (fok): a lookup, connect or write, a
 # timeout, a close, a malformed response, or a redirect Go stops at
 def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String,
-                 +last: Maybe<&2, String>, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +met: Bool, +done: Bool, +fok: Bool) -> Bool:
+                 +last: Maybe<&2, String>, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +met: Bool, +done: Bool, +fok: Bool,
+                 +ip: String, +await: Maybe<&2, Nat>) -> Bool:
   match xs:
     case Nil{}:
       True{}
@@ -4319,24 +4377,28 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
         case CIEv{e}:
           match e:
             case Conn.Got{d}:
-              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf ++ d, eof, rest)),
+              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf ++ d, eof, ip, rest)),
                 chk_redirect(rest, c, q, t, u, b, last, hops, head, buf ++ d, eof, Bool.or(met, due_now(c, head, buf ++ d, eof)), done,
-                  got_may_fail(c, q, t, u, b, hops, head, buf ++ d, eof)))
+                  got_may_fail(c, q, t, u, b, hops, head, buf ++ d, eof), ip, await))
             case Conn.Eof{}:
-              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest)),
+              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf, True{}, ip, rest)),
                 chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}, Bool.or(met, due_now(c, head, buf, True{})), done,
                   Bool.not(Bool.and(Bool.or(met, due_now(c, head, buf, True{})),
-                    Bool.and(Nat.is_lt(hops, rd_limit(c_redirects(c))), hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf)))))))
+                    Bool.and(Nat.is_lt(hops, rd_limit(c_redirects(c))), hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))))),
+                  ip, await))
+            case Conn.Resolved{ip2}:
+              Bool.and(Bool.or(done, awaited_open(ip2, await, rest)),
+                chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, False{}, ip2, None{}))
             case Conn.ResolveFailed{m}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{}, ip, None{})
             case Conn.OpenFailed{m}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{}, ip, await)
             case Conn.SendFailed{m}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{}, ip, await)
             case Conn.Late{}:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{})
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, True{}, ip, await)
             case _:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, False{})
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, False{}, ip, await)
         case CICmd{k}:
           match k:
             case Conn.Send{d}:
@@ -4345,19 +4407,22 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
               pick(Bool, fresh,
                 Bool.and(Bool.and(Bool.and(hop_ok(hop), due_now(c, head, buf, eof)), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
                   Bool.and(String.eq(d, Http.request(hop_t(hop), hop_u(hop), hop_b(hop), q_seq(q), q_name(q), c_ka(c))),
-                    chk_redirect(rest, c, q, hop_t(hop), hop_u(hop), hop_b(hop), Some{d}, 1n+hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok))),
-                chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok))
+                    chk_redirect(rest, c, q, hop_t(hop), hop_u(hop), hop_b(hop), Some{d}, 1n+hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok, ip, await))),
+                chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done, fok, ip, await))
+            case Conn.Resolve{h}:
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, fok, ip,
+                Some{u_port(hop_u(hop_of_head(u_host(q_url(q)), t, u, b, buf)))})
             case Conn.Finish{o, keep}:
-              Bool.and(Bool.or(fok, Bool.not(is_failed(o))), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, True{}, fok))
+              Bool.and(Bool.or(fok, Bool.not(is_failed(o))), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, True{}, fok, ip, await))
             case _:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, fok)
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done, fok, ip, await)
 
 law conn_redirect:
   for +c: Conn.Cfg
   for +q: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), None{}, 0n, False{}, "", False{}, False{}, False{}, False{}) == True{} : Bool}
+  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), None{}, 0n, False{}, "", False{}, False{}, False{}, False{}, q_ip(q), None{}) == True{} : Bool}
 
 # the commands after the last event
 def last_batch(xs: List<&2, CItem>, +acc: List<&2, Conn.Cmd>) -> List<&2, Conn.Cmd>:

@@ -78,7 +78,7 @@ def dial_fail() -> List<&2, L.CItem>:
   [L.CICmd{Conn.Open{"127.0.0.1", 80n}}, L.CIEv{Conn.OpenFailed{"Connection refused"}}, L.CICmd{Conn.Finish{Conn.Failed{"x", None{}}, False{}}}]
 
 def rd(+xs: List<&2, L.CItem>) -> String:
-  L.pick(String, L.chk_redirect(xs, cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", None{}, 0n, False{}, "", False{}, False{}, False{}, False{}), "T", "F")
+  L.pick(String, L.chk_redirect(xs, cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", None{}, 0n, False{}, "", False{}, False{}, False{}, False{}, "127.0.0.1", None{}), "T", "F")
 
 def hints_then(+e: Conn.Ev, +msg: String) -> List<&2, L.CItem>:
   [L.CICmd{Conn.Send{"GET / HTTP/1.1"}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
@@ -92,6 +92,9 @@ def cut(+bytes: String, +msg: String) -> List<&2, L.CItem>:
 
 def cf(+xs: List<&2, L.CItem>) -> String:
   L.pick(String, L.chk_fail(xs, cfg0(), req0(), False{}, None{}, False{}, ""), "T", "F")
+
+def dst(+hh: String, +kept: Bool, +k: Conn.Cmd) -> String:
+  L.pick(String, L.dest_ok(hh, 80n, "h", 80n, "1.1.1.1", kept, Some{k}), "T", "F")
 
 def keys(hs: List<&2, Hdr.Header>) -> String:
   match hs:
@@ -133,6 +136,10 @@ def main() -> IO(Unit):
       ++ cf(cut("HTTP/1.1 200 OK\r\nContent-Le", "Get \"http://h/\": net/http: HTTP/1.x transport connection broken: malformed MIME header: missing colon: \"Content-Le\""))
       ++ cf(cut("HTTP/1.1 200 OK\r\n", "Get \"http://h/\": net/http: HTTP/1.x transport connection broken: unexpected EOF"))
       ++ cf(cut("HTTP/1.1 200 OK\r\n", "Get \"http://h/\": net/http: HTTP/1.x transport connection broken: something else")))
+    IO.print(dst("other", False{}, Conn.Resolve{"other"}) ++ dst("other", False{}, Conn.Open{"1.1.1.1", 80n}) ++ dst("other", True{}, Conn.Send{"x"})
+      ++ dst("H", False{}, Conn.Open{"1.1.1.1", 80n}) ++ dst("h", False{}, Conn.Open{"2.2.2.2", 80n}) ++ dst("h", False{}, Conn.Send{"x"}) ++ dst("h", True{}, Conn.Send{"x"}))
+    IO.print(L.pick(String, L.awaited_open("9.9.9.9", Some{80n}, [L.CICmd{Conn.Open{"9.9.9.9", 80n}}]), "T", "F")
+      ++ L.pick(String, L.awaited_open("9.9.9.9", Some{80n}, [L.CICmd{Conn.Open{"1.1.1.1", 80n}}]), "T", "F"))
     IO.print(L.redirect_method(302n, "PUT") ++ " " ++ L.redirect_method(301n, "DELETE") ++ " " ++ L.redirect_method(302n, "HEAD") ++ " " ++ L.redirect_method(308n, "PUT"))
 
 #|0 999 1000 1499 1500 1500000 1500000 2000000000 59500000000 3600000000000 3660000000000 5400000000000
@@ -152,4 +159,6 @@ def main() -> IO(Unit):
 #|302 /x
 #|FTT
 #|TTFTTTF
+#|TFFTFFT
+#|TF
 #|GET GET HEAD PUT
