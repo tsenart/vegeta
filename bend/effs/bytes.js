@@ -49,3 +49,27 @@ function files_write(path, data) {
 function dns_resolve(host) {
   return bytes_unsupported();
 }
+
+function pieces_open(path) {
+  return bytes_unsupported();
+}
+
+function pieces_read(fd, max, size) {
+  return bytes_unsupported();
+}
+
+function pieces_lines(i, j) {
+  return { $: "Nil" };
+}
+
+function pieces_close(fd) {
+  return { $: "Unit" };
+}
+
+function pieces_again(from) {
+  return { $: "Nil" };
+}
+
+function out_lines(xs) {
+  throw new Error("Out.lines: unsupported on the JS lane");
+}

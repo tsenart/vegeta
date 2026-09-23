@@ -68,8 +68,9 @@ def Net.poll(sock: Socket, max: U32, ms: U32) ->
 # Fd: sockets as plain descriptors, for the attack's event loop
 # ---------------------------------------------------------------
 
-# a TCP connection to ip:port (TCP_NODELAY), as a descriptor
-def Fd.connect(ip: String, port: U32) -> IO(Result<&1, &1, U32 & String, U32>):
+# a TCP connection to ip:port (TCP_NODELAY), as a descriptor, registered
+# with the loop's event queue under tag (Fd.next reports it by tag)
+def Fd.connect(ip: String, port: U32, tag: U32) -> IO(Result<&1, &1, U32 & String, U32>):
   import "../effs/bytes.c"
   import "../effs/fd.c"
   import "../effs/fd.js"
@@ -92,10 +93,23 @@ def Fd.wait(fds: List<&2, U32>, max: U32, ms: U32) -> IO(List<&2, Sigma<&2, &2, 
   import "../effs/fd.c"
   import "../effs/fd.js"
 
+# waits up to ns for any registered connection to be readable, then reads
+# up to max bytes from each ready one: (tag, bytes) per ready connection,
+# "" at a close or an error; [] when ns passed with none ready
+def Fd.next(max: U32, ns: Nat) -> IO(List<&2, Sigma<&2, &2, U32, _ => String>>):
+  import "../effs/bytes.c"
+  import "../effs/fd.c"
+  import "../effs/fd.js"
+
 # Out, Stdin, Files
 # -----------------
 
 def Out.write(data: String) -> IO(Unit):
+  import "../effs/bytes.c"
+  import "../effs/bytes.js"
+
+# writes each string of xs, last first (xs holds lines newest first)
+def Out.lines(xs: List<&2, String>) -> IO(Unit):
   import "../effs/bytes.c"
   import "../effs/bytes.js"
 
@@ -118,22 +132,39 @@ def Files.read(path: String) -> IO(Result<&1, &1, U32 & String, String>):
   import "../effs/bytes.c"
   import "../effs/bytes.js"
 
-# Input in pieces, for work in parallel. A piece runs through the last LF
-# in its first size bytes, or through the first LF after them. Its bytes
-# come packed, for Packed.bytes to unpack (fast, and on any core): the
-# count of bytes in the last word (0 for none), then the words, last
-# first, four bytes each, the first byte lowest.
+# Input in pieces, for work in parallel, read in batches of a few MiB. A
+# piece runs through the last LF in its first size bytes, or through the
+# first LF after them, and comes as its lines (each with its LF, but
+# maybe the last), each packed for Packed.bytes to unpack (fast, and on
+# any core): the count of bytes in the last word (0 for none), then the
+# words, last first, four bytes each, the first byte lowest. One source
+# is read at a time.
 
-# the whole file at path in pieces; the bytes after the last piece come
-# last (maybe none)
-def Files.read_pieces(path: String, size: U32) -> IO(Result<&1, &1, U32 & String, List<&2, List<&2, U32>>>):
+# path opened for Pieces.read, as a descriptor (0 is stdin)
+def Pieces.open(path: String) -> IO(Result<&1, &1, U32 & String, U32>):
   import "../effs/bytes.c"
   import "../effs/bytes.js"
 
-# at least max bytes of stdin (or all that is left) in pieces; a line not
+# at least max bytes of fd (or all that is left) in pieces; a line not
 # ended yet waits for the next call, and the last one comes at EOF (ended
 # or not); [] only at EOF
-def Stdin.read_pieces(max: U32, size: U32) -> IO(Result<&1, &1, U32 & String, List<&2, List<&2, U32>>>):
+def Pieces.read(fd: U32, max: U32, size: U32) -> IO(Result<&1, &1, U32 & String, List<&2, List<&2, List<&2, U32>>>>):
+  import "../effs/bytes.c"
+  import "../effs/bytes.js"
+
+# the batch before the last one Pieces.read handed out, again, from the
+# piece at index from on
+def Pieces.again(from: U32) -> IO(List<&2, List<&2, List<&2, U32>>>):
+  import "../effs/bytes.c"
+  import "../effs/bytes.js"
+
+# the batch before the last one: the lines of its piece at index i, from
+# the line at index j on
+def Pieces.lines(i: U32, j: U32) -> IO(List<&2, List<&2, U32>>):
+  import "../effs/bytes.c"
+  import "../effs/bytes.js"
+
+def Pieces.close(fd: U32) -> IO(Unit):
   import "../effs/bytes.c"
   import "../effs/bytes.js"
 
@@ -172,7 +203,7 @@ def Packed.go(ws: List<&2, U32>, acc: String) -> String:
     case Con{+w, rest}:
       Packed.go(rest, Packed.word(w, acc))
 
-# the bytes of a packed piece
+# the bytes of a packed text
 def Packed.bytes(ws: List<&2, U32>) -> String:
   match ws:
     case Nil{}:
@@ -183,6 +214,14 @@ def Packed.bytes(ws: List<&2, U32>) -> String:
           ""
         case Con{+w, more}:
           Packed.go(more, Packed.last(k, w))
+
+# the bytes of packed lines, in order
+def Packed.text(ls: List<&2, List<&2, U32>>) -> String:
+  match ls:
+    case Nil{}:
+      ""
+    case Con{w, rest}:
+      Packed.bytes(w) ++ Packed.text(rest)
 
 # creates or truncates path, then writes data
 def Files.write(path: String, data: String) -> IO(Result<&1, &1, U32 & String, Unit>):

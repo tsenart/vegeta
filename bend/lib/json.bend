@@ -1,9 +1,10 @@
 # JSON strings as easyjson writes them (HTML-safe escaping), and read
 # back as encoding/json reads them.
 #
-# str follows the json_str law's helpers (jesc_head, jesc_len, jesc.go),
+# esc follows the json_str law's helpers (jesc_head, jesc_len, jesc.go),
 # except that cont does not measure the string: byte_at is 0 past the
-# end, which is never a continuation byte.
+# end, which is never a continuation byte. str writes the same text front
+# to back (esc_into), ASCII bytes without esc_head's strict pick chains.
 import Base
 import ./text.bend as Text
 
@@ -132,8 +133,94 @@ def esc.go(+fuel: Nat, +s: String) -> String:
 def esc(+s: String) -> String:
   esc.go(String.length(s), s)
 
-def str(s: String) -> String:
-  "\"" ++ esc(s) ++ "\""
+# esc as str writes it: front to back onto the text t that follows, an
+# ASCII byte through a chain of matches (only the chosen branch builds
+# anything), any other unit as esc_head says
+
+def hexc(+n: U32) -> Char:
+  Chr{pick(U32, U32.is_lt(n, 10), (48 + n : U32), (87 + n : U32))}
+
+def ea.6(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'u', SCon{'0', SCon{'0', SCon{hexc((k >> 4n : U32)), SCon{hexc((k .&. 15 : U32)), t}}}}}}
+    case False{}:
+      SCon{Chr{k}, t}
+
+def ea.5(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'t', t}}
+    case False{}:
+      ea.6(Bool.or(U32.is_lt(k, 32), Bool.or(U32.is_eq(k, 60), Bool.or(U32.is_eq(k, 62), U32.is_eq(k, 38)))), k, t)
+
+def ea.4(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'r', t}}
+    case False{}:
+      ea.5(U32.is_eq(k, 9), k, t)
+
+def ea.3(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'n', t}}
+    case False{}:
+      ea.4(U32.is_eq(k, 13), k, t)
+
+def ea.2(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'\\', t}}
+    case False{}:
+      ea.3(U32.is_eq(k, 10), k, t)
+
+def ea(c: Bool, +k: U32, t: String) -> String:
+  match c:
+    case True{}:
+      SCon{'\\', SCon{'"', t}}
+    case False{}:
+      ea.2(U32.is_eq(k, 92), k, t)
+
+# esc_ascii(k) ++ t
+def esc_ascii_into(+k: U32, t: String) -> String:
+  ea(U32.is_eq(k, 34), k, t)
+
+# the unit s = SCon{c, rest} starts with, escaped, then t (a: k < 128)...
+def unit_into(a: Bool, +k: U32, +c: Char, +rest: String, t: String) -> String:
+  match a:
+    case True{}:
+      esc_ascii_into(k, t)
+    case False{}:
+      esc_head(SCon{c, rest}) ++ t
+
+# ...and what follows that unit
+def next(a: Bool, +c: Char, +rest: String) -> String:
+  match a:
+    case True{}:
+      rest
+    case False{}:
+      String.drop(SCon{c, rest}, esc_len(SCon{c, rest}))
+
+# esc.go(fuel, s) ++ t
+def esc_into(fuel: Nat, s: String, t: String) -> String:
+  match fuel:
+    case 0n:
+      t
+    case 1n+f:
+      match s:
+        case SNil{}:
+          t
+        case SCon{+c, +rest}:
+          +a = U32.is_lt(code(c), 128)
+          unit_into(a, code(c), c, rest, esc_into(f, next(a, c, rest), t))
+
+# str(s) ++ t
+def str_into(+s: String, t: String) -> String:
+  SCon{'"', esc_into(String.length(s), s, SCon{'"', t})}
+
+def str(+s: String) -> String:
+  str_into(s, "")
 
 # ---------------------------------------------------------------------
 # Reading

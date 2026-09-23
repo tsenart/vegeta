@@ -44,7 +44,12 @@ and reads files or stdin, in CSV or JSON.
   `def L.<law>` per law. `bend LAWS.bend` states the laws and
   `bend PROOF.bend` checks the proofs. Both are kept fast: under 10 s and
   under 60 s.
-- **Unproven code** is only the IO shell. That is `shell.bend`,
+- **Unproven code** is the IO shell, plus `lib/rdec.bend`: a fast decoder
+  for result lines in the exact shapes Go writes, which `report` tries
+  before the proven `Hit.decode`. It has no laws of its own;
+  `tests/result_fast.bend` checks it against `Hit.decode` field by field,
+  and any other shape goes to `Hit.decode`.
+- The rest of the unproven code is the IO shell. That is `shell.bend`,
   `attack.bend`, `report.bend` and `main.bend`, plus the C effects in
   `effs/`: clock, sleep, DNS and byte-faithful IO.
 
@@ -54,11 +59,17 @@ The port is sans-IO: the HTTP client (`lib/conn.bend`) and the attack
 scheduler (`lib/engine.bend`) are pure state machines,
 `step(state, event) -> (state, commands)`.
 
-`shell.bend` is a small interpreter:
-- one computation runs the engine;
-- each worker the engine grows is its own computation, with an inbox of
-  hits and a kept connection;
-- naps are sleepers that post to the same channel the workers answer on.
+`shell.bend` is one event loop, as an epoll server:
+- each worker the engine grows is a slot: its connection and the hit in
+  flight;
+- when nothing is left to run, the loop waits on every connection at once
+  (`Fd.wait`, a C effect over `poll`);
+- every ready connection's client machine then steps, and every finished
+  result is encoded, in a parallel call tree. Bend spreads parallel calls
+  over the cores, while IO computations share one.
+
+`report.bend` reads its input in batches, decodes line-ended pieces in a
+parallel call tree, and merges them with the metrics monoid.
 
 | Module | What |
 |---|---|

@@ -51,6 +51,20 @@ the hard way on Bend 2.0.25; the examples compile.
 - Base's `Nat.min`/`Nat.max` count down one at a time at runtime (two
   equal values near 2.5e14 overflow the stack). Compare instead:
   `pick(Nat, Nat.is_lt(a, b), a, b)`.
+- A `Nat` past 2^48 aborts the program ("a Nat past the largest
+  immediate"), and a `pick` computes both sides: accumulate digits
+  behind a match (`shift(more: Bool, v, c)`), not a `pick`.
+- Sharing costs more than reading. A value used twice (`+`) is reference
+  counted: every node read through it afterwards pays atomics, and
+  dropping the other copy walks it. So a loop whose fuel is the input
+  itself, or a parser that keeps its input for a fallback, pays for the
+  input again (lib/rdec.bend measured about half its time there). Use a
+  `Nat` fuel (a bound past any input), hand a text on instead of keeping
+  it, and put back the few bytes a failed comparison read (rdec's `pk`).
+  `+x : T <- ...` in a `do` block shares `x` the same way.
+- Parallel calls (`a b = f(x) g(y)`) are the way to use every core; a
+  balanced tree of pieces decoded with them (report.bend) scales.
+  `sample <pid>` (macOS) profiles a compiled binary by def name.
 - Strings in `lib/` are bytes: one `Chr` per byte (0..255). Bend source
   literals are code points, so write non-ASCII bytes explicitly
   (`SCon{Chr{194}, SCon{Chr{181}, SNil{}}}` for "µ").

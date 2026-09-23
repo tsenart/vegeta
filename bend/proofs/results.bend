@@ -23,6 +23,8 @@ import ../lib/b64.bend as B64
 import ../lib/json.bend as Json
 # for L.dec_show_canonical, L.dec_show_value and L.dec_read_accepts
 import ./dec.bend as PDec
+# for the codec writers onto a tail (str_into_e, enc_into)
+import ./codec.bend as PC
 
 # ---------------------------------------------------------------------
 # Generic lemmas (Bool, U32 equality)
@@ -269,6 +271,13 @@ def pick_h(-A: Data, c: Bool, -a: A, -b: A, -x: A, -y: A, ea: {a == x : A}, eb: 
     case False{}:
       eb
 
+def tbo(a: Bool, +k: U32) -> {Hit.token_byte.of(a, k) == Bool.or(a, Hit.token_punct(k)) : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
 def all_token_h(s: String) -> {Hit.all_token(s) == L.all_token(s) : Bool}:
   match s:
     case SNil{}:
@@ -277,6 +286,7 @@ def all_token_h(s: String) -> {Hit.all_token(s) == L.all_token(s) : Bool}:
       match c:
         case Chr{+kc}:
           %all_token_h(rest) : {Hit.all_token(SCon{Chr{kc}, rest}) == Bool.and(L.token_byte(kc), _) : Bool}
+          %tbo(Hit.is_alnum(kc), kc) : {Hit.all_token(SCon{Chr{kc}, rest}) == Bool.and(_, Hit.all_token(rest)) : Bool}
           {==}
 
 def token_h(+s: String) -> {Hit.token(s) == L.token(s) : Bool}:
@@ -475,34 +485,141 @@ def nl_to_space_h(s: String) -> {Hit.nl_to_space(s) == L.nl_to_space(s) : String
           %nl_to_space_h(rest) : {Hit.nl_to_space(SCon{Chr{kc}, rest}) == L.pick(String, Bool.or(U32.is_eq(kc, 10), U32.is_eq(kc, 13)), " ", SCon{Chr{kc}, SNil{}}) ++ _ : String}
           nlc(Bool.or(U32.is_eq(kc, 10), U32.is_eq(kc, 13)), kc, Hit.nl_to_space(rest))
 
-def hdr_lines_h(+k: String, vs: List<&2, String>) -> {Hit.hdr_lines(k, vs) == L.hdr_lines(k, vs) : String}:
+# a header value in one copy (val_into): the blanks it starts with
+# skipped (a1), then the bytes before its trailing blanks copied (a2)
+
+# is_ows after nl_char is vblank
+def ows_nl(b: Bool, +k: U32) -> {Hit.is_ows(Hit.pick(U32, b, 32, k)) == Bool.or(b, Hit.is_ows(k)) : Bool}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def a1_step(c: Bool, +k: U32, +rest: String, ih: {Hit.trim_ows_l(Hit.nl_to_space(rest)) == Hit.nl_to_space(Hit.skip_bl(rest)) : String})
+  -> {Hit.trim_ows_l.go(SCon{Hit.nl_char(Chr{k}), Hit.nl_to_space(rest)}, c) == Hit.nl_to_space(Hit.skip_bl.go(SCon{Chr{k}, rest}, c)) : String}:
+  match c:
+    case True{}:
+      ih
+    case False{}:
+      {==}
+
+def a1(v: String) -> {Hit.trim_ows_l(Hit.nl_to_space(v)) == Hit.nl_to_space(Hit.skip_bl(v)) : String}:
+  match v:
+    case SNil{}:
+      {==}
+    case SCon{c, +rest}:
+      match c:
+        case Chr{+k}:
+          +b = Bool.or(U32.is_eq(k, 10), U32.is_eq(k, 13))
+          %Equal.sym(Bool, Hit.is_ows(Hit.pick(U32, b, 32, k)), Bool.or(b, Hit.is_ows(k)), ows_nl(b, k)) : {Hit.trim_ows_l.go(SCon{Hit.nl_char(Chr{k}), Hit.nl_to_space(rest)}, _) == Hit.nl_to_space(Hit.skip_bl(SCon{Chr{k}, rest})) : String}
+          a1_step(Hit.vblank(k), k, rest, a1(rest))
+
+def c_step(x: Bool, +m: Nat, +nc: Char, +r: String)
+  -> {String.is_empty(Hit.pick(String, x, SNil{}, SCon{nc, r})) == Nat.is_eq(Hit.pick(Nat, x, 0n, 1n+m), 0n) : Bool}:
+  match x:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+# the trimmed value is empty exactly when keep is 0
+def a2c(u: String) -> {String.is_empty(Hit.trim_ows_r(Hit.nl_to_space(u))) == Nat.is_eq(Hit.keep(u), 0n) : Bool}:
+  match u:
+    case SNil{}:
+      {==}
+    case SCon{c, +rest}:
+      match c:
+        case Chr{+k}:
+          +r = Hit.trim_ows_r(Hit.nl_to_space(rest))
+          +m = Hit.keep(rest)
+          +b = Bool.or(U32.is_eq(k, 10), U32.is_eq(k, 13))
+          %Equal.sym(Bool, String.is_empty(r), Nat.is_eq(m, 0n), a2c(rest))
+            : {String.is_empty(Hit.pick(String, Bool.and(_, Hit.is_ows(Hit.code(Hit.nl_char(Chr{k})))), SNil{}, SCon{Hit.nl_char(Chr{k}), r}))
+               == Nat.is_eq(Hit.keep(SCon{Chr{k}, rest}), 0n) : Bool}
+          %Equal.sym(Bool, Hit.is_ows(Hit.pick(U32, b, 32, k)), Bool.or(b, Hit.is_ows(k)), ows_nl(b, k))
+            : {String.is_empty(Hit.pick(String, Bool.and(Nat.is_eq(m, 0n), _), SNil{}, SCon{Hit.nl_char(Chr{k}), r}))
+               == Nat.is_eq(Hit.keep(SCon{Chr{k}, rest}), 0n) : Bool}
+          c_step(Bool.and(Nat.is_eq(m, 0n), Hit.vblank(k)), m, Hit.nl_char(Chr{k}), r)
+
+def a2_step(x: Bool, +m: Nat, +c: Char, +rest: String, +r: String, +t: String, ih: {String.append(r, t) == Hit.copy_nl(m, rest, t) : String})
+  -> {String.append(Hit.pick(String, x, SNil{}, SCon{Hit.nl_char(c), r}), t) == Hit.copy_nl(Hit.pick(Nat, x, 0n, 1n+m), SCon{c, rest}, t) : String}:
+  match x:
+    case True{}:
+      {==}
+    case False{}:
+      %ih : {SCon{Hit.nl_char(c), String.append(r, t)} == SCon{Hit.nl_char(c), _} : String}
+      {==}
+
+def a2(u: String, +t: String) -> {String.append(Hit.trim_ows_r(Hit.nl_to_space(u)), t) == Hit.copy_nl(Hit.keep(u), u, t) : String}:
+  match u:
+    case SNil{}:
+      {==}
+    case SCon{c, +rest}:
+      match c:
+        case Chr{+k}:
+          +r = Hit.trim_ows_r(Hit.nl_to_space(rest))
+          +m = Hit.keep(rest)
+          +b = Bool.or(U32.is_eq(k, 10), U32.is_eq(k, 13))
+          %Equal.sym(Bool, String.is_empty(r), Nat.is_eq(m, 0n), a2c(rest))
+            : {String.append(Hit.pick(String, Bool.and(_, Hit.is_ows(Hit.code(Hit.nl_char(Chr{k})))), SNil{}, SCon{Hit.nl_char(Chr{k}), r}), t)
+               == Hit.copy_nl(Hit.keep(SCon{Chr{k}, rest}), SCon{Chr{k}, rest}, t) : String}
+          %Equal.sym(Bool, Hit.is_ows(Hit.pick(U32, b, 32, k)), Bool.or(b, Hit.is_ows(k)), ows_nl(b, k))
+            : {String.append(Hit.pick(String, Bool.and(Nat.is_eq(m, 0n), _), SNil{}, SCon{Hit.nl_char(Chr{k}), r}), t)
+               == Hit.copy_nl(Hit.keep(SCon{Chr{k}, rest}), SCon{Chr{k}, rest}, t) : String}
+          a2_step(Bool.and(Nat.is_eq(m, 0n), Hit.vblank(k)), m, Chr{k}, rest, r, t, a2(rest, t))
+
+def val_l(+v: String, +t: String) -> {Hit.val_into(v, t) == String.append(Hit.trim_ows(Hit.nl_to_space(v)), t) : String}:
+  %Equal.sym(String, Hit.trim_ows_l(Hit.nl_to_space(v)), Hit.nl_to_space(Hit.skip_bl(v)), a1(v))
+    : {Hit.val_into(v, t) == String.append(Hit.trim_ows_r(_), t) : String}
+  Equal.sym(String, String.append(Hit.trim_ows_r(Hit.nl_to_space(Hit.skip_bl(v))), t), Hit.val_into(v, t), a2(Hit.skip_bl(v), t))
+
+# the header block is written front to back: lines_into(k, vs, t) is
+# hdr_lines(k, vs) ++ t, hdrs_into(hs, t) is hdrs_text(hs) ++ t
+def lines_l(+k: String, vs: List<&2, String>, +t: String) -> {Hit.lines_into(k, vs, t) == L.hdr_lines(k, vs) ++ t : String}:
   match vs:
     case Nil{}:
       {==}
     case Con{+v, +rest}:
-      %hdr_lines_h(k, rest) : {Hit.hdr_lines(k, Con{v, rest}) == k ++ ": " ++ L.trim_ows(L.nl_to_space(v)) ++ "\r\n" ++ _ : String}
-      %nl_to_space_h(v) : {Hit.hdr_lines(k, Con{v, rest}) == k ++ ": " ++ L.trim_ows(_) ++ "\r\n" ++ Hit.hdr_lines(k, rest) : String}
-      %trim_ows_h(Hit.nl_to_space(v)) : {Hit.hdr_lines(k, Con{v, rest}) == k ++ ": " ++ _ ++ "\r\n" ++ Hit.hdr_lines(k, rest) : String}
+      +lv = L.trim_ows(L.nl_to_space(v))
+      +r = "\r\n" ++ L.hdr_lines(k, rest)
+      +x = ": " ++ (lv ++ r)
+      %Equal.sym(String, String.append(String.append(k, x), t), String.append(k, String.append(x, t)), app_assoc(k, x, t))
+        : {Hit.lines_into(k, Con{v, rest}, t) == _ : String}
+      %Equal.sym(String, String.append(String.append(lv, r), t), String.append(lv, String.append(r, t)), app_assoc(lv, r, t))
+        : {Hit.lines_into(k, Con{v, rest}, t) == k ++ SCon{':', SCon{' ', _}} : String}
+      %lines_l(k, rest, t)
+        : {Hit.lines_into(k, Con{v, rest}, t) == k ++ SCon{':', SCon{' ', lv ++ SCon{'\r', SCon{'\n', _}}}} : String}
+      %nl_to_space_h(v)
+        : {Hit.lines_into(k, Con{v, rest}, t) == k ++ SCon{':', SCon{' ', L.trim_ows(_) ++ SCon{'\r', SCon{'\n', Hit.lines_into(k, rest, t)}}}} : String}
+      %trim_ows_h(Hit.nl_to_space(v))
+        : {Hit.lines_into(k, Con{v, rest}, t) == k ++ SCon{':', SCon{' ', _ ++ SCon{'\r', SCon{'\n', Hit.lines_into(k, rest, t)}}}} : String}
+      %val_l(v, SCon{'\r', SCon{'\n', Hit.lines_into(k, rest, t)}})
+        : {Hit.lines_into(k, Con{v, rest}, t) == k ++ SCon{':', SCon{' ', _}} : String}
       {==}
 
-def ht_b(b: Bool, +k: String, +vs: List<&2, String>) -> {Hit.hdr_text(b, k, vs) == L.pick(String, b, L.hdr_lines(k, vs), "") : String}:
+def ti_b(b: Bool, +k: String, +vs: List<&2, String>, +t: String)
+  -> {Hit.text_into(b, k, vs, t) == L.pick(String, b, L.hdr_lines(k, vs), "") ++ t : String}:
   match b:
     case True{}:
-      hdr_lines_h(k, vs)
+      lines_l(k, vs, t)
     case False{}:
       {==}
 
-def hdrs_text_h(hs: List<&2, Hdr.Header>) -> {Hit.hdrs_text(hs) == L.hdrs_text(hs) : String}:
+def hdrs_l(hs: List<&2, Hdr.Header>, +t: String) -> {Hit.hdrs_into(hs, t) == L.hdrs_text(hs) ++ t : String}:
   match hs:
     case Nil{}:
       {==}
     case Con{h, +rest}:
       match h:
         case Hdr.Header{+k, +vs}:
-          %hdrs_text_h(rest) : {Hit.hdrs_text(Con{Hdr.Header{k, vs}, rest}) == L.pick(String, L.token(k), L.hdr_lines(k, vs), "") ++ _ : String}
-          %token_h(k) : {Hit.hdrs_text(Con{Hdr.Header{k, vs}, rest}) == L.pick(String, _, L.hdr_lines(k, vs), "") ++ Hit.hdrs_text(rest) : String}
-          %ht_b(Hit.token(k), k, vs) : {Hit.hdrs_text(Con{Hdr.Header{k, vs}, rest}) == _ ++ Hit.hdrs_text(rest) : String}
-          {==}
+          +p = L.pick(String, L.token(k), L.hdr_lines(k, vs), "")
+          %Equal.sym(String, String.append(String.append(p, L.hdrs_text(rest)), t), String.append(p, String.append(L.hdrs_text(rest), t)),
+              app_assoc(p, L.hdrs_text(rest), t))
+            : {Hit.hdrs_into(Con{Hdr.Header{k, vs}, rest}, t) == _ : String}
+          %hdrs_l(rest, t) : {Hit.hdrs_into(Con{Hdr.Header{k, vs}, rest}, t) == p ++ _ : String}
+          %token_h(k) : {Hit.hdrs_into(Con{Hdr.Header{k, vs}, rest}, t) == L.pick(String, _, L.hdr_lines(k, vs), "") ++ Hit.hdrs_into(rest, t) : String}
+          ti_b(Hit.token(k), k, vs, Hit.hdrs_into(rest, t))
 
 def ins_b(b: Bool, +h: Hdr.Header, +x: Hdr.Header, +rest: List<&2, Hdr.Header>)
   -> {Hit.pick(List<&2, Hdr.Header>, b, Con{h, Con{x, rest}}, Con{x, Hit.insert_hdr(h, rest)}) == Hit.insert_hdr.go(Con{x, rest}, h, b) : List<&2, Hdr.Header>}:
@@ -511,6 +628,48 @@ def ins_b(b: Bool, +h: Hdr.Header, +x: Hdr.Header, +rest: List<&2, Hdr.Header>)
       {==}
     case False{}:
       {==}
+
+# str_lt is String.is_lt: a case on each byte's comparison
+def rec_ord(-h1: Char, -h2: Char, r: (String & String) & Cmp)
+  -> {Cmp.is_lt(String.order.fin(String.cmp.rec(h1, h2, r))) == Cmp.is_lt(String.order.fin(r)) : Bool}:
+  match r:
+    case (xy, c):
+      match xy:
+        case (x, y):
+          {==}
+
+def lt_c(c: Cmp, +ka: U32, +kb: U32, +ra: String, +rb: String, ih: {Hit.str_lt(ra, rb) == String.is_lt(ra, rb) : Bool})
+  -> {Hit.lt.go(SCon{Chr{ka}, ra}, SCon{Chr{kb}, rb}, Hit.pick(Nat, Cmp.is_lt(c), 0n, Hit.pick(Nat, Cmp.is_eq(c), 2n, 1n)))
+      == Cmp.is_lt(String.order.fin(String.cmp.fin(ra, rb, ((Chr{ka}, Chr{kb}), c)))) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      %Equal.sym(Bool, Cmp.is_lt(String.order.fin(String.cmp.rec(Chr{ka}, Chr{kb}, String.cmp(ra, rb)))), Cmp.is_lt(String.order.fin(String.cmp(ra, rb))),
+          rec_ord(Chr{ka}, Chr{kb}, String.cmp(ra, rb)))
+        : {Hit.str_lt(ra, rb) == _ : Bool}
+      ih
+    case GT{}:
+      {==}
+
+def lt_is(a: String, +b: String) -> {Hit.str_lt(a, b) == String.is_lt(a, b) : Bool}:
+  match a:
+    case SNil{}:
+      match b:
+        case SNil{}:
+          {==}
+        case SCon{+cb, +rb}:
+          {==}
+    case SCon{ca, +ra}:
+      match ca:
+        case Chr{+ka}:
+          match b:
+            case SNil{}:
+              {==}
+            case SCon{cb, +rb}:
+              match cb:
+                case Chr{+kb}:
+                  lt_c(U32.cmp(ka, kb), ka, kb, ra, rb, lt_is(ra, rb))
 
 def insert_hdr_h(+h: Hdr.Header, hs: List<&2, Hdr.Header>) -> {Hit.insert_hdr(h, hs) == L.insert_hdr(h, hs) : List<&2, Hdr.Header>}:
   match h:
@@ -521,6 +680,8 @@ def insert_hdr_h(+h: Hdr.Header, hs: List<&2, Hdr.Header>) -> {Hit.insert_hdr(h,
         case Con{x, +rest}:
           match x:
             case Hdr.Header{+xk, +xvs}:
+              %Equal.sym(Bool, Hit.str_lt(k, xk), String.is_lt(k, xk), lt_is(k, xk))
+                : {Hit.insert_hdr.go(Con{Hdr.Header{xk, xvs}, rest}, Hdr.Header{k, vs}, _) == L.insert_hdr(Hdr.Header{k, vs}, Con{Hdr.Header{xk, xvs}, rest}) : List<&2, Hdr.Header>}
               %ins_b(String.is_lt(k, xk), Hdr.Header{k, vs}, Hdr.Header{xk, xvs}, rest)
                 : {_ == L.insert_hdr(Hdr.Header{k, vs}, Con{Hdr.Header{xk, xvs}, rest}) : List<&2, Hdr.Header>}
               pick_h(List<&2, Hdr.Header>, String.is_lt(k, xk),
@@ -542,88 +703,174 @@ def hdr_block_h(+m: Maybe<&2, List<&2, Hdr.Header>>) -> {Hit.hdr_block(m) == L.h
     case None{}:
       {==}
     case Some{+hs}:
-      %sort_hdrs_h(hs) : {Hit.hdrs_text(Hit.sort_hdrs(hs)) ++ "\r\n" == L.hdrs_text(_) ++ "\r\n" : String}
-      %hdrs_text_h(Hit.sort_hdrs(hs)) : {Hit.hdrs_text(Hit.sort_hdrs(hs)) ++ "\r\n" == _ ++ "\r\n" : String}
-      {==}
+      %sort_hdrs_h(hs) : {Hit.hdrs_into(Hit.sort_hdrs(hs), "\r\n") == L.hdrs_text(_) ++ "\r\n" : String}
+      hdrs_l(Hit.sort_hdrs(hs), "\r\n")
 
+# to_csv writes the row front to back; its two base64 fields are
+# encoded in place (PC.fb)
 def L.hit_to_csv(h):
   match h:
     case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
-      %hdr_block_h(hdrs) : {Hit.to_csv(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs})
+      +hh = {Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} : Hit.Hit}
+      +f6 = {[Civil.unix_nanos(ts), Dec.show(code), Dec.show(lat), Dec.show(bout), Dec.show(bin), err] : List<&2, String>}
+      +f4 = {[attack, Dec.show(seq), method, url] : List<&2, String>}
+      %hdr_block_h(hdrs) : {Hit.to_csv(hh)
         == Csv.row([Civil.unix_nanos(ts), Dec.show(code), Dec.show(lat), Dec.show(bout), Dec.show(bin), err,
              B64.encode(L.body_or_empty(body)), attack, Dec.show(seq), method, url, B64.encode(_)]) : String}
+      %PC.fb(Hit.hdr_block(hdrs), "\n")
+        : {Hit.to_csv(hh) == Hit.csv_into(f6, Csv.field_into(B64.encode(L.body_or_empty(body)), SCon{',', Hit.csv_into(f4, _)})) : String}
+      %PC.fb(L.body_or_empty(body), SCon{',', Hit.csv_into(f4, Hit.b64_field_into(Hit.hdr_block(hdrs), "\n"))})
+        : {Hit.to_csv(hh) == Hit.csv_into(f6, _) : String}
       {==}
 
-def join_str_h(+sep: String, xs: List<&2, String>) -> {Hit.join_str(sep, xs) == L.join_str(sep, xs) : String}:
-  match xs:
-    case Nil{}:
-      {==}
-    case Con{+x, +rest}:
-      match rest:
-        case Nil{}:
-          {==}
-        case Con{+y, +more}:
-          %join_str_h(sep, Con{y, more}) : {Hit.join_str(sep, Con{x, Con{y, more}}) == x ++ sep ++ _ : String}
-          {==}
+# JSON is written front to back too: each *_into is its LAWS text ++ t
+# (PC.str_into_e and PC.enc_into for the codecs)
 
-def json_strs_h(vs: List<&2, String>) -> {Hit.json_strs(vs) == L.json_strs(vs) : List<&2, String>}:
+def list_l(vs: List<&2, String>, +t: String) -> {Hit.json_list_into(vs, t) == L.json_list(vs) ++ t : String}:
   match vs:
     case Nil{}:
       {==}
     case Con{+v, +rest}:
-      %json_strs_h(rest) : {Hit.json_strs(Con{v, rest}) == Con{Json.str(v), _} : List<&2, String>}
-      {==}
+      match rest:
+        case Nil{}:
+          PC.str_into_e(v, t)
+        case Con{+w, +more}:
+          +j = L.json_list(Con{w, more})
+          %Equal.sym(String, (Json.str(v) ++ ("," ++ j)) ++ t, Json.str(v) ++ (("," ++ j) ++ t), app_assoc(Json.str(v), "," ++ j, t))
+            : {Hit.json_list_into(Con{v, Con{w, more}}, t) == _ : String}
+          %list_l(Con{w, more}, t) : {Hit.json_list_into(Con{v, Con{w, more}}, t) == Json.str(v) ++ SCon{',', _} : String}
+          PC.str_into_e(v, SCon{',', Hit.json_list_into(Con{w, more}, t)})
 
-def json_list_h(+vs: List<&2, String>) -> {Hit.json_list(vs) == L.json_list(vs) : String}:
-  %json_strs_h(vs) : {Hit.json_list(vs) == L.join_str(",", _) : String}
-  join_str_h(",", Hit.json_strs(vs))
+def item_l(+k: String, +vs: List<&2, String>, +t: String)
+  -> {Hit.json_item_into(Hdr.Header{k, vs}, t) == (Json.str(k) ++ ":[" ++ L.json_list(vs) ++ "]") ++ t : String}:
+  +j = L.json_list(vs)
+  %Equal.sym(String, (Json.str(k) ++ (":[" ++ (j ++ "]"))) ++ t, Json.str(k) ++ ((":[" ++ (j ++ "]")) ++ t), app_assoc(Json.str(k), ":[" ++ (j ++ "]"), t))
+    : {Hit.json_item_into(Hdr.Header{k, vs}, t) == _ : String}
+  %Equal.sym(String, (j ++ "]") ++ t, j ++ ("]" ++ t), app_assoc(j, "]", t))
+    : {Hit.json_item_into(Hdr.Header{k, vs}, t) == Json.str(k) ++ SCon{':', SCon{'[', _}} : String}
+  %list_l(vs, SCon{']', t}) : {Hit.json_item_into(Hdr.Header{k, vs}, t) == Json.str(k) ++ SCon{':', SCon{'[', _}} : String}
+  PC.str_into_e(k, SCon{':', SCon{'[', Hit.json_list_into(vs, SCon{']', t})}})
 
-def json_hdr_items_h(hs: List<&2, Hdr.Header>) -> {Hit.json_hdr_items(hs) == L.json_hdr_items(hs) : List<&2, String>}:
+def items_l(hs: List<&2, Hdr.Header>, +t: String) -> {Hit.json_items_into(hs, t) == L.json_hdrs(hs) ++ t : String}:
   match hs:
     case Nil{}:
       {==}
     case Con{h, +rest}:
       match h:
         case Hdr.Header{+k, +vs}:
-          %json_hdr_items_h(rest) : {Hit.json_hdr_items(Con{Hdr.Header{k, vs}, rest}) == Con{Json.str(k) ++ ":[" ++ L.json_list(vs) ++ "]", _} : List<&2, String>}
-          %json_list_h(vs) : {Hit.json_hdr_items(Con{Hdr.Header{k, vs}, rest}) == Con{Json.str(k) ++ ":[" ++ _ ++ "]", Hit.json_hdr_items(rest)} : List<&2, String>}
-          {==}
+          match rest:
+            case Nil{}:
+              item_l(k, vs, t)
+            case Con{+g, +more}:
+              +x = Json.str(k) ++ ":[" ++ L.json_list(vs) ++ "]"
+              +j = L.json_hdrs(Con{g, more})
+              %Equal.sym(String, (x ++ ("," ++ j)) ++ t, x ++ (("," ++ j) ++ t), app_assoc(x, "," ++ j, t))
+                : {Hit.json_items_into(Con{Hdr.Header{k, vs}, Con{g, more}}, t) == _ : String}
+              %items_l(Con{g, more}, t) : {Hit.json_items_into(Con{Hdr.Header{k, vs}, Con{g, more}}, t) == x ++ SCon{',', _} : String}
+              item_l(k, vs, SCon{',', Hit.json_items_into(Con{g, more}, t)})
 
-def json_hdrs_of_h(+m: Maybe<&2, List<&2, Hdr.Header>>) -> {Hit.json_hdrs_of(m) == L.json_hdrs_of(m) : String}:
+def jh_l(+m: Maybe<&2, List<&2, Hdr.Header>>, +t: String) -> {Hit.json_hdrs_into(m, t) == L.json_hdrs_of(m) ++ t : String}:
   match m:
     case None{}:
       {==}
     case Some{+hs}:
-      %sort_hdrs_h(hs) : {"{" ++ Hit.json_hdrs(Hit.sort_hdrs(hs)) ++ "}" == "{" ++ L.json_hdrs(_) ++ "}" : String}
-      %json_hdr_items_h(Hit.sort_hdrs(hs)) : {"{" ++ Hit.json_hdrs(Hit.sort_hdrs(hs)) ++ "}" == "{" ++ L.join_str(",", _) ++ "}" : String}
-      %join_str_h(",", Hit.json_hdr_items(Hit.sort_hdrs(hs))) : {"{" ++ Hit.json_hdrs(Hit.sort_hdrs(hs)) ++ "}" == "{" ++ _ ++ "}" : String}
+      +j = L.json_hdrs(L.sort_hdrs(hs))
+      %Equal.sym(String, (j ++ "}") ++ t, j ++ ("}" ++ t), app_assoc(j, "}", t))
+        : {Hit.json_hdrs_into(Some{hs}, t) == SCon{Chr{123}, _} : String}
+      %sort_hdrs_h(hs) : {Hit.json_hdrs_into(Some{hs}, t) == SCon{Chr{123}, L.json_hdrs(_) ++ SCon{Chr{125}, t}} : String}
+      %items_l(Hit.sort_hdrs(hs), SCon{Chr{125}, t}) : {Hit.json_hdrs_into(Some{hs}, t) == SCon{Chr{123}, _} : String}
       {==}
 
-def json_body_h(+m: Maybe<&2, String>) -> {Hit.json_body(m) == L.json_body(m) : String}:
+def jb_l(+m: Maybe<&2, String>, +t: String) -> {Hit.json_body_into(m, t) == L.json_body(m) ++ t : String}:
   match m:
     case None{}:
       {==}
     case Some{+x}:
+      +e = B64.encode(x)
+      %Equal.sym(String, (e ++ "\"") ++ t, e ++ ("\"" ++ t), app_assoc(e, "\"", t))
+        : {Hit.json_body_into(Some{x}, t) == SCon{'"', _} : String}
+      %PC.enc_into(x, SCon{'"', t}) : {Hit.json_body_into(Some{x}, t) == SCon{'"', _} : String}
       {==}
+
+# show_into(n, t) is Dec.show(n) ++ t
+def sg(f: Nat, +st: Bool, +n: Nat, +acc: String, +t: String)
+  -> {Dec.show.go(f, st, n, acc ++ t) == Dec.show.go(f, st, n, acc) ++ t : String}:
+  match f:
+    case 0n:
+      {==}
+    case 1n+(+g):
+      match st:
+        case True{}:
+          {==}
+        case False{}:
+          sg(g, Nat.is_lt(n, 10n), Nat.div(n, 10n), SCon{Dec.digit_chr(Nat.mod(n, 10n)), acc}, t)
+
+# json_text piece by piece, from the end: p ++ (lib piece) is p ++ (LAWS piece)
+def js_s(+p: String, +s: String, +a: String, +b: String, e: {a == b : String})
+  -> {p ++ Json.str_into(s, a) == p ++ Json.str(s) ++ b : String}:
+  %e : {p ++ Json.str_into(s, a) == p ++ Json.str(s) ++ _ : String}
+  %PC.str_into_e(s, a) : {p ++ Json.str_into(s, a) == p ++ _ : String}
+  {==}
+
+def js_n(+p: String, +n: Nat, +a: String, +b: String, e: {a == b : String})
+  -> {p ++ Hit.show_into(n, a) == p ++ Dec.show(n) ++ b : String}:
+  %e : {p ++ Hit.show_into(n, a) == p ++ Dec.show(n) ++ _ : String}
+  %sg(1n+n, False{}, n, "", a) : {p ++ Hit.show_into(n, a) == p ++ _ : String}
+  {==}
+
+def js_t(+p: String, +x: String, +a: String, +b: String, e: {a == b : String})
+  -> {p ++ x ++ a == p ++ x ++ b : String}:
+  %e : {p ++ x ++ a == p ++ x ++ _ : String}
+  {==}
+
+def js_b(+p: String, +m: Maybe<&2, String>, +a: String, +b: String, e: {a == b : String})
+  -> {p ++ Hit.json_body_into(m, a) == p ++ L.json_body(m) ++ b : String}:
+  %e : {p ++ Hit.json_body_into(m, a) == p ++ L.json_body(m) ++ _ : String}
+  %jb_l(m, a) : {p ++ Hit.json_body_into(m, a) == p ++ _ : String}
+  {==}
+
+def js_h(+p: String, +m: Maybe<&2, List<&2, Hdr.Header>>)
+  -> {p ++ Hit.json_hdrs_into(m, "}\n") == p ++ L.json_hdrs_of(m) ++ "}\n" : String}:
+  %jh_l(m, "}\n") : {p ++ Hit.json_hdrs_into(m, "}\n") == p ++ _ : String}
+  {==}
 
 def L.hit_to_json(h):
   match h:
     case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
-      %json_hdrs_of_h(hdrs) : {Hit.to_json(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs})
-        == "{\"attack\":" ++ Json.str(attack) ++ ",\"seq\":" ++ Dec.show(seq) ++ ",\"code\":" ++ Dec.show(code)
-    ++ ",\"timestamp\":\"" ++ Civil.rfc3339(ts) ++ "\",\"latency\":" ++ Dec.show(lat)
-    ++ ",\"bytes_out\":" ++ Dec.show(bout) ++ ",\"bytes_in\":" ++ Dec.show(bin)
-    ++ ",\"error\":" ++ Json.str(err) ++ ",\"body\":" ++ L.json_body(body)
-    ++ ",\"method\":" ++ Json.str(method) ++ ",\"url\":" ++ Json.str(url)
-    ++ ",\"headers\":" ++ _ ++ "}\n" : String}
-      %json_body_h(body) : {Hit.to_json(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs})
-        == "{\"attack\":" ++ Json.str(attack) ++ ",\"seq\":" ++ Dec.show(seq) ++ ",\"code\":" ++ Dec.show(code)
-    ++ ",\"timestamp\":\"" ++ Civil.rfc3339(ts) ++ "\",\"latency\":" ++ Dec.show(lat)
-    ++ ",\"bytes_out\":" ++ Dec.show(bout) ++ ",\"bytes_in\":" ++ Dec.show(bin)
-    ++ ",\"error\":" ++ Json.str(err) ++ ",\"body\":" ++ _
-    ++ ",\"method\":" ++ Json.str(method) ++ ",\"url\":" ++ Json.str(url)
-    ++ ",\"headers\":" ++ Hit.json_hdrs_of(hdrs) ++ "}\n" : String}
-      {==}
+      +l12 = ",\"headers\":" ++ Hit.json_hdrs_into(hdrs, "}\n")
+      +r12 = ",\"headers\":" ++ L.json_hdrs_of(hdrs) ++ "}\n"
+      +l11 = ",\"url\":" ++ Json.str_into(url, l12)
+      +r11 = ",\"url\":" ++ Json.str(url) ++ r12
+      +l10 = ",\"method\":" ++ Json.str_into(method, l11)
+      +r10 = ",\"method\":" ++ Json.str(method) ++ r11
+      +l9 = ",\"body\":" ++ Hit.json_body_into(body, l10)
+      +r9 = ",\"body\":" ++ L.json_body(body) ++ r10
+      +l8 = ",\"error\":" ++ Json.str_into(err, l9)
+      +r8 = ",\"error\":" ++ Json.str(err) ++ r9
+      +l7 = ",\"bytes_in\":" ++ Hit.show_into(bin, l8)
+      +r7 = ",\"bytes_in\":" ++ Dec.show(bin) ++ r8
+      +l6 = ",\"bytes_out\":" ++ Hit.show_into(bout, l7)
+      +r6 = ",\"bytes_out\":" ++ Dec.show(bout) ++ r7
+      +l5 = "\",\"latency\":" ++ Hit.show_into(lat, l6)
+      +r5 = "\",\"latency\":" ++ Dec.show(lat) ++ r6
+      +l4 = ",\"timestamp\":\"" ++ Civil.rfc3339(ts) ++ l5
+      +r4 = ",\"timestamp\":\"" ++ Civil.rfc3339(ts) ++ r5
+      +l3 = ",\"code\":" ++ Hit.show_into(code, l4)
+      +r3 = ",\"code\":" ++ Dec.show(code) ++ r4
+      +l2 = ",\"seq\":" ++ Hit.show_into(seq, l3)
+      +r2 = ",\"seq\":" ++ Dec.show(seq) ++ r3
+      +e12 = js_h(",\"headers\":", hdrs)
+      +e11 = js_s(",\"url\":", url, l12, r12, e12)
+      +e10 = js_s(",\"method\":", method, l11, r11, e11)
+      +e9 = js_b(",\"body\":", body, l10, r10, e10)
+      +e8 = js_s(",\"error\":", err, l9, r9, e9)
+      +e7 = js_n(",\"bytes_in\":", bin, l8, r8, e8)
+      +e6 = js_n(",\"bytes_out\":", bout, l7, r7, e7)
+      +e5 = js_n("\",\"latency\":", lat, l6, r6, e6)
+      +e4 = js_t(",\"timestamp\":\"", Civil.rfc3339(ts), l5, r5, e5)
+      +e3 = js_n(",\"code\":", code, l4, r4, e4)
+      +e2 = js_n(",\"seq\":", seq, l3, r3, e3)
+      js_s("{\"attack\":", attack, l2, r2, e2)
 
 # ---------------------------------------------------------------------
 # url_parse_edges
@@ -1458,26 +1705,21 @@ def nj_dig(d: String, +t: String, h: {first_dig(d) == True{} : Bool}) -> {Hit.fi
           +hb = blank_f(k, dig_ne(k, 32, {==}, hd), dig_ne(k, 9, {==}, hd), dig_ne(k, 13, {==}, hd), dig_ne(k, 10, {==}, hd))
           nj_chr(k, String.append(r, t), hb, dig_ne(k, 123, {==}, hd))
 
-def nj_f(b: Bool, +u: String, +k: String, +hu: {first_dig(u) == True{} : Bool})
-  -> {Hit.first_is(Hit.skip_ws(String.append(Csv.pick(String, b, "\"" ++ Csv.double_quotes(u) ++ "\"", u), k)), 123) == False{} : Bool}:
+def nj_f(b: Bool, +u: String, +T: String, +rest: String, +hu: {first_dig(u) == True{} : Bool})
+  -> {Hit.first_is(Hit.skip_ws(String.append(Csv.field.of(b, u, T), rest)), 123) == False{} : Bool}:
   match b:
     case True{}:
       {==}
     case False{}:
-      nj_dig(u, k, hu)
+      %Equal.sym(String, String.append(String.append(u, T), rest), String.append(u, String.append(T, rest)), app_assoc(u, T, rest))
+        : {Hit.first_is(Hit.skip_ws(_), 123) == False{} : Bool}
+      nj_dig(u, String.append(T, rest), hu)
 
-# a CSV record whose first field starts with a digit is not JSON
+# a CSV record whose first field starts with a digit is not JSON (the
+# first field is written bare, or quoted)
 def row_nj(+u: String, +g: String, +more: List<&2, String>, +rest: String, +hu: {first_dig(u) == True{} : Bool})
   -> {Hit.first_is(Hit.skip_ws(String.append(Csv.row(Con{u, Con{g, more}}), rest)), 123) == False{} : Bool}:
-  +f = Csv.field(u)
-  +q = "," ++ Csv.join_fields(Con{g, more})
-  +x = String.append(String.append(String.append(f, q), "\n"), rest)
-  +x2 = String.append(f, String.append(q, String.append("\n", rest)))
-  +eq1 = Equal.trans(String, x, String.append(String.append(f, q), String.append("\n", rest)), x2,
-    app_assoc(String.append(f, q), "\n", rest), app_assoc(f, q, String.append("\n", rest)))
-  Equal.trans(Bool, Hit.first_is(Hit.skip_ws(x), 123), Hit.first_is(Hit.skip_ws(x2), 123), False{},
-    Equal.cong(String, Bool, y => Hit.first_is(Hit.skip_ws(y), 123), x, x2, eq1),
-    nj_f(Csv.needs_quotes(u), u, String.append(q, String.append("\n", rest)), hu))
+  nj_f(Csv.needs_quotes(u), u, SCon{',', Csv.row_into(Con{g, more})}, rest, hu)
 
 def dec_nj(+x: String, +e: {Hit.first_is(Hit.skip_ws(x), 123) == False{} : Bool}) -> {Hit.decode(x) == Hit.of_csv(x) : Maybe<&1, Hit.Hit & String>}:
   %Equal.sym(Bool, Hit.first_is(Hit.skip_ws(x), 123), False{}, e) : {Hit.decode.of(_, x) == Hit.of_csv(x) : Maybe<&1, Hit.Hit & String>}
@@ -1487,9 +1729,12 @@ def dec_csv(+attack: String, +seq: Nat, +code: Nat, +ts: Civil.Time, +lat: Nat, 
   +body: Maybe<&2, String>, +method: String, +url: String, +hdrs: Maybe<&2, List<&2, Hdr.Header>>, +rest: String)
   -> {Hit.decode(Hit.to_csv(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs}) ++ rest)
       == Hit.of_csv(Hit.to_csv(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs}) ++ rest) : Maybe<&1, Hit.Hit & String>}:
-  dec_nj(Hit.to_csv(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs}) ++ rest,
+  +hh = {Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} : Hit.Hit}
+  %Equal.sym(String, Hit.to_csv(hh), L.csv_text(hh), L.hit_to_csv(hh))
+    : {Hit.decode(_ ++ rest) == Hit.of_csv(_ ++ rest) : Maybe<&1, Hit.Hit & String>}
+  dec_nj(L.csv_text(hh) ++ rest,
     row_nj(Civil.unix_nanos(ts), Dec.show(code), [Dec.show(lat), Dec.show(bout), Dec.show(bin), err,
-      B64.encode(Hit.body_or_empty(body)), attack, Dec.show(seq), method, url, B64.encode(Hit.hdr_block(hdrs))], rest, fd_nanos(ts)))
+      B64.encode(L.body_or_empty(body)), attack, Dec.show(seq), method, url, B64.encode(L.hdr_block(hdrs))], rest, fd_nanos(ts)))
 
 def dec_js(+x: String, +e: {Hit.first_is(Hit.skip_ws(x), 123) == True{} : Bool}) -> {Hit.decode(x) == Hit.of_json(x) : Maybe<&1, Hit.Hit & String>}:
   %Equal.sym(Bool, Hit.first_is(Hit.skip_ws(x), 123), True{}, e) : {Hit.decode.of(_, x) == Hit.of_json(x) : Maybe<&1, Hit.Hit & String>}

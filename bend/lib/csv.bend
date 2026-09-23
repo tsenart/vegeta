@@ -1,6 +1,8 @@
 # CSV as Go's encoding/csv writes and reads it (TrimLeadingSpace on).
 #
-# The writer follows the csv_* laws' helpers. The reader works one field
+# The writer builds a row front to back onto what follows each field
+# (row_into, field_into), deciding quotes in one scan (any_special); the
+# proofs identify it with the csv_* laws' helpers. The reader works one field
 # at a time (read_field), each a loop over bytes whose fuel is the input
 # itself (one byte of fuel per step, so no length is ever computed), and
 # which stops through the cut it matches.
@@ -19,13 +21,6 @@ def code(c: Char) -> U32:
 
 def in_range32(+k: U32, +lo: U32, +hi: U32) -> Bool:
   Bool.and(U32.is_ge(k, lo), U32.is_le(k, hi))
-
-def has_char(s: String, +k: U32) -> Bool:
-  match s:
-    case SNil{}:
-      False{}
-    case SCon{+c, +rest}:
-      Bool.or(U32.is_eq(code(c), k), has_char(rest, k))
 
 # the byte at index i, or 0 past the end
 def byte_at(s: String, i: Nat) -> U32:
@@ -65,38 +60,96 @@ def first_space(+s: String) -> Bool:
                                                Bool.and(U32.is_eq(b1, 129), U32.is_eq(b2, 159)))),
     Bool.and(U32.is_eq(b0, 227), Bool.and(U32.is_eq(b1, 128), U32.is_eq(b2, 128)))))))
 
+# a byte that forces quotes: , " \r \n
+def special(+k: U32) -> Bool:
+  Bool.or(Bool.or(U32.is_eq(k, 44), U32.is_eq(k, 34)), Bool.or(U32.is_eq(k, 13), U32.is_eq(k, 10)))
+
+def first_special(+s: String) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      special(code(c))
+
+# one pass for all four bytes, stopping at the first (hit: s starts with
+# one; a loop that matches its own flag, since a pick is strict)
+def any_special.go(s: String, hit: Bool) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      match hit:
+        case True{}:
+          True{}
+        case False{}:
+          any_special.go(rest, first_special(rest))
+
+def any_special(+s: String) -> Bool:
+  any_special.go(s, first_special(s))
+
+# s is the two bytes \. (String.eq(s, "\\.") without building anything)
+def bsd(s: String) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c0, +r0}:
+      match r0:
+        case SNil{}:
+          False{}
+        case SCon{+c1, +r1}:
+          Bool.and(Bool.and(U32.is_eq(code(c0), 92), U32.is_eq(code(c1), 46)), String.is_empty(r1))
+
 # Go's fieldNeedsQuotes (the delimiter is a comma)
 def needs_quotes(+s: String) -> Bool:
   pick(Bool, String.is_empty(s), False{},
-    Bool.or(String.eq(s, "\\."), Bool.or(first_space(s),
-      Bool.or(Bool.or(has_char(s, 44), has_char(s, 34)), Bool.or(has_char(s, 13), has_char(s, 10))))))
+    Bool.or(bsd(s), Bool.or(first_space(s), any_special(s))))
 
-def double_quotes(s: String) -> String:
+# Writing builds front to back onto the text t that follows, so every
+# byte of a row is written once.
+
+def dq.of(q: Bool, +c: Char, t: String) -> String:
+  match q:
+    case True{}:
+      SCon{'"', SCon{'"', t}}
+    case False{}:
+      SCon{c, t}
+
+# s with its quotes doubled, then t
+def dq_into(s: String, t: String) -> String:
   match s:
     case SNil{}:
-      SNil{}
+      t
     case SCon{+c, +rest}:
-      pick(String, U32.is_eq(code(c), 34), "\"\"", SCon{c, SNil{}}) ++ double_quotes(rest)
+      dq.of(U32.is_eq(code(c), 34), c, dq_into(rest, t))
 
-def field.of(+s: String) -> String:
-  pick(String, needs_quotes(s), "\"" ++ double_quotes(s) ++ "\"", s)
+def field.of(q: Bool, +s: String, t: String) -> String:
+  match q:
+    case True{}:
+      SCon{'"', dq_into(s, SCon{'"', t})}
+    case False{}:
+      s ++ t
 
-def field(s: String) -> String:
-  field.of(s)
+# the field s as written, then t
+def field_into(+s: String, t: String) -> String:
+  field.of(needs_quotes(s), s, t)
 
-def join_fields(fs: List<&2, String>) -> String:
+def field(+s: String) -> String:
+  field_into(s, "")
+
+# the fields, comma-separated, then a newline
+def row_into(fs: List<&2, String>) -> String:
   match fs:
     case Nil{}:
-      ""
+      "\n"
     case Con{+f, +rest}:
       match rest:
         case Nil{}:
-          field(f)
+          field_into(f, "\n")
         case Con{+g, +more}:
-          field(f) ++ "," ++ join_fields(Con{g, more})
+          field_into(f, SCon{',', row_into(Con{g, more})})
 
 def row(fs: List<&2, String>) -> String:
-  join_fields(fs) ++ "\n"
+  row_into(fs)
 
 # ---------------------------------------------------------------------
 # Reading

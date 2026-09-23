@@ -13,3 +13,7 @@ function fd_close(fd) {
 function fd_wait(fds, max, ms) {
   throw new Error("Fd.wait: unsupported on the JS lane");
 }
+
+function fd_next(max, ns) {
+  throw new Error("Fd.next: unsupported on the JS lane");
+}

@@ -175,6 +175,43 @@ static void __attribute__((constructor)) out_write_use(void) {
 
 #endif
 
+#ifdef CID_OUT_LINES
+
+// writes each string of a list, last first: the attack keeps its result
+// lines newest first, so no joined copy is built. Each string is read
+// straight into one buffer.
+Term out_lines_run(Env e, Term* f, IoWork* w) {
+  u64    cap = 0;
+  u64    k   = 0;
+  Term*  xs  = NULL;
+  Term   l   = f[0];
+  while (term_aux(l) == CID_CON) {
+    Term fb[2];
+    spare_free(e, cls_fit(2), ctr_take(e, l, 2, fb));
+    if (k == cap) {
+      cap = cap ? cap * 2 : 64;
+      xs  = io_mem(realloc(xs, sizeof(Term) * cap));
+    }
+    xs[k] = fb[0];
+    k += 1;
+    l = fb[1];
+  }
+  for (u64 i = k; i > 0; i -= 1) {
+    u64   n    = 0;
+    char* data = bytes_cstr(e, xs[i - 1], &n);
+    io_out(stdout, data, n);
+    free(data);
+  }
+  free(xs);
+  return term_pak(CID_UNIT, 0);
+}
+
+static void __attribute__((constructor)) out_lines_use(void) {
+  io_eff(CID_OUT_LINES, out_lines_run, 0);
+}
+
+#endif
+
 #ifdef CID_OUT_WRITE_ERR
 
 // stdout is flushed first, as IO.print_err does, so the two interleave in
@@ -439,6 +476,292 @@ Term dns_resolve_run(Env e, Term* f, IoWork* w) {
 
 static void __attribute__((constructor)) dns_resolve_use(void) {
   io_eff(CID_DNS_RESOLVE, dns_resolve_run, 0);
+}
+
+#endif
+
+// Pieces
+// ------
+//
+// Input read in batches and cut into pieces for decoding in parallel:
+// each piece runs through the last LF in its first `size` bytes, or
+// through the first LF after them (the report's own rule), so no record
+// is ever cut by a piece unless it holds a raw LF. A piece comes as its
+// lines, each packed (see lib/sys.bend). The last two batches stay here,
+// for Pieces.again; the bytes after a batch's last LF wait for the next.
+
+#if defined(CID_PIECES_READ) || defined(CID_PIECES_AGAIN) || defined(CID_PIECES_LINES) || defined(CID_PIECES_OPEN) || defined(CID_PIECES_CLOSE)
+
+// a batch: its bytes, and where each piece it was cut into ends
+typedef struct {
+  char* data;
+  u64*  ends;
+  u64   k;
+} PiecesBatch;
+
+static PiecesBatch pieces_prev  = {NULL, NULL, 0};
+static PiecesBatch pieces_cur   = {NULL, NULL, 0};
+static char*       pieces_carry = NULL;
+static u64         pieces_carry_n = 0;
+
+// the length of the piece p[0..n) starts with, or 0 without a LF
+static u64 piece_len(const char* p, u64 n, u64 size) {
+  u64 lim = n < size ? n : size;
+  for (u64 i = lim; i > 0; i -= 1) {
+    if (p[i - 1] == '\n') {
+      return i;
+    }
+  }
+  const char* q = lim < n ? memchr(p + lim, '\n', n - lim) : NULL;
+  return q ? (u64)(q - p) + 1 : 0;
+}
+
+// the bytes p[0..n) packed for the Bend side to unpack in parallel: the
+// count of bytes in the last word (0 for none), then the words, last
+// first, four bytes each, the first byte lowest
+static Term packed(Env e, const uint8_t* p, u64 n) {
+  Term xs = term_pak(CID_NIL, 0);
+  u64  w  = n / 4;
+  for (u64 i = 0; i < w; i += 1) {
+    const uint8_t* q = p + 4 * i;
+    u32 v = (u32)q[0] | (u32)q[1] << 8 | (u32)q[2] << 16 | (u32)q[3] << 24;
+    xs = io_node(e, CID_CON, (Term)v, xs);
+  }
+  u64 k = n % 4;
+  if (k > 0) {
+    const uint8_t* q = p + 4 * w;
+    u32 v = 0;
+    for (u64 j = 0; j < k; j += 1) {
+      v |= (u32)q[j] << (8 * j);
+    }
+    xs = io_node(e, CID_CON, (Term)v, xs);
+  } else if (w > 0) {
+    k = 4;
+  }
+  return io_node(e, CID_CON, (Term)k, xs);
+}
+
+// the lines of p[0..n) (each with its LF; the last maybe without), each
+// packed
+static Term packed_lines(Env e, const uint8_t* p, u64 n) {
+  Term xs  = term_pak(CID_NIL, 0);
+  u64  end = n;
+  while (end > 0) {
+    u64 start = end - 1;
+    while (start > 0 && p[start - 1] != '\n') {
+      start -= 1;
+    }
+    xs  = io_node(e, CID_CON, packed(e, p + start, end - start), xs);
+    end = start;
+  }
+  return xs;
+}
+
+// a batch's pieces from the one at index from on, as their lines
+static Term batch_from(Env e, PiecesBatch* b, u64 from) {
+  Term xs = term_pak(CID_NIL, 0);
+  for (u64 i = b->k; i > from; i -= 1) {
+    u64 start = i > 1 ? b->ends[i - 2] : 0;
+    xs = io_node(e, CID_CON, packed_lines(e, (const uint8_t*)b->data + start, b->ends[i - 1] - start), xs);
+  }
+  return xs;
+}
+
+// p[0..n) (which this takes) cut into pieces, as the new batch: the
+// pieces, then the bytes after the last one when tail is set and they
+// are not empty; *used is the length they cover
+static Term pieces_of(Env e, char* p, u64 n, u64 size, int tail, u64* used) {
+  free(pieces_prev.data);
+  free(pieces_prev.ends);
+  pieces_prev = pieces_cur;
+  u64  cap  = 64;
+  u64  k    = 0;
+  u64* ends = io_mem(malloc(cap * sizeof(u64)));
+  u64  at   = 0;
+  for (;;) {
+    u64 m = piece_len(p + at, n - at, size);
+    if (m == 0 && !(tail && at < n)) {
+      break;
+    }
+    if (k == cap) {
+      cap *= 2;
+      ends = io_mem(realloc(ends, cap * sizeof(u64)));
+    }
+    if (m == 0) {
+      ends[k] = n;
+      k += 1;
+      break;
+    }
+    at += m;
+    ends[k] = at;
+    k += 1;
+  }
+  *used      = at;
+  pieces_cur = (PiecesBatch){p, ends, k};
+  return batch_from(e, &pieces_cur, 0);
+}
+
+#endif
+
+#ifdef CID_PIECES_AGAIN
+
+// the batch before the last one, from the piece at index from on, again
+Term pieces_again_run(Env e, Term* f, IoWork* w) {
+  u64 from = (u64)(u32)f[0];
+  return batch_from(e, &pieces_prev, from < pieces_prev.k ? from : pieces_prev.k);
+}
+
+static void __attribute__((constructor)) pieces_again_use(void) {
+  io_eff(CID_PIECES_AGAIN, pieces_again_run, 0);
+}
+
+#endif
+
+#ifdef CID_PIECES_LINES
+
+// the batch before the last one: the piece at index i, from its line at
+// index j on
+Term pieces_lines_run(Env e, Term* f, IoWork* w) {
+  u64 i = (u64)(u32)f[0];
+  u64 j = (u64)(u32)f[1];
+  if (i >= pieces_prev.k) {
+    return term_pak(CID_NIL, 0);
+  }
+  const uint8_t* p     = (const uint8_t*)pieces_prev.data;
+  u64            start = i > 0 ? pieces_prev.ends[i - 1] : 0;
+  u64            end   = pieces_prev.ends[i];
+  for (u64 l = 0; l < j && start < end; l += 1) {
+    const uint8_t* q = memchr(p + start, '\n', end - start);
+    start = q ? (u64)(q - p) + 1 : end;
+  }
+  return packed_lines(e, p + start, end - start);
+}
+
+static void __attribute__((constructor)) pieces_lines_use(void) {
+  io_eff(CID_PIECES_LINES, pieces_lines_run, 0);
+}
+
+#endif
+
+#ifdef CID_PIECES_OPEN
+
+// path opened for reading, as a descriptor; nothing waits from before
+Term pieces_open_run(Env e, Term* f, IoWork* w) {
+  u64   n    = 0;
+  char* path = bytes_cstr(e, f[0], &n);
+  if (io_nul(path, n)) {
+    free(path);
+    return io_fail(e, EILSEQ, NULL);
+  }
+  int fd;
+  do {
+    fd = open(path, O_RDONLY);
+  } while (fd < 0 && errno == EINTR);
+  free(path);
+  if (fd < 0) {
+    return io_fail(e, (u32)errno, NULL);
+  }
+  free(pieces_carry);
+  pieces_carry   = NULL;
+  pieces_carry_n = 0;
+  return io_done(e, (Term)(u32)fd);
+}
+
+static void __attribute__((constructor)) pieces_open_use(void) {
+  io_eff(CID_PIECES_OPEN, pieces_open_run, 0);
+}
+
+#endif
+
+#ifdef CID_PIECES_CLOSE
+
+Term pieces_close_run(Env e, Term* f, IoWork* w) {
+  int fd = (int)(u32)f[0];
+  if (fd > 2) {
+    close(fd);
+  }
+  return term_pak(CID_UNIT, 0);
+}
+
+static void __attribute__((constructor)) pieces_close_use(void) {
+  io_eff(CID_PIECES_CLOSE, pieces_close_run, 0);
+}
+
+#endif
+
+#ifdef CID_PIECES_READ
+
+// reads fd (w->made) onto the carry (w->data, w->size) until max bytes
+// and a LF past the carry, or EOF (then w->made = -1)
+static void pieces_read_call(IoWork* w) {
+  int   fd  = (int)w->made;
+  u64   cap = w->size + (u64)w->word + 65536;
+  int   nl  = 0;
+  char* d   = realloc(w->data, cap);
+  if (d == NULL) {
+    w->code = ENOMEM;
+    return;
+  }
+  w->data = d;
+  while (!(nl && w->size >= (u64)w->word)) {
+    if (w->size == cap) {
+      char* more = realloc(w->data, cap * 2);
+      if (more == NULL) {
+        w->code = ENOMEM;
+        return;
+      }
+      w->data = more;
+      cap *= 2;
+    }
+    ssize_t n = read(fd, w->data + w->size, cap - w->size);
+    if (n < 0 && errno == EINTR) {
+      continue;
+    }
+    if (n <= 0) {
+      w->code = n < 0 ? (u32)errno : 0;
+      w->made = -1;
+      return;
+    }
+    if (!nl && memchr(w->data + w->size, '\n', (size_t)n) != NULL) {
+      nl = 1;
+    }
+    w->size += (u64)n;
+  }
+}
+
+static Term pieces_read_pack(Env e, IoWork* w) {
+  if (w->code) {
+    free(w->data);
+    return io_fail(e, w->code, NULL);
+  }
+  u64  used = 0;
+  int  eof  = w->made == -1;
+  Term xs   = pieces_of(e, w->data, w->size, (u64)w->hand, eof, &used);
+  if (!eof && used < w->size) {
+    pieces_carry_n = w->size - used;
+    pieces_carry   = io_mem(malloc(pieces_carry_n));
+    memcpy(pieces_carry, w->data + used, pieces_carry_n);
+  }
+  return io_done(e, xs);
+}
+
+// at least max bytes of fd (or all that is left) cut into pieces of
+// about size bytes; a line not ended yet waits for the next call, and
+// the last line, ended or not, comes at EOF; [] only at EOF
+Term pieces_read_run(Env e, Term* f, IoWork* w) {
+  w->made = (intptr_t)(u32)f[0];
+  w->word = (u32)f[1] < INT32_MAX ? (u32)f[1] : INT32_MAX;
+  w->hand = (intptr_t)((u32)f[2] > 0 ? (u32)f[2] : 1);
+  w->data = pieces_carry;
+  w->size = pieces_carry_n;
+  w->code = 0;
+  pieces_carry   = NULL;
+  pieces_carry_n = 0;
+  return io_work(w, pieces_read_call, pieces_read_pack);
+}
+
+static void __attribute__((constructor)) pieces_read_use(void) {
+  io_eff(CID_PIECES_READ, pieces_read_run, 0);
 }
 
 #endif

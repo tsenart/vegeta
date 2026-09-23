@@ -5,7 +5,7 @@
 # One event loop, as an epoll server: each worker the engine grows is a
 # slot (its connection and the hit in flight), not a computation. When
 # nothing is left to run, the loop waits on every connection at once
-# (Fd.wait), then steps every ready connection's client machine, and
+# (Fd.next, over kqueue or epoll, to the nanosecond), then steps every ready connection's client machine, and
 # encodes every finished result, in a parallel call tree: Bend spreads
 # parallel calls over the cores, while IO computations share one. The
 # loop reads the clock when it takes events in, so the engine's times
@@ -54,6 +54,10 @@ def e_preps(+e: WEnv) -> List<&2, Prep>:
 def timeout(+c: Conn.Cfg) -> Nat:
   Conn.CCfg{ka, to, mb, rd} = c
   to
+
+# a hit's deadline (mono ns): its start plus the timeout (0: none)
+def deadline(+c: Conn.Cfg, +t0: Nat) -> Nat:
+  pick(Nat, Nat.is_eq(timeout(c), 0n), 0n, Nat.add(t0, timeout(c)))
 
 def st_of(+r: Sigma<&2, &2, Conn.State, _ => List<&2, Conn.Cmd>>) -> Conn.State:
   (s, cs) = r
@@ -149,71 +153,89 @@ def slot_fd(+s: Slot) -> Maybe<&2, U32>:
 def slot_open(+s: Slot) -> Bool:
   Maybe.is_some(&2, U32, slot_fd(s))
 
-def put.of(grow: Bool, slots: List<&2, Slot>, +s: Slot) -> List<&2, Slot>:
-  match grow:
+# the slots, as a tree keyed by worker: worker 0 at the root, worker
+# 1 + k down the left (k even) or right (k odd) child at k / 2
+type Tr is Data:
+  TrE{}
+  TrN{s: Maybe<&2, Slot>, l: Tr, r: Tr}
+
+def tr_child(even: Bool, +l: Tr, +r: Tr) -> Tr:
+  match even:
     case True{}:
-      List.append(&2, Slot, slots, [s])
+      l
     case False{}:
-      List.set(&2, Slot, slots, slot_w(s), s)
+      r
 
-# replaces worker w's slot; workers are numbered in order, so a new one
-# is appended
-def put(+slots: List<&2, Slot>, +s: Slot) -> List<&2, Slot>:
-  put.of(Nat.is_ge(slot_w(s), List.length(&2, Slot, slots)), slots, s)
+def tr_join(even: Bool, +s0: Maybe<&2, Slot>, +l: Tr, +r: Tr, +c: Tr) -> Tr:
+  match even:
+    case True{}:
+      TrN{s0, c, r}
+    case False{}:
+      TrN{s0, l, c}
 
-def get_w(+slots: List<&2, Slot>, +w: Nat) -> Slot:
-  Maybe.default(&2, Slot, List.get(&2, Slot, slots, w), Slot{w, None{}, None{}})
-
-def fd_is(+m: Maybe<&2, U32>, +fd: U32) -> Bool:
-  match m:
-    case None{}:
-      False{}
-    case Some{x}:
-      U32.is_eq(x, fd)
-
-# the slot on fd (a strict pick: the walk is whole either way, and only a
-# Maybe is built)
-def get_fd(slots: List<&2, Slot>, +fd: U32) -> Maybe<&2, Slot>:
-  match slots:
-    case Nil{}:
+@unsafe def tr_get(t: Tr, +w: Nat) -> Maybe<&2, Slot>:
+  match t:
+    case TrE{}:
       None{}
-    case Con{+x, rest}:
-      pick(Maybe<&2, Slot>, fd_is(slot_fd(x), fd), Some{x}, get_fd(rest, fd))
+    case TrN{s0, +l, +r}:
+      match w:
+        case 0n:
+          s0
+        case 1n+(+k):
+          tr_get(tr_child(Nat.is_eq(Nat.mod(k, 2n), 0n), l, r), Nat.div(k, 2n))
 
-def fds.of(fd: Maybe<&2, U32>, +acc: List<&2, U32>) -> List<&2, U32>:
-  match fd:
+@unsafe def tr_put(t: Tr, +w: Nat, +s: Slot) -> Tr:
+  match t:
+    case TrE{}:
+      tr_put(TrN{None{}, TrE{}, TrE{}}, w, s)
+    case TrN{+s0, +l, +r}:
+      match w:
+        case 0n:
+          TrN{Some{s}, l, r}
+        case 1n+(+k):
+          +even = Nat.is_eq(Nat.mod(k, 2n), 0n)
+          tr_join(even, s0, l, r, tr_put(tr_child(even, l, r), Nat.div(k, 2n), s))
+
+def tr_list.of(s0: Maybe<&2, Slot>, +rest: List<&2, Slot>) -> List<&2, Slot>:
+  match s0:
     case None{}:
+      rest
+    case Some{x}:
+      Con{x, rest}
+
+# every slot (in no particular order)
+def tr_list(t: Tr, +acc: List<&2, Slot>) -> List<&2, Slot>:
+  match t:
+    case TrE{}:
       acc
-    case Some{d}:
-      Con{d, acc}
+    case TrN{s0, l, r}:
+      tr_list.of(s0, tr_list(l, tr_list(r, acc)))
 
-# every open connection, to wait on
-def fds(slots: List<&2, Slot>) -> List<&2, U32>:
-  match slots:
-    case Nil{}:
-      []
-    case Con{+x, rest}:
-      fds.of(slot_fd(x), fds(rest))
+def put(+t: Tr, +s: Slot) -> Tr:
+  tr_put(t, slot_w(s), s)
 
-def min_dl.of(fly: Maybe<&2, Fly>, +acc: Nat) -> Nat:
+def get_w(+t: Tr, +w: Nat) -> Slot:
+  Maybe.default(&2, Slot, tr_get(t, w), Slot{w, None{}, None{}})
+
+def min_dl.of(fly: Maybe<&2, Fly>, +now: Nat, +acc: Nat) -> Nat:
   match fly:
     case None{}:
       acc
     case Some{+f}:
       +d = fly_dl(f)
-      pick(Nat, Bool.and(Nat.is_gt(d, 0n), Bool.or(Nat.is_eq(acc, 0n), Nat.is_lt(d, acc))), d, acc)
+      pick(Nat, Bool.and(Nat.is_gt(d, now), Bool.or(Nat.is_eq(acc, 0n), Nat.is_lt(d, acc))), d, acc)
 
 def slot_fly(+s: Slot) -> Maybe<&2, Fly>:
   Slot{w, fd, fly} = s
   fly
 
-# the earliest deadline of the hits in flight (0: none)
-def min_dl(slots: List<&2, Slot>, +acc: Nat) -> Nat:
+# the earliest deadline after now of the hits in flight (0: none)
+def min_dl(slots: List<&2, Slot>, +now: Nat, +acc: Nat) -> Nat:
   match slots:
     case Nil{}:
       acc
     case Con{+x, rest}:
-      min_dl(rest, min_dl.of(slot_fly(x), acc))
+      min_dl(rest, now, min_dl.of(slot_fly(x), now, acc))
 
 # ---------------------------------------------------------------------
 # Running one slot's client commands (sequential IO): until the machine
@@ -299,7 +321,7 @@ def finish(keep: Bool, +w: Nat, fd: Maybe<&2, U32>, +line: String) -> IO(Ran):
             case Conn.Open{ip, port}:
               do IO<Ran>:
                 close(fd)
-                r : Result<&1, &1, U32 & String, U32> <- Sys.Fd.connect(ip, U32.from_nat(port))
+                r : Result<&1, &1, U32 & String, U32> <- Sys.Fd.connect(ip, U32.from_nat(port), U32.from_nat(w))
                 srun(OpenRes{r}, e, w, None{}, f)
             case Conn.Send{d}:
               match fd:
@@ -400,6 +422,54 @@ def psteps(t: Tree, +e: WEnv, +t1: Nat) -> List<&2, Stepped>:
       List.append(&2, Stepped, a, b)
 
 # ---------------------------------------------------------------------
+# Fired hits, started in parallel: each machine starts (rendering its
+# request) in a parallel call tree, then the loop sends them
+# ---------------------------------------------------------------------
+
+# a fired hit: its worker, the worker's connection (if open), seq, target
+type Pre is Data:
+  Pre{w: Nat, fd: Maybe<&2, U32>, seq: Nat, ti: Nat}
+
+type PTree is Data:
+  PNil{}
+  POne{x: Pre}
+  PTwo{l: PTree, r: PTree}
+
+def ptree1(xs: List<&2, Pre>) -> PTree:
+  match xs:
+    case Nil{}:
+      PNil{}
+    case Con{x, rest}:
+      POne{x}
+
+@unsafe def ptree(+n: Nat, +xs: List<&2, Pre>) -> PTree:
+  match n:
+    case 0n:
+      PNil{}
+    case 1n+m:
+      match m:
+        case 0n:
+          ptree1(xs)
+        case 1n+k:
+          +h = Nat.div(Nat.add(k, 2n), 2n)
+          PTwo{ptree(h, List.take(&2, Pre, xs, h)), ptree(Nat.sub(Nat.add(k, 2n), h), List.drop(&2, Pre, xs, h))}
+
+def start1(+e: WEnv, +h0: Nat, +ts: Civil.Time, p: Pre) -> Stepped:
+  Pre{w, +fd, +seq, +ti} = p
+  +r0 = Conn.start(e_cc(e), req_of(prep_at(e_preps(e), ti), seq, e_name(e)), Maybe.is_some(&2, U32, fd))
+  Stepped{w, fd, Fly{st_of(r0), seq, ti, h0, ts, deadline(e_cc(e), h0)}, cs_of(r0), None{}, False{}}
+
+def pstarts(t: PTree, +e: WEnv, +h0: Nat, +ts: Civil.Time) -> List<&2, Stepped>:
+  match t:
+    case PNil{}:
+      []
+    case POne{x}:
+      [start1(e, h0, ts, x)]
+    case PTwo{l, r}:
+      a b = pstarts(l, e, h0, ts) pstarts(r, e, h0, ts)
+      List.append(&2, Stepped, a, b)
+
+# ---------------------------------------------------------------------
 # Taking in what a wait found
 # ---------------------------------------------------------------------
 
@@ -425,19 +495,15 @@ def take_fly(fly: Maybe<&2, Fly>, +w: Nat, +fd: Maybe<&2, U32>, +d: String, +acc
       Taken{items, dead} = acc
       Taken{Con{Item{w, fd, f, ev_of(d)}, items}, dead}
 
-def take_one(m: Maybe<&2, Slot>, +d: String, +acc: Taken) -> Taken:
-  match m:
-    case None{}:
-      acc
-    case Some{s}:
-      Slot{w, fd, fly} = s
-      take_fly(fly, w, fd, d, acc)
+def take_s(+s: Slot, +d: String, +acc: Taken) -> Taken:
+  Slot{w, fd, fly} = s
+  take_fly(fly, w, fd, d, acc)
 
-def take_p(p: Sigma<&2, &2, U32, _ => String>, +slots: List<&2, Slot>, +acc: Taken) -> Taken:
-  (fd, d) = p
-  take_one(get_fd(slots, fd), d, acc)
+def take_p(p: Sigma<&2, &2, U32, _ => String>, +slots: Tr, +acc: Taken) -> Taken:
+  (tag, d) = p
+  take_s(get_w(slots, U32.to_nat(tag)), d, acc)
 
-def take(rs: List<&2, Sigma<&2, &2, U32, _ => String>>, +slots: List<&2, Slot>, +acc: Taken) -> Taken:
+def take(rs: List<&2, Sigma<&2, &2, U32, _ => String>>, +slots: Tr, +acc: Taken) -> Taken:
   match rs:
     case Nil{}:
       acc
@@ -470,7 +536,8 @@ def lates.of(fly: Maybe<&2, Fly>, +w: Nat, +fd: Maybe<&2, U32>, +now: Nat, +its:
       +d = fly_dl(f)
       lates.add(Bool.and(Bool.and(Nat.is_gt(d, 0n), Nat.is_ge(now, d)), Bool.not(has_w(w, its))), Item{w, fd, f, Conn.Late{}}, its)
 
-# hits past their deadline that got nothing this round take a Late
+# hits past their deadline that got nothing this round take a Late (a
+# walk over every slot: only when the next deadline to check has come)
 def lates(slots: List<&2, Slot>, +now: Nat, +its: List<&2, Item>) -> List<&2, Item>:
   match slots:
     case Nil{}:
@@ -485,48 +552,68 @@ def lates(slots: List<&2, Slot>, +now: Nat, +its: List<&2, Item>) -> List<&2, It
 
 # the loop's state: when the attack began (mono ns), the engine, the
 # slots, the nap's end (attack ns), the workers freed and not yet told
-# to the engine, the result lines not yet written (newest first)
+# to the engine, the result lines not yet written (newest first), and
+# when to look for hits past their deadline (mono ns, 0: none)
 type Lp is Data:
-  Lp{t0: Nat, st: Eng.State, slots: List<&2, Slot>, nap: Maybe<&2, Nat>, freed: List<&2, Nat>, lines: List<&2, String>}
+  Lp{t0: Nat, st: Eng.State, slots: Tr, nap: Maybe<&2, Nat>, freed: List<&2, Nat>, lines: List<&2, String>, dln: Nat}
 
-def lp_slots(+l: Lp) -> List<&2, Slot>:
-  Lp{t0, st, slots, nap, freed, lines} = l
+def lp_slots(+l: Lp) -> Tr:
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
   slots
 
 def lp_lines(+l: Lp) -> List<&2, String>:
-  Lp{t0, st, slots, nap, freed, lines} = l
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
   lines
 
 def no_lines(+l: Lp) -> Lp:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  Lp{t0, st, slots, nap, freed, []}
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  Lp{t0, st, slots, nap, freed, [], dln}
 
-def with_slots(+l: Lp, +ss: List<&2, Slot>) -> Lp:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  Lp{t0, st, ss, nap, freed, lines}
+def with_slots(+l: Lp, +ss: Tr) -> Lp:
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  Lp{t0, st, ss, nap, freed, lines, dln}
 
 def with_slot(+l: Lp, +s: Slot) -> Lp:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  Lp{t0, st, put(slots, s), nap, freed, lines}
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  Lp{t0, st, put(slots, s), nap, freed, lines, dln}
 
 def with_nap(+l: Lp, +u: Nat) -> Lp:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  Lp{t0, st, slots, Some{u}, freed, lines}
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  Lp{t0, st, slots, Some{u}, freed, lines, dln}
 
 def with_line(line: Maybe<&2, String>, +w: Nat, +l: Lp) -> Lp:
   match line:
     case None{}:
       l
     case Some{x}:
-      Lp{t0, st, slots, nap, freed, lines} = l
-      Lp{t0, st, slots, nap, List.append(&2, Nat, freed, [w]), Con{x, lines}}
+      Lp{t0, st, slots, nap, freed, lines, dln} = l
+      Lp{t0, st, slots, nap, List.append(&2, Nat, freed, [w]), Con{x, lines}, dln}
 
 def with_ran(+l: Lp, +r: Ran) -> Lp:
   Ran{s, line} = r
   with_line(line, slot_w(s), with_slot(l, s))
 
-def deadline(+c: Conn.Cfg, +t0: Nat) -> Nat:
-  pick(Nat, Nat.is_eq(timeout(c), 0n), 0n, Nat.add(t0, timeout(c)))
+# a match, not a pick: the walk happens only when the check is due
+def lates_if(chk: Bool, +slots: Tr, +now: Nat, +items: List<&2, Item>) -> List<&2, Item>:
+  match chk:
+    case True{}:
+      lates(tr_list(slots, []), now, items)
+    case False{}:
+      items
+
+def lp_dln(+l: Lp) -> Nat:
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  dln
+
+# after a deadline check, the next one is the earliest deadline still ahead
+def with_dln(chk: Bool, +now: Nat, +l: Lp) -> Lp:
+  match chk:
+    case False{}:
+      l
+    case True{}:
+      Lp{t0, st, slots, nap, freed, lines, dln} = l
+      Lp{t0, st, slots, nap, freed, lines, min_dl(tr_list(slots, []), now, 0n)}
+
 
 def nap_abs(+t0: Nat, +nap: Maybe<&2, Nat>) -> Nat:
   match nap:
@@ -538,13 +625,17 @@ def nap_abs(+t0: Nat, +nap: Maybe<&2, Nat>) -> Nat:
 def earliest(+a: Nat, +b: Nat) -> Nat:
   pick(Nat, Nat.is_eq(a, 0n), b, pick(Nat, Bool.or(Nat.is_eq(b, 0n), Nat.is_lt(a, b)), a, b))
 
-# how long to wait (ms): until the nap ends or the earliest deadline, else
-# a second (the loop then looks again)
-def wait_ms(+l: Lp, +now: Nat) -> U32:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  +until = earliest(nap_abs(t0, nap), min_dl(slots, 0n))
-  pick(U32, Nat.is_eq(until, 0n), 1000,
-    U32.from_nat(pick(Nat, Nat.is_gt(until, now), Nat.div(Nat.add(Nat.sub(until, now), 999999n), 1000000n), 0n)))
+# how long to wait (ns): until the nap ends or the next deadline check,
+# else a second (the loop then looks again)
+def wait_ns(+l: Lp, +now: Nat) -> Nat:
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  +until = earliest(nap_abs(t0, nap), dln)
+  pick(Nat, Nat.is_eq(until, 0n), 1000000000n, pick(Nat, Nat.is_gt(until, now), Nat.sub(until, now), 0n))
+
+# a fired hit's deadline joins the ones to check
+def with_dl(+l: Lp, +d: Nat) -> Lp:
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  Lp{t0, st, slots, nap, freed, lines, earliest(dln, d)}
 
 def close_all(slots: List<&2, Slot>) -> IO(Unit):
   match slots:
@@ -555,61 +646,53 @@ def close_all(slots: List<&2, Slot>) -> IO(Unit):
         close(slot_fd(s))
         close_all(rest)
 
-def close_dead(dead: List<&2, Nat>, +slots: List<&2, Slot>) -> IO(List<&2, Slot>):
+def close_dead(dead: List<&2, Nat>, +slots: Tr) -> IO(Tr):
   match dead:
     case Nil{}:
-      IO.pure(List<&2, Slot>, slots)
+      IO.pure(Tr, slots)
     case Con{+w, rest}:
-      do IO<List<&2, Slot>>:
+      do IO<Tr>:
         close(slot_fd(get_w(slots, w)))
         close_dead(rest, put(slots, Slot{w, None{}, None{}}))
-
-# the lines oldest first, as one string
-def joined(ls: List<&2, String>, acc: String) -> String:
-  match ls:
-    case Nil{}:
-      acc
-    case Con{x, rest}:
-      joined(rest, x ++ acc)
 
 def flush(ls: List<&2, String>) -> IO(Unit):
   match ls:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case Con{x, rest}:
-      Sys.Out.write(joined(Con{x, rest}, ""))
+      Sys.Out.lines(Con{x, rest})
 
 # what the engine takes next: the clock when the nap is over, else the
 # next freed worker; None when there is nothing, and the loop waits
 type Nx is Data:
   Nx{l: Lp, cs: Maybe<&2, List<&2, Eng.Cmd>>}
 
-def next_freed(freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: List<&2, Slot>, +nap: Maybe<&2, Nat>, +lines: List<&2, String>, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_freed(freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +nap: Maybe<&2, Nat>, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match freed:
     case Nil{}:
-      Nx{Lp{t0, st, slots, nap, [], lines}, None{}}
+      Nx{Lp{t0, st, slots, nap, [], lines, dln}, None{}}
     case Con{+w, rest}:
       +r = Eng.step(ec, st, Eng.Freed{w, t})
-      Nx{Lp{t0, est_of(r), slots, nap, rest, lines}, Some{ecs_of(r)}}
+      Nx{Lp{t0, est_of(r), slots, nap, rest, lines, dln}, Some{ecs_of(r)}}
 
-def next_nap(due: Bool, +u: Nat, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: List<&2, Slot>, +lines: List<&2, String>, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_nap(due: Bool, +u: Nat, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match due:
     case True{}:
       +r = Eng.step(ec, st, Eng.Clock{t})
-      Nx{Lp{t0, est_of(r), slots, None{}, freed, lines}, Some{ecs_of(r)}}
+      Nx{Lp{t0, est_of(r), slots, None{}, freed, lines, dln}, Some{ecs_of(r)}}
     case False{}:
-      next_freed(freed, t0, st, slots, Some{u}, lines, ec, t)
+      next_freed(freed, t0, st, slots, Some{u}, lines, dln, ec, t)
 
-def next_ev.of(nap: Maybe<&2, Nat>, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: List<&2, Slot>, +lines: List<&2, String>, +ec: Eng.Cfg, +t: Nat) -> Nx:
+def next_ev.of(nap: Maybe<&2, Nat>, +freed: List<&2, Nat>, +t0: Nat, +st: Eng.State, +slots: Tr, +lines: List<&2, String>, +dln: Nat, +ec: Eng.Cfg, +t: Nat) -> Nx:
   match nap:
     case Some{+u}:
-      next_nap(Nat.is_ge(t, u), u, freed, t0, st, slots, lines, ec, t)
+      next_nap(Nat.is_ge(t, u), u, freed, t0, st, slots, lines, dln, ec, t)
     case None{}:
-      next_freed(freed, t0, st, slots, None{}, lines, ec, t)
+      next_freed(freed, t0, st, slots, None{}, lines, dln, ec, t)
 
 def next_ev(+l: Lp, +ec: Eng.Cfg, +now: Nat) -> Nx:
-  Lp{t0, st, slots, nap, freed, lines} = l
-  next_ev.of(nap, freed, t0, st, slots, lines, ec, Nat.sub(now, t0))
+  Lp{t0, st, slots, nap, freed, lines, dln} = l
+  next_ev.of(nap, freed, t0, st, slots, lines, dln, ec, Nat.sub(now, t0))
 
 # the loop's next move: run the engine's commands; decide what the engine
 # takes next; start a fired hit; take in a slot's run, a wait's findings,
@@ -618,8 +701,9 @@ type Am is Type:
   Cmds{cs: List<&2, Eng.Cmd>}
   Idle{}
   Decide{nx: Nx, now: Nat}
-  Fired{cs: List<&2, Eng.Cmd>, w: Nat, seq: Nat, ti: Nat, t0: Nat, wall: Nat & Nat & U32}
-  Slotted{cs: List<&2, Eng.Cmd>, r: Ran}
+  Gather{cs: List<&2, Eng.Cmd>, fs: List<&2, Pre>}
+  Launch{fs: List<&2, Pre>}
+  Launched{fs: List<&2, Pre>, t0: Nat, wall: Nat & Nat & U32}
   Waited{rs: List<&2, Sigma<&2, &2, U32, _ => String>>, now: Nat}
   Took{tk: Taken, now: Nat}
   Stepping{xs: List<&2, Stepped>}
@@ -639,46 +723,49 @@ type Am is Type:
             case None{}:
               do IO<Nat & Nat>:
                 flush(lp_lines(l2))
-                rs : List<&2, Sigma<&2, &2, U32, _ => String>> <- Sys.Fd.wait(fds(lp_slots(l2)), 65536, wait_ms(l2, now))
+                rs : List<&2, Sigma<&2, &2, U32, _ => String>> <- Sys.Fd.next(65536, wait_ns(l2, now))
                 +now2 : Nat <- Sys.Clock.mono_ns()
                 attack(Waited{rs, now2}, ec, e, no_lines(l2))
     case Cmds{cs}:
+      attack(Gather{cs, []}, ec, e, l)
+    case Gather{cs, fs}:
       match cs:
         case Nil{}:
-          attack(Idle{}, ec, e, l)
+          attack(Launch{List.reverse(&2, Pre, fs)}, ec, e, l)
         case Con{c, rest}:
           match c:
             case Eng.Grow{+w}:
-              attack(Cmds{rest}, ec, e, with_slot(l, Slot{w, None{}, None{}}))
+              attack(Gather{rest, fs}, ec, e, with_slot(l, Slot{w, None{}, None{}}))
             case Eng.Nap{u}:
-              attack(Cmds{rest}, ec, e, with_nap(l, u))
+              attack(Gather{rest, fs}, ec, e, with_nap(l, u))
             case Eng.Fire{+w, +seq, +ti, t}:
-              do IO<Nat & Nat>:
-                +h0 : Nat <- Sys.Clock.mono_ns()
-                wall : Nat & Nat & U32 <- Sys.Clock.wall()
-                attack(Fired{rest, w, seq, ti, h0, wall}, ec, e, l)
+              attack(Gather{rest, Con{Pre{w, slot_fd(get_w(lp_slots(l), w)), seq, ti}, fs}}, ec, e, l)
             case Eng.Quit{sent, dropped}:
               do IO<Nat & Nat>:
                 flush(lp_lines(l))
-                close_all(lp_slots(l))
+                close_all(tr_list(lp_slots(l), []))
                 return (sent, dropped)
-    case Fired{cs, +w, +seq, +ti, +h0, wall}:
-      +s = get_w(lp_slots(l), w)
-      +r0 = Conn.start(e_cc(e), req_of(prep_at(e_preps(e), ti), seq, e_name(e)), slot_open(s))
-      do IO<Nat & Nat>:
-        r : Ran <- srun(Run{cs_of(r0)}, e, w, slot_fd(s), Fly{st_of(r0), seq, ti, h0, wall_time(wall), deadline(e_cc(e), h0)})
-        attack(Slotted{cs, r}, ec, e, l)
-    case Slotted{cs, r}:
-      attack(Cmds{cs}, ec, e, with_ran(l, r))
+    case Launch{fs}:
+      match fs:
+        case Nil{}:
+          attack(Idle{}, ec, e, l)
+        case Con{f, rest}:
+          do IO<Nat & Nat>:
+            +h0 : Nat <- Sys.Clock.mono_ns()
+            wall : Nat & Nat & U32 <- Sys.Clock.wall()
+            attack(Launched{Con{f, rest}, h0, wall}, ec, e, l)
+    case Launched{+fs, +h0, wall}:
+      attack(Stepping{pstarts(ptree(List.length(&2, Pre, fs), fs), e, h0, wall_time(wall))}, ec, e, with_dl(l, deadline(e_cc(e), h0)))
     case Waited{rs, +now}:
       attack(Took{take(rs, lp_slots(l), Taken{[], []}), now}, ec, e, l)
     case Took{tk, +now}:
       match tk:
         case Taken{items, dead}:
-          +its = lates(lp_slots(l), now, items)
+          +chk = Bool.and(Nat.is_gt(lp_dln(l), 0n), Nat.is_ge(now, lp_dln(l)))
+          +its = lates_if(chk, lp_slots(l), now, items)
           do IO<Nat & Nat>:
-            ss : List<&2, Slot> <- close_dead(dead, lp_slots(l))
-            attack(Stepping{psteps(tree(List.length(&2, Item, its), its), e, now)}, ec, e, with_slots(l, ss))
+            ss : Tr <- close_dead(dead, lp_slots(l))
+            attack(Stepping{psteps(tree(List.length(&2, Item, its), its), e, now)}, ec, e, with_dln(chk, now, with_slots(l, ss)))
     case Stepping{xs}:
       match xs:
         case Nil{}:
@@ -702,4 +789,4 @@ def run(+ec: Eng.Cfg, +e: WEnv) -> IO(Nat & Nat):
   +r = Eng.start(ec)
   do IO<Nat & Nat>:
     +t0 : Nat <- Sys.Clock.mono_ns()
-    attack(Cmds{ecs_of(r)}, ec, e, Lp{t0, est_of(r), [], None{}, [], []})
+    attack(Cmds{ecs_of(r)}, ec, e, Lp{t0, est_of(r), TrE{}, None{}, [], [], 0n})

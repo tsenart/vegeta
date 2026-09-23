@@ -49,6 +49,12 @@ def two(+a: U32, +b: U32) -> String:
 def one(+a: U32) -> String:
   char((a >> 2n : U32)) ++ char(((a .&. 3) << 4n : U32)) ++ "=="
 
+# three bytes as four characters, then t (the text of three(a, b, c) ++ t,
+# built in place)
+def three_into(+a: U32, +b: U32, +c: U32, t: String) -> String:
+  SCon{Chr{char.code((a >> 2n : U32))}, SCon{Chr{char.code((((a .&. 3) << 4n) .|. (b >> 4n) : U32))},
+    SCon{Chr{char.code((((b .&. 15) << 2n) .|. (c >> 6n) : U32))}, SCon{Chr{char.code((c .&. 63 : U32))}, t}}}}
+
 def encode(s: String) -> String:
   match s:
     case SNil{}:
@@ -62,7 +68,23 @@ def encode(s: String) -> String:
             case SNil{}:
               two(code(a), code(b))
             case SCon{+c, +r3}:
-              three(code(a), code(b), code(c)) ++ encode(r3)
+              three_into(code(a), code(b), code(c), encode(r3))
+
+# encode(s) ++ t
+def encode_into(s: String, t: String) -> String:
+  match s:
+    case SNil{}:
+      t
+    case SCon{a, r1}:
+      match r1:
+        case SNil{}:
+          one(code(a)) ++ t
+        case SCon{b, r2}:
+          match r2:
+            case SNil{}:
+              two(code(a), code(b)) ++ t
+            case SCon{c, r3}:
+              three_into(code(a), code(b), code(c), encode_into(r3, t))
 
 # the six-bit value of a character, or 64 when it is not in the alphabet
 def value(+k: U32) -> U32:

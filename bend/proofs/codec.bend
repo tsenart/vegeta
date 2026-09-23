@@ -58,13 +58,223 @@ def L.text_utf8(s):
 # CSV
 # ---------------------------------------------------------------------
 
-def join_same(rest: List<&2, String>, +f: String)
-  -> {Csv.join_fields(Con{f, rest}) == L.join_fields(Con{f, rest}) : String}:
+# The lib writes a row front to back onto what follows it (row_into,
+# field_into, dq_into) and decides quoting in one scan (any_special).
+# c_has, c_nq, c_dq, c_field and c_join are the same text in the shape of
+# LAWS' helpers (with Csv's pick); the laws and the reading proofs below
+# work with them, and field_into_c and row_c identify the lib with them.
+
+def c_has(s: String, +k: U32) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      Bool.or(U32.is_eq(Csv.code(c), k), c_has(rest, k))
+
+def c_nq(+s: String) -> Bool:
+  Csv.pick(Bool, String.is_empty(s), False{},
+    Bool.or(String.eq(s, "\\."), Bool.or(Csv.first_space(s),
+      Bool.or(Bool.or(c_has(s, 44), c_has(s, 34)), Bool.or(c_has(s, 13), c_has(s, 10))))))
+
+def c_dq(s: String) -> String:
+  match s:
+    case SNil{}:
+      SNil{}
+    case SCon{+c, +rest}:
+      Csv.pick(String, U32.is_eq(Csv.code(c), 34), "\"\"", SCon{c, SNil{}}) ++ c_dq(rest)
+
+def c_field(+s: String) -> String:
+  Csv.pick(String, c_nq(s), "\"" ++ c_dq(s) ++ "\"", s)
+
+def c_join(fs: List<&2, String>) -> String:
+  match fs:
+    case Nil{}:
+      ""
+    case Con{+f, +rest}:
+      match rest:
+        case Nil{}:
+          c_field(f)
+        case Con{+g, +more}:
+          c_field(f) ++ "," ++ c_join(Con{g, more})
+
+def app_assoc(a: String, +b: String, +c: String) -> {(a ++ b) ++ c == a ++ (b ++ c) : String}:
+  match a:
+    case SNil{}:
+      {==}
+    case SCon{+h, +t}:
+      %app_assoc(t, b, c) : {SCon{h, (t ++ b) ++ c} == SCon{h, _} : String}
+      {==}
+
+def or_tr(x: Bool) -> {True{} == Bool.or(x, True{}) : Bool}:
+  match x:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def app_nil_c(s: String) -> {s ++ "" == s : String}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+h, +t}:
+      %app_nil_c(t) : {SCon{h, t ++ ""} == SCon{h, _} : String}
+      {==}
+
+# one byte of the scan, its four verdicts as parameters
+def sp_step(b44: Bool, b34: Bool, b13: Bool, b10: Bool, +h44: Bool, +h34: Bool, +h13: Bool, +h10: Bool, +c: Char, +rest: String,
+            ih: {Csv.any_special(rest) == Bool.or(Bool.or(h44, h34), Bool.or(h13, h10)) : Bool})
+  -> {Csv.any_special.go(SCon{c, rest}, Bool.or(Bool.or(b44, b34), Bool.or(b13, b10)))
+      == Bool.or(Bool.or(Bool.or(b44, h44), Bool.or(b34, h34)), Bool.or(Bool.or(b13, h13), Bool.or(b10, h10))) : Bool}:
+  match b44:
+    case True{}:
+      {==}
+    case False{}:
+      match b34:
+        case True{}:
+          %or_tr(h44) : {True{} == Bool.or(_, Bool.or(Bool.or(b13, h13), Bool.or(b10, h10))) : Bool}
+          {==}
+        case False{}:
+          match b13:
+            case True{}:
+              %or_tr(Bool.or(h44, h34)) : {True{} == _ : Bool}
+              {==}
+            case False{}:
+              match b10:
+                case True{}:
+                  %or_tr(h13) : {True{} == Bool.or(Bool.or(h44, h34), _) : Bool}
+                  %or_tr(Bool.or(h44, h34)) : {True{} == _ : Bool}
+                  {==}
+                case False{}:
+                  ih
+
+# the one scan is the four has_char
+def special_c(s: String) -> {Csv.any_special(s) == Bool.or(Bool.or(c_has(s, 44), c_has(s, 34)), Bool.or(c_has(s, 13), c_has(s, 10))) : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{c, +rest}:
+      match c:
+        case Chr{+k}:
+          sp_step(U32.is_eq(k, 44), U32.is_eq(k, 34), U32.is_eq(k, 13), U32.is_eq(k, 10),
+            c_has(rest, 44), c_has(rest, 34), c_has(rest, 13), c_has(rest, 10), Chr{k}, rest, special_c(rest))
+
+# bsd is String.eq(s, "\\."): a case on each byte's comparison
+def bsd3(d: Cmp, +k0: U32, +k1: U32, r1: String)
+  -> {Bool.and(Cmp.is_eq(d), String.is_empty(r1))
+      == String.eq.fin(String.cmp.rec(Chr{k0}, Chr{92}, String.cmp.fin(r1, SNil{}, ((Chr{k1}, Chr{46}), d)))) : Bool}:
+  match d:
+    case LT{}:
+      {==}
+    case EQ{}:
+      match r1:
+        case SNil{}:
+          {==}
+        case SCon{+h, +t}:
+          {==}
+    case GT{}:
+      {==}
+
+def bsd2(c: Cmp, +k0: U32, +k1: U32, +r1: String)
+  -> {Bool.and(Bool.and(Cmp.is_eq(c), U32.is_eq(k1, 46)), String.is_empty(r1))
+      == String.eq.fin(String.cmp.fin(SCon{Chr{k1}, r1}, SCon{Chr{46}, SNil{}}, ((Chr{k0}, Chr{92}), c))) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      bsd3(U32.cmp(k1, 46), k0, k1, r1)
+    case GT{}:
+      {==}
+
+def bsd1(c: Cmp, +k0: U32)
+  -> {False{} == String.eq.fin(String.cmp.fin(SNil{}, SCon{Chr{46}, SNil{}}, ((Chr{k0}, Chr{92}), c))) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+def bsd_eq(s: String) -> {Csv.bsd(s) == String.eq(s, "\\.") : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{c0, +r0}:
+      match c0:
+        case Chr{+k0}:
+          match r0:
+            case SNil{}:
+              bsd1(U32.cmp(k0, 92), k0)
+            case SCon{c1, +r1}:
+              match c1:
+                case Chr{+k1}:
+                  bsd2(U32.cmp(k0, 92), k0, k1, r1)
+
+def nq_c(+s: String) -> {Csv.needs_quotes(s) == c_nq(s) : Bool}:
+  %special_c(s) : {Csv.needs_quotes(s) == Csv.pick(Bool, String.is_empty(s), False{}, Bool.or(String.eq(s, "\\."), Bool.or(Csv.first_space(s), _))) : Bool}
+  %bsd_eq(s) : {Csv.needs_quotes(s) == Csv.pick(Bool, String.is_empty(s), False{}, Bool.or(_, Bool.or(Csv.first_space(s), Csv.any_special(s)))) : Bool}
+  {==}
+
+def dqo(q: Bool, +c: Char, +X: String, +Y: String, +t: String, e: {X == Y ++ t : String})
+  -> {Csv.dq.of(q, c, X) == (Csv.pick(String, q, "\"\"", SCon{c, SNil{}}) ++ Y) ++ t : String}:
+  match q:
+    case True{}:
+      %e : {SCon{Chr{34}, SCon{Chr{34}, X}} == SCon{Chr{34}, SCon{Chr{34}, _}} : String}
+      {==}
+    case False{}:
+      %e : {SCon{c, X} == SCon{c, _} : String}
+      {==}
+
+def dq_c(s: String, +t: String) -> {Csv.dq_into(s, t) == c_dq(s) ++ t : String}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+c, +rest}:
+      dqo(U32.is_eq(Csv.code(c), 34), c, Csv.dq_into(rest, t), c_dq(rest), t, dq_c(rest, t))
+
+def fo(b: Bool, +s: String, +t: String) -> {Csv.field.of(b, s, t) == Csv.pick(String, b, "\"" ++ c_dq(s) ++ "\"", s) ++ t : String}:
+  match b:
+    case True{}:
+      %Equal.sym(String, (c_dq(s) ++ "\"") ++ t, c_dq(s) ++ ("\"" ++ t), app_assoc(c_dq(s), "\"", t))
+        : {SCon{Chr{34}, Csv.dq_into(s, SCon{Chr{34}, t})} == SCon{Chr{34}, _} : String}
+      %dq_c(s, SCon{Chr{34}, t}) : {SCon{Chr{34}, Csv.dq_into(s, SCon{Chr{34}, t})} == SCon{Chr{34}, _} : String}
+      {==}
+    case False{}:
+      {==}
+
+def field_into_c(+s: String, +t: String) -> {Csv.field_into(s, t) == c_field(s) ++ t : String}:
+  %nq_c(s) : {Csv.field_into(s, t) == Csv.pick(String, _, "\"" ++ c_dq(s) ++ "\"", s) ++ t : String}
+  fo(Csv.needs_quotes(s), s, t)
+
+def and_f(x: Bool) -> {Bool.and(x, False{}) == False{} : Bool}:
+  match x:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def field_c(+s: String) -> {Csv.field(s) == c_field(s) : String}:
+  Equal.trans(String, Csv.field(s), c_field(s) ++ "", c_field(s), field_into_c(s, ""), app_nil_c(c_field(s)))
+
+def row_c(rest: List<&2, String>, +f: String) -> {Csv.row_into(Con{f, rest}) == c_join(Con{f, rest}) ++ "\n" : String}:
   match rest:
     case Nil{}:
-      {==}
+      field_into_c(f, "\n")
     case Con{+g, +more}:
-      %join_same(more, g) : {Csv.field(f) ++ "," ++ Csv.join_fields(Con{g, more}) == Csv.field(f) ++ "," ++ _ : String}
+      +j = c_join(Con{g, more})
+      %Equal.sym(String, (c_field(f) ++ ("," ++ j)) ++ "\n", c_field(f) ++ (("," ++ j) ++ "\n"), app_assoc(c_field(f), "," ++ j, "\n"))
+        : {Csv.row_into(Con{f, Con{g, more}}) == _ : String}
+      %row_c(more, g) : {Csv.row_into(Con{f, Con{g, more}}) == c_field(f) ++ SCon{',', _} : String}
+      field_into_c(f, SCon{',', Csv.row_into(Con{g, more})})
+
+def join_same(rest: List<&2, String>, +f: String)
+  -> {c_join(Con{f, rest}) == L.join_fields(Con{f, rest}) : String}:
+  match rest:
+    case Nil{}:
+      Equal.sym(String, Csv.field(f), c_field(f), field_c(f))
+    case Con{+g, +more}:
+      %join_same(more, g) : {c_field(f) ++ "," ++ c_join(Con{g, more}) == Csv.field(f) ++ "," ++ _ : String}
+      %Equal.sym(String, Csv.field(f), c_field(f), field_c(f)) : {c_field(f) ++ "," ++ c_join(Con{g, more}) == _ ++ "," ++ c_join(Con{g, more}) : String}
       {==}
 
 def L.csv_row(fs):
@@ -72,8 +282,8 @@ def L.csv_row(fs):
     case Nil{}:
       {==}
     case Con{+f, +rest}:
-      %join_same(rest, f) : {Csv.join_fields(Con{f, rest}) ++ "\n" == _ ++ "\n" : String}
-      {==}
+      %join_same(rest, f) : {Csv.row(Con{f, rest}) == _ ++ "\n" : String}
+      row_c(rest, f)
 
 def pick_c(-A: Data, c: Bool, -a: A, -b: A, -x: A, -y: A, ea: {a == x : A}, eb: {b == y : A})
   -> {Csv.pick(A, c, a, b) == L.pick(A, c, x, y) : A}:
@@ -96,14 +306,14 @@ def byte_at_c(s: String, +i: Nat) -> {Csv.byte_at(s, i) == L.byte_at(s, i) : U32
             case 1n+j:
               byte_at_c(rest, j)
 
-def has_char_c(s: String, +k: U32) -> {Csv.has_char(s, k) == L.has_char(s, k) : Bool}:
+def has_char_c(s: String, +k: U32) -> {c_has(s, k) == L.has_char(s, k) : Bool}:
   match s:
     case SNil{}:
       {==}
     case SCon{+c, +rest}:
       match c:
         case Chr{+kc}:
-          %has_char_c(rest, k) : {Csv.has_char(SCon{Chr{kc}, rest}, k) == Bool.or(U32.is_eq(kc, k), _) : Bool}
+          %has_char_c(rest, k) : {c_has(SCon{Chr{kc}, rest}, k) == Bool.or(U32.is_eq(kc, k), _) : Bool}
           {==}
 
 # first_space with its three bytes as parameters
@@ -129,31 +339,35 @@ def c_needs_quotes(fs: Bool, h44: Bool, h34: Bool, h13: Bool, h10: Bool, +s: Str
   Csv.pick(Bool, String.is_empty(s), False{},
     Bool.or(String.eq(s, "\\."), Bool.or(fs, Bool.or(Bool.or(h44, h34), Bool.or(h13, h10)))))
 
-def needs_quotes_c(+s: String) -> {Csv.needs_quotes(s) == L.needs_quotes(s) : Bool}:
-  %first_space_c(s) : {Csv.needs_quotes(s) == l_needs_quotes(_, L.has_char(s, 44), L.has_char(s, 34), L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
-  %has_char_c(s, 44) : {Csv.needs_quotes(s) == l_needs_quotes(Csv.first_space(s), _, L.has_char(s, 34), L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
-  %has_char_c(s, 34) : {Csv.needs_quotes(s) == l_needs_quotes(Csv.first_space(s), Csv.has_char(s, 44), _, L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
-  %has_char_c(s, 13) : {Csv.needs_quotes(s) == l_needs_quotes(Csv.first_space(s), Csv.has_char(s, 44), Csv.has_char(s, 34), _, L.has_char(s, 10), s) : Bool}
-  %has_char_c(s, 10) : {Csv.needs_quotes(s) == l_needs_quotes(Csv.first_space(s), Csv.has_char(s, 44), Csv.has_char(s, 34), Csv.has_char(s, 13), _, s) : Bool}
-  +x = Bool.or(String.eq(s, "\\."), Bool.or(Csv.first_space(s), Bool.or(Bool.or(Csv.has_char(s, 44), Csv.has_char(s, 34)), Bool.or(Csv.has_char(s, 13), Csv.has_char(s, 10)))))
+def needs_quotes_c(+s: String) -> {c_nq(s) == L.needs_quotes(s) : Bool}:
+  %first_space_c(s) : {c_nq(s) == l_needs_quotes(_, L.has_char(s, 44), L.has_char(s, 34), L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
+  %has_char_c(s, 44) : {c_nq(s) == l_needs_quotes(Csv.first_space(s), _, L.has_char(s, 34), L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
+  %has_char_c(s, 34) : {c_nq(s) == l_needs_quotes(Csv.first_space(s), c_has(s, 44), _, L.has_char(s, 13), L.has_char(s, 10), s) : Bool}
+  %has_char_c(s, 13) : {c_nq(s) == l_needs_quotes(Csv.first_space(s), c_has(s, 44), c_has(s, 34), _, L.has_char(s, 10), s) : Bool}
+  %has_char_c(s, 10) : {c_nq(s) == l_needs_quotes(Csv.first_space(s), c_has(s, 44), c_has(s, 34), c_has(s, 13), _, s) : Bool}
+  +x = Bool.or(String.eq(s, "\\."), Bool.or(Csv.first_space(s), Bool.or(Bool.or(c_has(s, 44), c_has(s, 34)), Bool.or(c_has(s, 13), c_has(s, 10)))))
   pick_c(Bool, String.is_empty(s), False{}, x, False{}, x, {==}, {==})
 
-def double_quotes_c(s: String) -> {Csv.double_quotes(s) == L.double_quotes(s) : String}:
+def double_quotes_c(s: String) -> {c_dq(s) == L.double_quotes(s) : String}:
   match s:
     case SNil{}:
       {==}
     case SCon{+c, +rest}:
       match c:
         case Chr{+k}:
-          %double_quotes_c(rest) : {Csv.double_quotes(SCon{Chr{k}, rest}) == L.pick(String, U32.is_eq(k, 34), "\"\"", SCon{Chr{k}, SNil{}}) ++ _ : String}
+          %double_quotes_c(rest) : {c_dq(SCon{Chr{k}, rest}) == L.pick(String, U32.is_eq(k, 34), "\"\"", SCon{Chr{k}, SNil{}}) ++ _ : String}
           %pick_c(String, U32.is_eq(k, 34), "\"\"", SCon{Chr{k}, SNil{}}, "\"\"", SCon{Chr{k}, SNil{}}, {==}, {==})
-            : {Csv.double_quotes(SCon{Chr{k}, rest}) == _ ++ Csv.double_quotes(rest) : String}
+            : {c_dq(SCon{Chr{k}, rest}) == _ ++ c_dq(rest) : String}
           {==}
 
+def cfield_l(+s: String) -> {c_field(s) == L.pick(String, L.needs_quotes(s), "\"" ++ L.double_quotes(s) ++ "\"", s) : String}:
+  %needs_quotes_c(s) : {c_field(s) == L.pick(String, _, "\"" ++ L.double_quotes(s) ++ "\"", s) : String}
+  %double_quotes_c(s) : {c_field(s) == L.pick(String, c_nq(s), "\"" ++ _ ++ "\"", s) : String}
+  pick_c(String, c_nq(s), "\"" ++ c_dq(s) ++ "\"", s, "\"" ++ c_dq(s) ++ "\"", s, {==}, {==})
+
 def L.csv_field(s):
-  %needs_quotes_c(s) : {Csv.field(s) == L.pick(String, _, "\"" ++ L.double_quotes(s) ++ "\"", s) : String}
-  %double_quotes_c(s) : {Csv.field(s) == L.pick(String, Csv.needs_quotes(s), "\"" ++ _ ++ "\"", s) : String}
-  pick_c(String, Csv.needs_quotes(s), "\"" ++ Csv.double_quotes(s) ++ "\"", s, "\"" ++ Csv.double_quotes(s) ++ "\"", s, {==}, {==})
+  Equal.trans(String, Csv.field(s), c_field(s), L.pick(String, L.needs_quotes(s), "\"" ++ L.double_quotes(s) ++ "\"", s),
+    field_c(s), cfield_l(s))
 
 # ---------------------------------------------------------------------
 # JSON strings
@@ -339,9 +553,137 @@ def esc_go_j(fuel: Nat, +s: String) -> {Json.esc.go(fuel, s) == L.jesc.go(fuel, 
         : {Json.esc.go(1n+f, s) == _ ++ Json.esc.go(f, String.drop(s, Json.esc_len(s))) : String}
       {==}
 
+def esc_nil(m: Nat) -> {Json.esc.go(m, "") == "" : String}:
+  match m:
+    case 0n:
+      {==}
+    case 1n+(+p):
+      esc_nil(p)
+
+# str escapes front to back (esc_into): an ASCII byte through the match
+# chain ea..ea.6, which is esc_ascii's pick chain link by link
+def ea6_j(c: Bool, +k: U32, +t: String)
+  -> {Json.ea.6(c, k, t) == Json.pick(String, c, "\\u00" ++ Json.hexd((k >> 4n : U32)) ++ Json.hexd((k .&. 15 : U32)), Json.str1(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def ea5_j(c: Bool, +k: U32, +t: String) -> {Json.ea.5(c, k, t) == Json.pick(String, c, "\\t", Json.esc_ascii.6(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      ea6_j(Bool.or(U32.is_lt(k, 32), Bool.or(U32.is_eq(k, 60), Bool.or(U32.is_eq(k, 62), U32.is_eq(k, 38)))), k, t)
+
+def ea4_j(c: Bool, +k: U32, +t: String) -> {Json.ea.4(c, k, t) == Json.pick(String, c, "\\r", Json.esc_ascii.5(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      ea5_j(U32.is_eq(k, 9), k, t)
+
+def ea3_j(c: Bool, +k: U32, +t: String) -> {Json.ea.3(c, k, t) == Json.pick(String, c, "\\n", Json.esc_ascii.4(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      ea4_j(U32.is_eq(k, 13), k, t)
+
+def ea2_j(c: Bool, +k: U32, +t: String) -> {Json.ea.2(c, k, t) == Json.pick(String, c, "\\\\", Json.esc_ascii.3(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      ea3_j(U32.is_eq(k, 10), k, t)
+
+def ea1_j(c: Bool, +k: U32, +t: String) -> {Json.ea(c, k, t) == Json.pick(String, c, "\\\"", Json.esc_ascii.2(k)) ++ t : String}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      ea2_j(U32.is_eq(k, 92), k, t)
+
+def eai_j(+k: U32, +t: String) -> {Json.esc_ascii_into(k, t) == Json.esc_ascii(k) ++ t : String}:
+  ea1_j(U32.is_eq(k, 34), k, t)
+
+# an ASCII byte is a unit of one byte
+def u1_j(+k: U32, +rest: String, e: {U32.is_lt(k, 128) == True{} : Bool}) -> {Json.utf8_len(SCon{Chr{k}, rest}) == 1n : Nat}:
+  +s = {SCon{Chr{k}, rest} : String}
+  %Equal.sym(Bool, U32.is_lt(k, 128), True{}, e)
+    : {Json.pick(Nat, _, 1n, Json.utf8_len.2(k, Json.byte_at(s, 1n), Json.cont(s, 1n), Json.cont(s, 2n), Json.cont(s, 3n))) == 1n : Nat}
+  {==}
+
+def drop0_j(s: String) -> {String.drop(s, 0n) == s : String}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+h, +t}:
+      {==}
+
+# one unit, the rest escaped (ih) behind it
+def ue_j(a: Bool, +k: U32, +rest: String, +f: Nat, +t: String, e: {U32.is_lt(k, 128) == a : Bool},
+         ih: {Json.esc_into(f, Json.next(a, Chr{k}, rest), t) == Json.esc.go(f, Json.next(a, Chr{k}, rest)) ++ t : String})
+  -> {Json.unit_into(a, k, Chr{k}, rest, Json.esc_into(f, Json.next(a, Chr{k}, rest), t))
+      == (Json.esc_head(SCon{Chr{k}, rest}) ++ Json.esc.go(f, String.drop(SCon{Chr{k}, rest}, Json.esc_len(SCon{Chr{k}, rest})))) ++ t : String}:
+  match a:
+    case True{}:
+      +s = {SCon{Chr{k}, rest} : String}
+      +x = Json.esc_into(f, rest, t)
+      %Equal.sym(Nat, Json.utf8_len(s), 1n, u1_j(k, rest, e))
+        : {Json.esc_ascii_into(k, x)
+           == (Json.esc_head.of(_, k, Json.byte_at(s, 1n), Json.byte_at(s, 2n), s) ++ Json.esc.go(f, String.drop(s, Nat.max(1n, _)))) ++ t : String}
+      %Equal.sym(String, String.drop(rest, 0n), rest, drop0_j(rest))
+        : {Json.esc_ascii_into(k, x) == (Json.esc_ascii(k) ++ Json.esc.go(f, _)) ++ t : String}
+      %Equal.sym(String, x, Json.esc.go(f, rest) ++ t, ih)
+        : {Json.esc_ascii_into(k, _) == (Json.esc_ascii(k) ++ Json.esc.go(f, rest)) ++ t : String}
+      %Equal.sym(String, (Json.esc_ascii(k) ++ Json.esc.go(f, rest)) ++ t, Json.esc_ascii(k) ++ (Json.esc.go(f, rest) ++ t),
+          app_assoc(Json.esc_ascii(k), Json.esc.go(f, rest), t))
+        : {Json.esc_ascii_into(k, Json.esc.go(f, rest) ++ t) == _ : String}
+      eai_j(k, Json.esc.go(f, rest) ++ t)
+    case False{}:
+      +s = {SCon{Chr{k}, rest} : String}
+      +d = String.drop(s, Json.esc_len(s))
+      %Equal.sym(String, Json.esc_into(f, d, t), Json.esc.go(f, d) ++ t, ih)
+        : {Json.esc_head(s) ++ _ == (Json.esc_head(s) ++ Json.esc.go(f, d)) ++ t : String}
+      Equal.sym(String, (Json.esc_head(s) ++ Json.esc.go(f, d)) ++ t, Json.esc_head(s) ++ (Json.esc.go(f, d) ++ t),
+        app_assoc(Json.esc_head(s), Json.esc.go(f, d), t))
+
+def esc_into_e(fuel: Nat, s: String, +t: String) -> {Json.esc_into(fuel, s, t) == Json.esc.go(fuel, s) ++ t : String}:
+  match fuel:
+    case 0n:
+      {==}
+    case 1n+(+f):
+      match s:
+        case SNil{}:
+          %Equal.sym(String, Json.esc.go(f, ""), "", esc_nil(f)) : {t == _ ++ t : String}
+          {==}
+        case SCon{c, +rest}:
+          match c:
+            case Chr{+k}:
+              ue_j(U32.is_lt(k, 128), k, rest, f, t, {==}, esc_into_e(f, Json.next(U32.is_lt(k, 128), Chr{k}, rest), t))
+
+# str is the quotes around esc
+def str_old(+s: String) -> {Json.str(s) == "\"" ++ Json.esc(s) ++ "\"" : String}:
+  %esc_into_e(String.length(s), s, "\"") : {Json.str(s) == SCon{Chr{34}, _} : String}
+  {==}
+
+# str_into(s, t) is str(s) ++ t
+def str_into_e(+s: String, +t: String) -> {Json.str_into(s, t) == Json.str(s) ++ t : String}:
+  +n = String.length(s)
+  +e = Json.esc.go(n, s)
+  %Equal.sym(String, Json.esc_into(n, s, SCon{Chr{34}, t}), e ++ SCon{Chr{34}, t}, esc_into_e(n, s, SCon{Chr{34}, t}))
+    : {SCon{Chr{34}, _} == Json.str(s) ++ t : String}
+  %Equal.sym(String, Json.esc_into(n, s, "\""), e ++ "\"", esc_into_e(n, s, "\""))
+    : {SCon{Chr{34}, e ++ SCon{Chr{34}, t}} == SCon{Chr{34}, _ ++ t} : String}
+  %Equal.sym(String, (e ++ "\"") ++ t, e ++ ("\"" ++ t), app_assoc(e, "\"", t))
+    : {SCon{Chr{34}, e ++ SCon{Chr{34}, t}} == SCon{Chr{34}, _} : String}
+  {==}
+
 def L.json_str(s):
   %esc_go_j(String.length(s), s) : {Json.str(s) == "\"" ++ _ ++ "\"" : String}
-  {==}
+  str_old(s)
 
 # ---------------------------------------------------------------------
 # Base64
@@ -504,13 +846,6 @@ def and_r(p: Bool, -q: Bool, h: {Bool.and(p, q) == True{} : Bool}) -> {q == True
       h
 
 def and_t(x: Bool) -> {Bool.and(x, True{}) == x : Bool}:
-  match x:
-    case False{}:
-      {==}
-    case True{}:
-      {==}
-
-def and_f(x: Bool) -> {Bool.and(x, False{}) == False{} : Bool}:
   match x:
     case False{}:
       {==}
@@ -2131,21 +2466,6 @@ def unit_esc(+k0: U32, +t0: String, +X: String, +hn: {Nat.is_eq(Json.utf8_len(SC
 # JSON reading: the loop
 # ---------------------------------------------------------------------
 
-def app_assoc(a: String, +b: String, +c: String) -> {(a ++ b) ++ c == a ++ (b ++ c) : String}:
-  match a:
-    case SNil{}:
-      {==}
-    case SCon{+h, +t}:
-      %app_assoc(t, b, c) : {SCon{h, (t ++ b) ++ c} == SCon{h, _} : String}
-      {==}
-
-def esc_nil(m: Nat) -> {Json.esc.go(m, "") == "" : String}:
-  match m:
-    case 0n:
-      {==}
-    case 1n+(+p):
-      esc_nil(p)
-
 # the bytes a unit reads, then the rest of s, onto acc
 def rtd(n: Nat, s: String, +acc: String)
   -> {String.reverse.go(String.drop(s, n), String.reverse.go(Json.taken(n, s), acc)) == String.reverse.go(s, acc) : String}:
@@ -2402,6 +2722,8 @@ def loop(m: Nat, s: String, f: String, +acc: String, +rest: String,
 
 def L.json_read_str(s, rest, h):
   +t = Json.esc(s) ++ ("\"" ++ rest)
+  %Equal.sym(String, Json.str(s), "\"" ++ Json.esc(s) ++ "\"", str_old(s))
+    : {Json.read_str(_ ++ rest) == Some{(s, rest)} : Maybe<&1, String & String>}
   %Equal.sym(String, (Json.esc(s) ++ "\"") ++ rest, t, app_assoc(Json.esc(s), "\"", rest))
     : {Json.read.go(SCon{Chr{0}, _}, "", Json.unit(_)) == Some{(s, rest)} : Maybe<&1, String & String>}
   %rr(s, "") : {Json.read.go(SCon{Chr{0}, t}, "", Json.unit(t)) == Some{(_, rest)} : Maybe<&1, String & String>}
@@ -2426,19 +2748,19 @@ def cutof(last: Bool) -> Csv.Cut:
     case False{}:
       Csv.CsvSep{}
 
-def hc_head(+k: U32, +f: String, +c: U32, h: {Csv.has_char(SCon{Chr{k}, f}, c) == False{} : Bool}) -> {U32.is_eq(k, c) == False{} : Bool}:
-  or_l(U32.is_eq(k, c), Csv.has_char(f, c), h)
+def hc_head(+k: U32, +f: String, +c: U32, h: {c_has(SCon{Chr{k}, f}, c) == False{} : Bool}) -> {U32.is_eq(k, c) == False{} : Bool}:
+  or_l(U32.is_eq(k, c), c_has(f, c), h)
 
-def hc_tail(+k: U32, +f: String, +c: U32, h: {Csv.has_char(SCon{Chr{k}, f}, c) == False{} : Bool}) -> {Csv.has_char(f, c) == False{} : Bool}:
-  or_r(U32.is_eq(k, c), Csv.has_char(f, c), h)
+def hc_tail(+k: U32, +f: String, +c: U32, h: {c_has(SCon{Chr{k}, f}, c) == False{} : Bool}) -> {c_has(f, c) == False{} : Bool}:
+  or_r(U32.is_eq(k, c), c_has(f, c), h)
 
 def fgoal_b(+f: String, +fuel: String, +last: Bool, +acc: String, +T: String) -> Type:
   {Csv.field.go(fuel, False{}, Csv.Fld{acc, f ++ (sep(last) ++ T), Csv.CsvMore{}}) == Csv.Fld{String.reverse.go(f, acc), T, cutof(last)} : Csv.Fld}
 
 # a bare field: every byte is copied, then the separator ends it
 def bare_loop(f: String, +last: Bool, fuel: String, +acc: String, +T: String,
-              +h44: {Csv.has_char(f, 44) == False{} : Bool}, +h10: {Csv.has_char(f, 10) == False{} : Bool},
-              +h13: {Csv.has_char(f, 13) == False{} : Bool}, +h34: {Csv.has_char(f, 34) == False{} : Bool},
+              +h44: {c_has(f, 44) == False{} : Bool}, +h10: {c_has(f, 10) == False{} : Bool},
+              +h13: {c_has(f, 13) == False{} : Bool}, +h34: {c_has(f, 34) == False{} : Bool},
               +hf: {Nat.is_lt(String.length(f), String.length(fuel)) == True{} : Bool})
   -> fgoal_b(f, fuel, last, acc, T):
   match f:
@@ -2510,23 +2832,23 @@ def sw_nil(t: String) -> {String.starts_with(t, "") == True{} : Bool}:
 
 # after a CR in a field without CRLF, the next byte of the quoted text is not LF
 def nfirst.q(b: Bool, +k2: U32, +f2: String, +X: String, +e: {U32.is_eq(k2, 34) == b : Bool}, +h10: {U32.is_eq(k2, 10) == False{} : Bool})
-  -> {Csv.first_is(Csv.double_quotes(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}:
+  -> {Csv.first_is(c_dq(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}:
   match b:
     case True{}:
       %Equal.sym(Bool, U32.is_eq(k2, 34), True{}, e)
-        : {Csv.first_is((Csv.pick(String, _, "\"\"", SCon{Chr{k2}, SNil{}}) ++ Csv.double_quotes(f2)) ++ ("\"" ++ X), 10) == False{} : Bool}
+        : {Csv.first_is((Csv.pick(String, _, "\"\"", SCon{Chr{k2}, SNil{}}) ++ c_dq(f2)) ++ ("\"" ++ X), 10) == False{} : Bool}
       {==}
     case False{}:
       %Equal.sym(Bool, U32.is_eq(k2, 34), False{}, e)
-        : {Csv.first_is((Csv.pick(String, _, "\"\"", SCon{Chr{k2}, SNil{}}) ++ Csv.double_quotes(f2)) ++ ("\"" ++ X), 10) == False{} : Bool}
+        : {Csv.first_is((Csv.pick(String, _, "\"\"", SCon{Chr{k2}, SNil{}}) ++ c_dq(f2)) ++ ("\"" ++ X), 10) == False{} : Bool}
       h10
 
 def nfirst.of(b: Bool, +k2: U32, +f2: String, +X: String, +e: {U32.is_eq(k2, 10) == b : Bool},
               +h: {String.contains.if(SCon{Chr{k2}, f2}, "\r\n", String.starts_with.if(f2, "", U32.is_eq(k2, 10))) == False{} : Bool})
-  -> {Csv.first_is(Csv.double_quotes(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}:
+  -> {Csv.first_is(c_dq(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}:
   match b:
     case True{}:
-      Empty.absurd({Csv.first_is(Csv.double_quotes(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}, no_tf(
+      Empty.absurd({Csv.first_is(c_dq(SCon{Chr{k2}, f2}) ++ ("\"" ++ X), 10) == False{} : Bool}, no_tf(
         Equal.trans(Bool, True{}, String.contains.if(SCon{Chr{k2}, f2}, "\r\n", String.starts_with.if(f2, "", U32.is_eq(k2, 10))), False{},
           Equal.trans(Bool, True{}, String.contains.if(SCon{Chr{k2}, f2}, "\r\n", String.starts_with.if(f2, "", True{})),
             String.contains.if(SCon{Chr{k2}, f2}, "\r\n", String.starts_with.if(f2, "", U32.is_eq(k2, 10))),
@@ -2540,7 +2862,7 @@ def nfirst.of(b: Bool, +k2: U32, +f2: String, +X: String, +e: {U32.is_eq(k2, 10)
 
 def nfirst(+k: U32, f: String, +X: String, +hk: {U32.is_eq(k, 13) == True{} : Bool},
            +h: {String.contains(SCon{Chr{k}, f}, "\r\n") == False{} : Bool})
-  -> {Csv.first_is(Csv.double_quotes(f) ++ ("\"" ++ X), 10) == False{} : Bool}:
+  -> {Csv.first_is(c_dq(f) ++ ("\"" ++ X), 10) == False{} : Bool}:
   match f:
     case SNil{}:
       {==}
@@ -2556,16 +2878,16 @@ def nfirst(+k: U32, f: String, +X: String, +hk: {U32.is_eq(k, 13) == True{} : Bo
               h))
 
 def qgoal_step(+k: U32, +fr: String, +fp: String, +c: Char, +acc: String, +Z: String) -> Type:
-  {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, Csv.double_quotes(SCon{Chr{k}, fr}) ++ ("\"" ++ Z), Csv.CsvMore{}})
-   == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, Csv.double_quotes(fr) ++ ("\"" ++ Z), Csv.CsvMore{}}) : Csv.Fld}
+  {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, c_dq(SCon{Chr{k}, fr}) ++ ("\"" ++ Z), Csv.CsvMore{}})
+   == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, c_dq(fr) ++ ("\"" ++ Z), Csv.CsvMore{}}) : Csv.Fld}
 
 def qstep.cr(b: Bool, +k: U32, +fr: String, +fp: String, +c: Char, +acc: String, +Z: String, +e: {U32.is_eq(k, 13) == b : Bool},
              +hcr: {String.contains(SCon{Chr{k}, fr}, "\r\n") == False{} : Bool})
-  -> {Csv.field.go(fp, True{}, Csv.quoted.byte.2(k, acc, Csv.double_quotes(fr) ++ ("\"" ++ Z)))
-      == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, Csv.double_quotes(fr) ++ ("\"" ++ Z), Csv.CsvMore{}}) : Csv.Fld}:
+  -> {Csv.field.go(fp, True{}, Csv.quoted.byte.2(k, acc, c_dq(fr) ++ ("\"" ++ Z)))
+      == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, c_dq(fr) ++ ("\"" ++ Z), Csv.CsvMore{}}) : Csv.Fld}:
   match b:
     case True{}:
-      +y = Csv.double_quotes(fr) ++ ("\"" ++ Z)
+      +y = c_dq(fr) ++ ("\"" ++ Z)
       +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, y, Csv.CsvMore{}})
       %Equal.sym(Bool, Csv.first_is(y, 10), False{}, nfirst(k, fr, Z, e, hcr))
         : {Csv.field.go(fp, True{}, Csv.pick(Csv.Fld, Bool.and(U32.is_eq(k, 13), _), Csv.Fld{SCon{'\n', acc}, Csv.dropn(1n, y), Csv.CsvMore{}},
@@ -2575,7 +2897,7 @@ def qstep.cr(b: Bool, +k: U32, +fr: String, +fp: String, +c: Char, +acc: String,
              Csv.Fld{SCon{Chr{k}, acc}, y, Csv.CsvMore{}})) == r : Csv.Fld}
       {==}
     case False{}:
-      +y = Csv.double_quotes(fr) ++ ("\"" ++ Z)
+      +y = c_dq(fr) ++ ("\"" ++ Z)
       +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, y, Csv.CsvMore{}})
       %Equal.sym(Bool, U32.is_eq(k, 13), False{}, e)
         : {Csv.field.go(fp, True{}, Csv.pick(Csv.Fld, Bool.and(_, Csv.first_is(y, 10)), Csv.Fld{SCon{'\n', acc}, Csv.dropn(1n, y), Csv.CsvMore{}},
@@ -2587,24 +2909,24 @@ def qstep.of(b: Bool, +k: U32, +fr: String, +fp: String, +c: Char, +acc: String,
   match b:
     case True{}:
       +q = "\"" ++ Z
-      +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, Csv.double_quotes(fr) ++ q, Csv.CsvMore{}})
+      +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, c_dq(fr) ++ q, Csv.CsvMore{}})
       %Equal.sym(Bool, U32.is_eq(k, 34), True{}, e)
-        : {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, (Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ Csv.double_quotes(fr)) ++ q, Csv.CsvMore{}}) == r : Csv.Fld}
+        : {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, (Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ c_dq(fr)) ++ q, Csv.CsvMore{}}) == r : Csv.Fld}
       %Equal.sym(U32, k, 34, u32_eq(k, 34, e))
-        : {Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{34}, acc}, Csv.double_quotes(fr) ++ q, Csv.CsvMore{}})
-           == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{_}, acc}, Csv.double_quotes(fr) ++ q, Csv.CsvMore{}}) : Csv.Fld}
+        : {Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{34}, acc}, c_dq(fr) ++ q, Csv.CsvMore{}})
+           == Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{_}, acc}, c_dq(fr) ++ q, Csv.CsvMore{}}) : Csv.Fld}
       {==}
     case False{}:
       +q = "\"" ++ Z
-      +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, Csv.double_quotes(fr) ++ q, Csv.CsvMore{}})
+      +r = Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, c_dq(fr) ++ q, Csv.CsvMore{}})
       %Equal.sym(Bool, U32.is_eq(k, 34), False{}, e)
-        : {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, (Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ Csv.double_quotes(fr)) ++ q, Csv.CsvMore{}}) == r : Csv.Fld}
+        : {Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, (Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ c_dq(fr)) ++ q, Csv.CsvMore{}}) == r : Csv.Fld}
       %Equal.sym(Bool, U32.is_eq(k, 34), False{}, e)
-        : {Csv.field.go(fp, True{}, Csv.quoted.byte.of(_, k, acc, Csv.double_quotes(fr) ++ q)) == r : Csv.Fld}
+        : {Csv.field.go(fp, True{}, Csv.quoted.byte.of(_, k, acc, c_dq(fr) ++ q)) == r : Csv.Fld}
       qstep.cr(U32.is_eq(k, 13), k, fr, fp, c, acc, Z, {==}, hcr)
 
 def fgoal_q(+f: String, +fuel: String, +last: Bool, +acc: String, +T: String) -> Type:
-  {Csv.field.go(fuel, True{}, Csv.Fld{acc, Csv.double_quotes(f) ++ ("\"" ++ (sep(last) ++ T)), Csv.CsvMore{}})
+  {Csv.field.go(fuel, True{}, Csv.Fld{acc, c_dq(f) ++ ("\"" ++ (sep(last) ++ T)), Csv.CsvMore{}})
    == Csv.Fld{String.reverse.go(f, acc), T, cutof(last)} : Csv.Fld}
 
 # a quoted field: doubled quotes come back single, the closing quote and
@@ -2645,8 +2967,8 @@ def quoted_loop(f: String, +last: Bool, fuel: String, +acc: String, +T: String,
             case SCon{+c, +fp}:
               +z = sep(last) ++ T
               Equal.trans(Csv.Fld,
-                Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, Csv.double_quotes(SCon{Chr{k}, fr}) ++ ("\"" ++ z), Csv.CsvMore{}}),
-                Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, Csv.double_quotes(fr) ++ ("\"" ++ z), Csv.CsvMore{}}),
+                Csv.field.go(SCon{c, fp}, True{}, Csv.Fld{acc, c_dq(SCon{Chr{k}, fr}) ++ ("\"" ++ z), Csv.CsvMore{}}),
+                Csv.field.go(fp, True{}, Csv.Fld{SCon{Chr{k}, acc}, c_dq(fr) ++ ("\"" ++ z), Csv.CsvMore{}}),
                 Csv.Fld{String.reverse.go(SCon{Chr{k}, fr}, acc), T, cutof(last)},
                 qstep.of(U32.is_eq(k, 34), k, fr, fp, c, acc, z, {==}, hcr),
                 quoted_loop(fr, last, fp, SCon{Chr{k}, acc}, T, ctail(k, fr, hcr), hf))
@@ -2677,25 +2999,25 @@ def pre_le(a: String, +b: String) -> {Nat.is_le(String.length(a), String.length(
       pre_le(t, b)
 
 def dq_step.of(b: Bool, +k: U32, +r: String, +e: {U32.is_eq(k, 34) == b : Bool})
-  -> {Nat.is_le(1n+String.length(Csv.double_quotes(r)), String.length(Csv.double_quotes(SCon{Chr{k}, r}))) == True{} : Bool}:
+  -> {Nat.is_le(1n+String.length(c_dq(r)), String.length(c_dq(SCon{Chr{k}, r}))) == True{} : Bool}:
   match b:
     case True{}:
       %Equal.sym(Bool, U32.is_eq(k, 34), True{}, e)
-        : {Nat.is_le(1n+String.length(Csv.double_quotes(r)), String.length(Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ Csv.double_quotes(r))) == True{} : Bool}
-      le_succ(String.length(Csv.double_quotes(r)), String.length(Csv.double_quotes(r)), le_refl(String.length(Csv.double_quotes(r))))
+        : {Nat.is_le(1n+String.length(c_dq(r)), String.length(Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ c_dq(r))) == True{} : Bool}
+      le_succ(String.length(c_dq(r)), String.length(c_dq(r)), le_refl(String.length(c_dq(r))))
     case False{}:
       %Equal.sym(Bool, U32.is_eq(k, 34), False{}, e)
-        : {Nat.is_le(1n+String.length(Csv.double_quotes(r)), String.length(Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ Csv.double_quotes(r))) == True{} : Bool}
-      le_refl(String.length(Csv.double_quotes(r)))
+        : {Nat.is_le(1n+String.length(c_dq(r)), String.length(Csv.pick(String, _, "\"\"", SCon{Chr{k}, SNil{}}) ++ c_dq(r))) == True{} : Bool}
+      le_refl(String.length(c_dq(r)))
 
-def dq_len(f: String) -> {Nat.is_le(String.length(f), String.length(Csv.double_quotes(f))) == True{} : Bool}:
+def dq_len(f: String) -> {Nat.is_le(String.length(f), String.length(c_dq(f))) == True{} : Bool}:
   match f:
     case SNil{}:
       {==}
     case SCon{c, +r}:
       match c:
         case Chr{+k}:
-          le_trans(1n+String.length(r), 1n+String.length(Csv.double_quotes(r)), String.length(Csv.double_quotes(SCon{Chr{k}, r})),
+          le_trans(1n+String.length(r), 1n+String.length(c_dq(r)), String.length(c_dq(SCon{Chr{k}, r})),
             dq_len(r), dq_step.of(U32.is_eq(k, 34), k, r, {==}))
 
 # a bare field's first rune is still not a space with the separator after it
@@ -2734,26 +3056,26 @@ def trim_id(+c: Char, +r: String, +h: {Csv.space_len(SCon{c, r}) == 0n : Nat}) -
   {==}
 
 def rgoal(+f: String, +last: Bool, +T: String) -> Type:
-  {Csv.read_field(Csv.field(f) ++ (sep(last) ++ T)) == Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
+  {Csv.read_field(c_field(f) ++ (sep(last) ++ T)) == Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
 
 # a bare field, nonempty
 def rf_bare(+k0: U32, +fr: String, +last: Bool, +T: String,
             +e: {Bool.or(String.eq(SCon{Chr{k0}, fr}, "\\."), Bool.or(Csv.first_space(SCon{Chr{k0}, fr}),
-                   Bool.or(Bool.or(Csv.has_char(SCon{Chr{k0}, fr}, 44), Csv.has_char(SCon{Chr{k0}, fr}, 34)),
-                   Bool.or(Csv.has_char(SCon{Chr{k0}, fr}, 13), Csv.has_char(SCon{Chr{k0}, fr}, 10))))) == False{} : Bool})
+                   Bool.or(Bool.or(c_has(SCon{Chr{k0}, fr}, 44), c_has(SCon{Chr{k0}, fr}, 34)),
+                   Bool.or(c_has(SCon{Chr{k0}, fr}, 13), c_has(SCon{Chr{k0}, fr}, 10))))) == False{} : Bool})
   -> {Csv.read_field(SCon{Chr{k0}, fr} ++ (sep(last) ++ T)) == Csv.Fld{String.reverse.go(SCon{Chr{k0}, fr}, ""), T, cutof(last)} : Csv.Fld}:
   +f = {SCon{Chr{k0}, fr} : String}
   +z = sep(last) ++ T
   +s = {SCon{Chr{k0}, fr ++ z} : String}
-  +o1 = or_r(String.eq(f, "\\."), Bool.or(Csv.first_space(f), Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)))), e)
-  +hfs = or_l(Csv.first_space(f), Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10))), o1)
-  +o2 = or_r(Csv.first_space(f), Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10))), o1)
-  +o3 = or_l(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)), o2)
-  +o4 = or_r(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)), o2)
-  +h44 = or_l(Csv.has_char(f, 44), Csv.has_char(f, 34), o3)
-  +h34 = or_r(Csv.has_char(f, 44), Csv.has_char(f, 34), o3)
-  +h13 = or_l(Csv.has_char(f, 13), Csv.has_char(f, 10), o4)
-  +h10 = or_r(Csv.has_char(f, 13), Csv.has_char(f, 10), o4)
+  +o1 = or_r(String.eq(f, "\\."), Bool.or(Csv.first_space(f), Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)))), e)
+  +hfs = or_l(Csv.first_space(f), Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10))), o1)
+  +o2 = or_r(Csv.first_space(f), Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10))), o1)
+  +o3 = or_l(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)), o2)
+  +o4 = or_r(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)), o2)
+  +h44 = or_l(c_has(f, 44), c_has(f, 34), o3)
+  +h34 = or_r(c_has(f, 44), c_has(f, 34), o3)
+  +h13 = or_l(c_has(f, 13), c_has(f, 10), o4)
+  +h10 = or_r(c_has(f, 13), c_has(f, 10), o4)
   +r = {Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
   %Equal.sym(String, Csv.trim(s), s, trim_id(Chr{k0}, fr ++ z, sl0(k0, fr ++ z, hc_head(k0, fr, 10, h10), fs_app(k0, fr, last, T, hfs))))
     : {Csv.read_field.of(Csv.first_is(_, 34), _) == r : Csv.Fld}
@@ -2763,19 +3085,19 @@ def rf_bare(+k0: U32, +fr: String, +last: Bool, +T: String,
     le_lt_succ(String.length(f), String.length(s), pre_le(f, z)))
 
 def rf.of(b: Bool, +f: String, +last: Bool, +T: String, +hcr: {String.contains(f, "\r\n") == False{} : Bool},
-          +e: {Csv.needs_quotes(f) == b : Bool}) -> rgoal(f, last, T):
+          +e: {c_nq(f) == b : Bool}) -> rgoal(f, last, T):
   match b:
     case True{}:
       +z = sep(last) ++ T
-      +y = Csv.double_quotes(f) ++ ("\"" ++ z)
-      %Equal.sym(Bool, Csv.needs_quotes(f), True{}, e)
-        : {Csv.read_field(Csv.pick(String, _, "\"" ++ Csv.double_quotes(f) ++ "\"", f) ++ z) == Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
-      %Equal.sym(String, (Csv.double_quotes(f) ++ "\"") ++ z, y, app_assoc(Csv.double_quotes(f), "\"", z))
+      +y = c_dq(f) ++ ("\"" ++ z)
+      %Equal.sym(Bool, c_nq(f), True{}, e)
+        : {Csv.read_field(Csv.pick(String, _, "\"" ++ c_dq(f) ++ "\"", f) ++ z) == Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
+      %Equal.sym(String, (c_dq(f) ++ "\"") ++ z, y, app_assoc(c_dq(f), "\"", z))
         : {Csv.read_field(SCon{Chr{34}, _}) == Csv.Fld{String.reverse.go(f, ""), T, cutof(last)} : Csv.Fld}
       quoted_loop(f, last, SCon{Chr{0}, SCon{Chr{34}, y}}, "", T, hcr,
         le_lt_succ(String.length(f), 1n+String.length(y),
           le_succ(String.length(f), String.length(y),
-            le_trans(String.length(f), String.length(Csv.double_quotes(f)), String.length(y), dq_len(f), pre_le(Csv.double_quotes(f), "\"" ++ z)))))
+            le_trans(String.length(f), String.length(c_dq(f)), String.length(y), dq_len(f), pre_le(c_dq(f), "\"" ++ z)))))
     case False{}:
       match f:
         case SNil{}:
@@ -2787,13 +3109,13 @@ def rf.of(b: Bool, +f: String, +last: Bool, +T: String, +hcr: {String.contains(f
         case SCon{c0, +fr}:
           match c0:
             case Chr{+k0}:
-              %Equal.sym(Bool, Csv.needs_quotes(SCon{Chr{k0}, fr}), False{}, e)
-                : {Csv.read_field(Csv.pick(String, _, "\"" ++ Csv.double_quotes(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ (sep(last) ++ T))
+              %Equal.sym(Bool, c_nq(SCon{Chr{k0}, fr}), False{}, e)
+                : {Csv.read_field(Csv.pick(String, _, "\"" ++ c_dq(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ (sep(last) ++ T))
                    == Csv.Fld{String.reverse.go(SCon{Chr{k0}, fr}, ""), T, cutof(last)} : Csv.Fld}
               rf_bare(k0, fr, last, T, e)
 
 def rf(+f: String, +last: Bool, +T: String, +hcr: {String.contains(f, "\r\n") == False{} : Bool}) -> rgoal(f, last, T):
-  rf.of(Csv.needs_quotes(f), f, last, T, hcr, {==})
+  rf.of(c_nq(f), f, last, T, hcr, {==})
 
 # ---------------------------------------------------------------------
 # CSV reading: a row reads back
@@ -2815,7 +3137,7 @@ def ne_app(a: String, +c: Char, +r: String) -> {String.is_empty(a ++ SCon{c, r})
       {==}
 
 def rlgoal(+more: List<&2, String>, +f: String, +accl: List<&2, String>, +fuel: String, +rest: String) -> Type:
-  {Csv.rec.go(fuel, Csv.Rec{accl, Csv.join_fields(Con{f, more}) ++ ("\n" ++ rest), Csv.CsvSep{}})
+  {Csv.rec.go(fuel, Csv.Rec{accl, c_join(Con{f, more}) ++ ("\n" ++ rest), Csv.CsvSep{}})
    == Some{(List.reverse(&2, String, List.reverse.go(&2, String, Con{f, more}, accl)), rest)} : Maybe<&1, List<&2, String> & String>}
 
 def rev_f(+f: String) -> {f == String.reverse(String.reverse.go(f, "")) : String}:
@@ -2838,9 +3160,9 @@ def rec_loop(more: List<&2, String>, +f: String, +accl: List<&2, String>, fuel: 
             case SCon{c2, fq}:
               +hcr = not_t(String.contains(f, "\r\n"), and_l(Bool.not(String.contains(f, "\r\n")), L.no_crlf_pair(Nil{}), hnc))
               %rr(f, "")
-                : {Csv.rec.go(SCon{c, SCon{c2, fq}}, Csv.Rec{accl, Csv.field(f) ++ ("\n" ++ rest), Csv.CsvSep{}})
+                : {Csv.rec.go(SCon{c, SCon{c2, fq}}, Csv.Rec{accl, c_field(f) ++ ("\n" ++ rest), Csv.CsvSep{}})
                    == Some{(List.reverse(&2, String, Con{_, accl}), rest)} : Maybe<&1, List<&2, String> & String>}
-              %Equal.sym(Csv.Fld, Csv.read_field(Csv.field(f) ++ ("\n" ++ rest)), Csv.Fld{String.reverse.go(f, ""), rest, Csv.CsvEnd{}}, rf(f, True{}, rest, hcr))
+              %Equal.sym(Csv.Fld, Csv.read_field(c_field(f) ++ ("\n" ++ rest)), Csv.Fld{String.reverse.go(f, ""), rest, Csv.CsvEnd{}}, rf(f, True{}, rest, hcr))
                 : {Csv.rec.go(SCon{c2, fq}, Csv.rec.step(accl, _))
                    == Some{(List.reverse(&2, String, Con{String.reverse(String.reverse.go(f, "")), accl}), rest)} : Maybe<&1, List<&2, String> & String>}
               {==}
@@ -2851,12 +3173,12 @@ def rec_loop(more: List<&2, String>, +f: String, +accl: List<&2, String>, fuel: 
         case SCon{c, +fp}:
           +hcr = not_t(String.contains(f, "\r\n"), and_l(Bool.not(String.contains(f, "\r\n")), L.no_crlf_pair(Con{g, m}), hnc))
           +hnc2 = and_r(Bool.not(String.contains(f, "\r\n")), L.no_crlf_pair(Con{g, m}), hnc)
-          +j = Csv.join_fields(Con{g, m})
+          +j = c_join(Con{g, m})
           +q = "\n" ++ rest
           -r = {Some{(List.reverse(&2, String, List.reverse.go(&2, String, Con{g, m}, Con{f, accl})), rest)} : Maybe<&1, List<&2, String> & String>}
-          %Equal.sym(String, (Csv.field(f) ++ ("," ++ j)) ++ q, Csv.field(f) ++ (("," ++ j) ++ q), app_assoc(Csv.field(f), "," ++ j, q))
+          %Equal.sym(String, (c_field(f) ++ ("," ++ j)) ++ q, c_field(f) ++ (("," ++ j) ++ q), app_assoc(c_field(f), "," ++ j, q))
             : {Csv.rec.go(SCon{c, fp}, Csv.Rec{accl, _, Csv.CsvSep{}}) == r : Maybe<&1, List<&2, String> & String>}
-          %Equal.sym(Csv.Fld, Csv.read_field(Csv.field(f) ++ ("," ++ (j ++ q))), Csv.Fld{String.reverse.go(f, ""), j ++ q, Csv.CsvSep{}}, rf(f, False{}, j ++ q, hcr))
+          %Equal.sym(Csv.Fld, Csv.read_field(c_field(f) ++ ("," ++ (j ++ q))), Csv.Fld{String.reverse.go(f, ""), j ++ q, Csv.CsvSep{}}, rf(f, False{}, j ++ q, hcr))
             : {Csv.rec.go(fp, Csv.rec.step(accl, _)) == r : Maybe<&1, List<&2, String> & String>}
           %rev_f(f)
             : {Csv.rec.go(fp, Csv.Rec{Con{_, accl}, j ++ q, Csv.CsvSep{}}) == r : Maybe<&1, List<&2, String> & String>}
@@ -2874,12 +3196,12 @@ def skip_id(s: String, +hne: {String.is_empty(s) == False{} : Bool}, +h: {Csv.bl
 
 def nq_or(+f: String) -> Bool:
   Bool.or(String.eq(f, "\\."), Bool.or(Csv.first_space(f),
-    Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)))))
+    Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)))))
 
-def nq_hc4(+f: String, +e: {nq_or(f) == False{} : Bool}) -> {Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)) == False{} : Bool}:
-  +o1 = or_r(String.eq(f, "\\."), Bool.or(Csv.first_space(f), Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)))), e)
-  +o2 = or_r(Csv.first_space(f), Bool.or(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10))), o1)
-  or_r(Bool.or(Csv.has_char(f, 44), Csv.has_char(f, 34)), Bool.or(Csv.has_char(f, 13), Csv.has_char(f, 10)), o2)
+def nq_hc4(+f: String, +e: {nq_or(f) == False{} : Bool}) -> {Bool.or(c_has(f, 13), c_has(f, 10)) == False{} : Bool}:
+  +o1 = or_r(String.eq(f, "\\."), Bool.or(Csv.first_space(f), Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)))), e)
+  +o2 = or_r(Csv.first_space(f), Bool.or(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10))), o1)
+  or_r(Bool.or(c_has(f, 44), c_has(f, 34)), Bool.or(c_has(f, 13), c_has(f, 10)), o2)
 
 def bl_bare(+k0: U32, +x: String, +h10: {U32.is_eq(k0, 10) == False{} : Bool}, +h13: {U32.is_eq(k0, 13) == False{} : Bool})
   -> {Csv.blank_len(SCon{Chr{k0}, x}) == 0n : Nat}:
@@ -2895,34 +3217,34 @@ def bl_bare(+k0: U32, +x: String, +h10: {U32.is_eq(k0, 10) == False{} : Bool}, +
 # a row never starts with a blank line
 def bl0.of(b: Bool, more: List<&2, String>, +f: String, +rest: String,
            +hne: {Bool.or(Bool.not(String.is_empty(f)), Bool.not(List.is_empty(&2, String, more))) == True{} : Bool},
-           +e: {Csv.needs_quotes(f) == b : Bool})
-  -> {Csv.blank_len(Csv.join_fields(Con{f, more}) ++ ("\n" ++ rest)) == 0n : Nat}:
+           +e: {c_nq(f) == b : Bool})
+  -> {Csv.blank_len(c_join(Con{f, more}) ++ ("\n" ++ rest)) == 0n : Nat}:
   match b:
     case True{}:
       match more:
         case Nil{}:
-          %Equal.sym(Bool, Csv.needs_quotes(f), True{}, e)
-            : {Csv.blank_len(Csv.pick(String, _, "\"" ++ Csv.double_quotes(f) ++ "\"", f) ++ ("\n" ++ rest)) == 0n : Nat}
+          %Equal.sym(Bool, c_nq(f), True{}, e)
+            : {Csv.blank_len(Csv.pick(String, _, "\"" ++ c_dq(f) ++ "\"", f) ++ ("\n" ++ rest)) == 0n : Nat}
           {==}
         case Con{g, m}:
-          %Equal.sym(Bool, Csv.needs_quotes(f), True{}, e)
-            : {Csv.blank_len((Csv.pick(String, _, "\"" ++ Csv.double_quotes(f) ++ "\"", f) ++ ("," ++ Csv.join_fields(Con{g, m}))) ++ ("\n" ++ rest)) == 0n : Nat}
+          %Equal.sym(Bool, c_nq(f), True{}, e)
+            : {Csv.blank_len((Csv.pick(String, _, "\"" ++ c_dq(f) ++ "\"", f) ++ ("," ++ c_join(Con{g, m}))) ++ ("\n" ++ rest)) == 0n : Nat}
           {==}
     case False{}:
       match more:
         case Nil{}:
           match f:
             case SNil{}:
-              Empty.absurd({Csv.blank_len(Csv.join_fields(Con{SNil{}, Nil{}}) ++ ("\n" ++ rest)) == 0n : Nat}, no_ft(hne))
+              Empty.absurd({Csv.blank_len(c_join(Con{SNil{}, Nil{}}) ++ ("\n" ++ rest)) == 0n : Nat}, no_ft(hne))
             case SCon{c0, +fr}:
               match c0:
                 case Chr{+k0}:
                   +o4 = nq_hc4(SCon{Chr{k0}, fr}, e)
-                  %Equal.sym(Bool, Csv.needs_quotes(SCon{Chr{k0}, fr}), False{}, e)
-                    : {Csv.blank_len(Csv.pick(String, _, "\"" ++ Csv.double_quotes(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ ("\n" ++ rest)) == 0n : Nat}
+                  %Equal.sym(Bool, c_nq(SCon{Chr{k0}, fr}), False{}, e)
+                    : {Csv.blank_len(Csv.pick(String, _, "\"" ++ c_dq(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ ("\n" ++ rest)) == 0n : Nat}
                   bl_bare(k0, fr ++ ("\n" ++ rest),
-                    hc_head(k0, fr, 10, or_r(Csv.has_char(SCon{Chr{k0}, fr}, 13), Csv.has_char(SCon{Chr{k0}, fr}, 10), o4)),
-                    hc_head(k0, fr, 13, or_l(Csv.has_char(SCon{Chr{k0}, fr}, 13), Csv.has_char(SCon{Chr{k0}, fr}, 10), o4)))
+                    hc_head(k0, fr, 10, or_r(c_has(SCon{Chr{k0}, fr}, 13), c_has(SCon{Chr{k0}, fr}, 10), o4)),
+                    hc_head(k0, fr, 13, or_l(c_has(SCon{Chr{k0}, fr}, 13), c_has(SCon{Chr{k0}, fr}, 10), o4)))
         case Con{+g, +m}:
           match f:
             case SNil{}:
@@ -2931,24 +3253,24 @@ def bl0.of(b: Bool, more: List<&2, String>, +f: String, +rest: String,
               match c0:
                 case Chr{+k0}:
                   +o4 = nq_hc4(SCon{Chr{k0}, fr}, e)
-                  %Equal.sym(Bool, Csv.needs_quotes(SCon{Chr{k0}, fr}), False{}, e)
-                    : {Csv.blank_len((Csv.pick(String, _, "\"" ++ Csv.double_quotes(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ ("," ++ Csv.join_fields(Con{g, m}))) ++ ("\n" ++ rest)) == 0n : Nat}
-                  bl_bare(k0, (fr ++ ("," ++ Csv.join_fields(Con{g, m}))) ++ ("\n" ++ rest),
-                    hc_head(k0, fr, 10, or_r(Csv.has_char(SCon{Chr{k0}, fr}, 13), Csv.has_char(SCon{Chr{k0}, fr}, 10), o4)),
-                    hc_head(k0, fr, 13, or_l(Csv.has_char(SCon{Chr{k0}, fr}, 13), Csv.has_char(SCon{Chr{k0}, fr}, 10), o4)))
+                  %Equal.sym(Bool, c_nq(SCon{Chr{k0}, fr}), False{}, e)
+                    : {Csv.blank_len((Csv.pick(String, _, "\"" ++ c_dq(SCon{Chr{k0}, fr}) ++ "\"", SCon{Chr{k0}, fr}) ++ ("," ++ c_join(Con{g, m}))) ++ ("\n" ++ rest)) == 0n : Nat}
+                  bl_bare(k0, (fr ++ ("," ++ c_join(Con{g, m}))) ++ ("\n" ++ rest),
+                    hc_head(k0, fr, 10, or_r(c_has(SCon{Chr{k0}, fr}, 13), c_has(SCon{Chr{k0}, fr}, 10), o4)),
+                    hc_head(k0, fr, 13, or_l(c_has(SCon{Chr{k0}, fr}, 13), c_has(SCon{Chr{k0}, fr}, 10), o4)))
 
 # as many fields as bytes, at most
 def jl(more: List<&2, String>, +f: String, +x: String)
-  -> {Nat.is_le(List.length(&2, String, more), String.length(Csv.join_fields(Con{f, more}) ++ x)) == True{} : Bool}:
+  -> {Nat.is_le(List.length(&2, String, more), String.length(c_join(Con{f, more}) ++ x)) == True{} : Bool}:
   match more:
     case Nil{}:
-      le0(String.length(Csv.field(f) ++ x))
+      le0(String.length(c_field(f) ++ x))
     case Con{+g, +m}:
-      +j = Csv.join_fields(Con{g, m})
-      %Equal.sym(String, (Csv.field(f) ++ ("," ++ j)) ++ x, Csv.field(f) ++ (("," ++ j) ++ x), app_assoc(Csv.field(f), "," ++ j, x))
+      +j = c_join(Con{g, m})
+      %Equal.sym(String, (c_field(f) ++ ("," ++ j)) ++ x, c_field(f) ++ (("," ++ j) ++ x), app_assoc(c_field(f), "," ++ j, x))
         : {Nat.is_le(1n+List.length(&2, String, m), String.length(_)) == True{} : Bool}
-      le_trans(1n+List.length(&2, String, m), String.length(SCon{',', j ++ x}), String.length(Csv.field(f) ++ SCon{',', j ++ x}),
-        jl(m, g, x), le_app(Csv.field(f), SCon{',', j ++ x}))
+      le_trans(1n+List.length(&2, String, m), String.length(SCon{',', j ++ x}), String.length(c_field(f) ++ SCon{',', j ++ x}),
+        jl(m, g, x), le_app(c_field(f), SCon{',', j ++ x}))
 
 def parse_rt(fs: List<&2, String>, +rest: String, +h: {L.representable(fs) == True{} : Bool})
   -> {Csv.parse_row(Csv.row(fs) ++ rest) == Some{(fs, rest)} : Maybe<&1, List<&2, String> & String>}:
@@ -2957,17 +3279,19 @@ def parse_rt(fs: List<&2, String>, +rest: String, +h: {L.representable(fs) == Tr
       Empty.absurd({Csv.parse_row(Csv.row(Nil{}) ++ rest) == Some{(Nil{}, rest)} : Maybe<&1, List<&2, String> & String>}, no_ft(h))
     case Con{+f, +more}:
       +q = "\n" ++ rest
-      +s = Csv.join_fields(Con{f, more}) ++ q
+      +s = c_join(Con{f, more}) ++ q
       -r = {Some{(Con{f, more}, rest)} : Maybe<&1, List<&2, String> & String>}
       +h1 = and_l(Bool.and(L.all_bytes(Con{f, more}), L.no_crlf_pair(Con{f, more})),
               Bool.or(Bool.not(String.is_empty(f)), Bool.not(List.is_empty(&2, String, more))), h)
       +hne = and_r(Bool.and(L.all_bytes(Con{f, more}), L.no_crlf_pair(Con{f, more})),
               Bool.or(Bool.not(String.is_empty(f)), Bool.not(List.is_empty(&2, String, more))), h)
       +hnc = and_r(L.all_bytes(Con{f, more}), L.no_crlf_pair(Con{f, more}), h1)
-      +hs = ne_app(Csv.join_fields(Con{f, more}), '\n', rest)
-      %Equal.sym(String, (Csv.join_fields(Con{f, more}) ++ "\n") ++ rest, s, app_assoc(Csv.join_fields(Con{f, more}), "\n", rest))
+      +hs = ne_app(c_join(Con{f, more}), '\n', rest)
+      %Equal.sym(String, Csv.row(Con{f, more}), c_join(Con{f, more}) ++ "\n", row_c(more, f))
+        : {Csv.parse_row(_ ++ rest) == r : Maybe<&1, List<&2, String> & String>}
+      %Equal.sym(String, (c_join(Con{f, more}) ++ "\n") ++ rest, s, app_assoc(c_join(Con{f, more}), "\n", rest))
         : {Csv.parse_row.go(_) == r : Maybe<&1, List<&2, String> & String>}
-      %Equal.sym(String, Csv.skip_blank.go(SCon{Chr{0}, s}, False{}, s), s, skip_id(s, hs, bl0.of(Csv.needs_quotes(f), more, f, rest, hne, {==})))
+      %Equal.sym(String, Csv.skip_blank.go(SCon{Chr{0}, s}, False{}, s), s, skip_id(s, hs, bl0.of(c_nq(f), more, f, rest, hne, {==})))
         : {Csv.parse_row.of(String.is_empty(_), _) == r : Maybe<&1, List<&2, String> & String>}
       %Equal.sym(Bool, String.is_empty(s), False{}, hs)
         : {Csv.parse_row.of(_, s) == r : Maybe<&1, List<&2, String> & String>}
@@ -2978,3 +3302,1129 @@ def parse_rt(fs: List<&2, String>, +rest: String, +h: {L.representable(fs) == Tr
 
 def L.csv_parse_row(fs, rest, h):
   parse_rt(fs, rest, h)
+
+# ---------------------------------------------------------------------
+# Base64 onto what follows: encode_into(s, t) is encode(s) ++ t
+# ---------------------------------------------------------------------
+
+def enc_into(s: String, +t: String) -> {B64.encode_into(s, t) == B64.encode(s) ++ t : String}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+a, +r1}:
+      match r1:
+        case SNil{}:
+          {==}
+        case SCon{+b, +r2}:
+          match r2:
+            case SNil{}:
+              {==}
+            case SCon{+c, +r3}:
+              %Equal.sym(String, B64.encode_into(r3, t), B64.encode(r3) ++ t, enc_into(r3, t))
+                : {B64.three_into(B64.code(a), B64.code(b), B64.code(c), _) == B64.encode(SCon{a, SCon{b, SCon{c, r3}}}) ++ t : String}
+              {==}
+
+# ---------------------------------------------------------------------
+# Base64 text never needs CSV quotes: every character is char.code(i)
+# for some U32 i, a letter, a digit, + or /. Below each bound of
+# char.code's pick chain, i is its six low bits (k6_eq, as byte_eq), and
+# the 64 cases compute (q26, q52, q62: mechanical, like vc).
+# ---------------------------------------------------------------------
+
+def u6(+a: U32) -> U32:
+  w6(pb0(a), pb1(a), pb2(a), pb3(a), pb4(a), pb5(a))
+
+def k6_eq.go(w32: Word(0n), +x31: Bool, +x30: Bool, +x29: Bool, +x28: Bool, +x27: Bool, +x26: Bool, +x25: Bool, +x24: Bool, +x23: Bool, +x22: Bool, +x21: Bool, +x20: Bool, +x19: Bool, +x18: Bool, +x17: Bool, +x16: Bool, +x15: Bool, +x14: Bool, +x13: Bool, +x12: Bool, +x11: Bool, +x10: Bool, +x9: Bool, +x8: Bool, +x7: Bool, +x6: Bool, +x0: Bool, +x1: Bool, +x2: Bool, +x3: Bool, +x4: Bool, +x5: Bool, +k0: Bool, +k1: Bool, +k2: Bool, +k3: Bool, +k4: Bool, +k5: Bool, h: {U32.is_lt(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{x30, WCon{x31, w32}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}, w6(k0, k1, k2, k3, k4, k5)) == True{} : Bool}) -> {U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{x30, WCon{x31, w32}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{x30, WCon{x31, w32}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}:
+  match w32:
+    case WNil{}:
+      match x31:
+        case True{}:
+          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{x30, WCon{True{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{x30, WCon{True{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+        case False{}:
+          match x30:
+            case True{}:
+              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{True{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{x29, WCon{True{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+            case False{}:
+              match x29:
+                case True{}:
+                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{True{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{x28, WCon{True{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                case False{}:
+                  match x28:
+                    case True{}:
+                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{x27, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                    case False{}:
+                      match x27:
+                        case True{}:
+                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{x26, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                        case False{}:
+                          match x26:
+                            case True{}:
+                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{x25, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                            case False{}:
+                              match x25:
+                                case True{}:
+                                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{x24, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                case False{}:
+                                  match x24:
+                                    case True{}:
+                                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{x23, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                    case False{}:
+                                      match x23:
+                                        case True{}:
+                                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{x22, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                        case False{}:
+                                          match x22:
+                                            case True{}:
+                                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{x21, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                            case False{}:
+                                              match x21:
+                                                case True{}:
+                                                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{x20, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                case False{}:
+                                                  match x20:
+                                                    case True{}:
+                                                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{x19, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                    case False{}:
+                                                      match x19:
+                                                        case True{}:
+                                                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{x18, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                        case False{}:
+                                                          match x18:
+                                                            case True{}:
+                                                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{x17, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                            case False{}:
+                                                              match x17:
+                                                                case True{}:
+                                                                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{x16, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                case False{}:
+                                                                  match x16:
+                                                                    case True{}:
+                                                                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{x15, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                    case False{}:
+                                                                      match x15:
+                                                                        case True{}:
+                                                                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{x14, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                        case False{}:
+                                                                          match x14:
+                                                                            case True{}:
+                                                                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{x13, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                            case False{}:
+                                                                              match x13:
+                                                                                case True{}:
+                                                                                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{x12, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                case False{}:
+                                                                                  match x12:
+                                                                                    case True{}:
+                                                                                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{x11, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                    case False{}:
+                                                                                      match x11:
+                                                                                        case True{}:
+                                                                                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{x10, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                        case False{}:
+                                                                                          match x10:
+                                                                                            case True{}:
+                                                                                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{x9, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                            case False{}:
+                                                                                              match x9:
+                                                                                                case True{}:
+                                                                                                  Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{x8, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                                case False{}:
+                                                                                                  match x8:
+                                                                                                    case True{}:
+                                                                                                      Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{x7, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                                    case False{}:
+                                                                                                      match x7:
+                                                                                                        case True{}:
+                                                                                                          Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                                        case False{}:
+                                                                                                          match x6:
+                                                                                                            case True{}:
+                                                                                                              Empty.absurd({U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} == u6(U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{True{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}) : U32}, no_ft(h))
+                                                                                                            case False{}:
+                                                                                                              {==}
+
+def k6_eq(a: U32, +k0: Bool, +k1: Bool, +k2: Bool, +k3: Bool, +k4: Bool, +k5: Bool, h: {U32.is_lt(a, w6(k0, k1, k2, k3, k4, k5)) == True{} : Bool}) -> {a == u6(a) : U32}:
+  match a:
+    case U32{w0}:
+      match w0:
+        case WCon{x0, w1}:
+          match w1:
+            case WCon{x1, w2}:
+              match w2:
+                case WCon{x2, w3}:
+                  match w3:
+                    case WCon{x3, w4}:
+                      match w4:
+                        case WCon{x4, w5}:
+                          match w5:
+                            case WCon{x5, w6}:
+                              match w6:
+                                case WCon{x6, w7}:
+                                  match w7:
+                                    case WCon{x7, w8}:
+                                      match w8:
+                                        case WCon{x8, w9}:
+                                          match w9:
+                                            case WCon{x9, w10}:
+                                              match w10:
+                                                case WCon{x10, w11}:
+                                                  match w11:
+                                                    case WCon{x11, w12}:
+                                                      match w12:
+                                                        case WCon{x12, w13}:
+                                                          match w13:
+                                                            case WCon{x13, w14}:
+                                                              match w14:
+                                                                case WCon{x14, w15}:
+                                                                  match w15:
+                                                                    case WCon{x15, w16}:
+                                                                      match w16:
+                                                                        case WCon{x16, w17}:
+                                                                          match w17:
+                                                                            case WCon{x17, w18}:
+                                                                              match w18:
+                                                                                case WCon{x18, w19}:
+                                                                                  match w19:
+                                                                                    case WCon{x19, w20}:
+                                                                                      match w20:
+                                                                                        case WCon{x20, w21}:
+                                                                                          match w21:
+                                                                                            case WCon{x21, w22}:
+                                                                                              match w22:
+                                                                                                case WCon{x22, w23}:
+                                                                                                  match w23:
+                                                                                                    case WCon{x23, w24}:
+                                                                                                      match w24:
+                                                                                                        case WCon{x24, w25}:
+                                                                                                          match w25:
+                                                                                                            case WCon{x25, w26}:
+                                                                                                              match w26:
+                                                                                                                case WCon{x26, w27}:
+                                                                                                                  match w27:
+                                                                                                                    case WCon{x27, w28}:
+                                                                                                                      match w28:
+                                                                                                                        case WCon{x28, w29}:
+                                                                                                                          match w29:
+                                                                                                                            case WCon{x29, w30}:
+                                                                                                                              match w30:
+                                                                                                                                case WCon{x30, w31}:
+                                                                                                                                  match w31:
+                                                                                                                                    case WCon{x31, w32}:
+                                                                                                                                      k6_eq.go(w32, x31, x30, x29, x28, x27, x26, x25, x24, x23, x22, x21, x20, x19, x18, x17, x16, x15, x14, x13, x12, x11, x10, x9, x8, x7, x6, x0, x1, x2, x3, x4, x5, k0, k1, k2, k3, k4, k5, h)
+
+def q26(+t0: Bool, +t1: Bool, +t2: Bool, +t3: Bool, +t4: Bool, +t5: Bool, +r: String, h: {U32.is_lt(w6(t0, t1, t2, t3, t4, t5), 26) == True{} : Bool})
+  -> {Bool.or(Csv.special((65 + w6(t0, t1, t2, t3, t4, t5) : U32)), Csv.first_space(SCon{Chr{(65 + w6(t0, t1, t2, t3, t4, t5) : U32)}, r})) == False{} : Bool}:
+  match t0:
+    case True{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, True{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, True{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, True{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, True{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, True{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, True{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, False{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, False{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, False{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, False{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, False{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, False{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, True{}, False{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, True{}, False{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, True{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, True{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, True{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, True{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, True{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, True{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, False{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, False{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, False{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, False{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(True{}, False{}, False{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(True{}, False{}, False{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+    case False{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, True{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, True{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, True{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, True{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, True{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, True{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, False{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, False{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, False{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, False{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, False{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, False{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, True{}, False{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, True{}, False{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, True{}, True{}, True{}, False{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, True{}, True{}, True{}, False{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, True{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, True{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, True{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, True{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, False{}, True{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, False{}, True{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, False{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, False{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((65 + w6(False{}, False{}, False{}, False{}, False{}, True{}) : U32)), Csv.first_space(SCon{Chr{(65 + w6(False{}, False{}, False{}, False{}, False{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+
+def q52(+t0: Bool, +t1: Bool, +t2: Bool, +t3: Bool, +t4: Bool, +t5: Bool, +r: String, h: {U32.is_lt(w6(t0, t1, t2, t3, t4, t5), 52) == True{} : Bool})
+  -> {Bool.or(Csv.special((71 + w6(t0, t1, t2, t3, t4, t5) : U32)), Csv.first_space(SCon{Chr{(71 + w6(t0, t1, t2, t3, t4, t5) : U32)}, r})) == False{} : Bool}:
+  match t0:
+    case True{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, True{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, True{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, True{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, True{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, True{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, True{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, False{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, False{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, False{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, False{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(True{}, False{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(True{}, False{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+    case False{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, True{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, True{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, True{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, True{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, True{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, True{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, False{}, True{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, False{}, True{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, False{}, True{}, False{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, False{}, True{}, False{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((71 + w6(False{}, False{}, False{}, True{}, True{}, True{}) : U32)), Csv.first_space(SCon{Chr{(71 + w6(False{}, False{}, False{}, True{}, True{}, True{}) : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          {==}
+
+def q62(+t0: Bool, +t1: Bool, +t2: Bool, +t3: Bool, +t4: Bool, +t5: Bool, +r: String, h: {U32.is_lt(w6(t0, t1, t2, t3, t4, t5), 62) == True{} : Bool}, hl: {U32.is_lt(w6(t0, t1, t2, t3, t4, t5), 52) == False{} : Bool})
+  -> {Bool.or(Csv.special((w6(t0, t1, t2, t3, t4, t5) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(t0, t1, t2, t3, t4, t5) - 4 : U32)}, r})) == False{} : Bool}:
+  match t0:
+    case True{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, True{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, True{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, True{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, True{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, False{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, False{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, True{}, False{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, True{}, False{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, True{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, True{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, False{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, False{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(True{}, False{}, False{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(True{}, False{}, False{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+    case False{}:
+      match t1:
+        case True{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, True{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, True{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_ft(h))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, True{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, True{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, False{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, False{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, True{}, False{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, True{}, False{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+        case False{}:
+          match t2:
+            case True{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, True{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, True{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+            case False{}:
+              match t3:
+                case True{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          {==}
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, True{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, True{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, True{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, True{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, True{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, True{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                case False{}:
+                  match t4:
+                    case True{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, False{}, True{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, False{}, True{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, False{}, True{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, False{}, True{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                    case False{}:
+                      match t5:
+                        case True{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, False{}, False{}, True{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, False{}, False{}, True{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+                        case False{}:
+                          Empty.absurd({Bool.or(Csv.special((w6(False{}, False{}, False{}, False{}, False{}, False{}) - 4 : U32)), Csv.first_space(SCon{Chr{(w6(False{}, False{}, False{}, False{}, False{}, False{}) - 4 : U32)}, r})) == False{} : Bool}, no_tf(hl))
+
+
+# char.code(i) is neither a special byte nor a space, link by link
+def cq4(b: Bool, +r: String)
+  -> {Bool.or(Csv.special(B64.pick(U32, b, 43, 47)), Csv.first_space(SCon{Chr{B64.pick(U32, b, 43, 47)}, r})) == False{} : Bool}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def cq3(b: Bool, +i: U32, +r: String, +e: {U32.is_lt(i, 62) == b : Bool}, e52: {U32.is_lt(i, 52) == False{} : Bool})
+  -> {Bool.or(Csv.special(B64.pick(U32, b, (i - 4 : U32), B64.char.code4(i))), Csv.first_space(SCon{Chr{B64.pick(U32, b, (i - 4 : U32), B64.char.code4(i))}, r})) == False{} : Bool}:
+  match b:
+    case True{}:
+      +eq = k6_eq(i, False{}, True{}, True{}, True{}, True{}, True{}, e)
+      +h2 = Equal.trans(Bool, U32.is_lt(u6(i), 62), U32.is_lt(i, 62), True{},
+        Equal.cong(U32, Bool, x => U32.is_lt(x, 62), u6(i), i, Equal.sym(U32, i, u6(i), eq)), e)
+      +h3 = Equal.trans(Bool, U32.is_lt(u6(i), 52), U32.is_lt(i, 52), False{},
+        Equal.cong(U32, Bool, x => U32.is_lt(x, 52), u6(i), i, Equal.sym(U32, i, u6(i), eq)), e52)
+      %Equal.sym(U32, i, u6(i), eq) : {Bool.or(Csv.special((_ - 4 : U32)), Csv.first_space(SCon{Chr{(_ - 4 : U32)}, r})) == False{} : Bool}
+      q62(pb0(i), pb1(i), pb2(i), pb3(i), pb4(i), pb5(i), r, h2, h3)
+    case False{}:
+      cq4(U32.is_eq(i, 62), r)
+
+def cq2(b: Bool, +i: U32, +r: String, +e: {U32.is_lt(i, 52) == b : Bool})
+  -> {Bool.or(Csv.special(B64.pick(U32, b, (71 + i : U32), B64.char.code3(i))), Csv.first_space(SCon{Chr{B64.pick(U32, b, (71 + i : U32), B64.char.code3(i))}, r})) == False{} : Bool}:
+  match b:
+    case True{}:
+      +eq = k6_eq(i, False{}, False{}, True{}, False{}, True{}, True{}, e)
+      +h2 = Equal.trans(Bool, U32.is_lt(u6(i), 52), U32.is_lt(i, 52), True{},
+        Equal.cong(U32, Bool, x => U32.is_lt(x, 52), u6(i), i, Equal.sym(U32, i, u6(i), eq)), e)
+      %Equal.sym(U32, i, u6(i), eq) : {Bool.or(Csv.special((71 + _ : U32)), Csv.first_space(SCon{Chr{(71 + _ : U32)}, r})) == False{} : Bool}
+      q52(pb0(i), pb1(i), pb2(i), pb3(i), pb4(i), pb5(i), r, h2)
+    case False{}:
+      cq3(U32.is_lt(i, 62), i, r, {==}, e)
+
+def cq1(b: Bool, +i: U32, +r: String, +e: {U32.is_lt(i, 26) == b : Bool})
+  -> {Bool.or(Csv.special(B64.pick(U32, b, (65 + i : U32), B64.char.code2(i))), Csv.first_space(SCon{Chr{B64.pick(U32, b, (65 + i : U32), B64.char.code2(i))}, r})) == False{} : Bool}:
+  match b:
+    case True{}:
+      +eq = k6_eq(i, False{}, True{}, False{}, True{}, True{}, False{}, e)
+      +h2 = Equal.trans(Bool, U32.is_lt(u6(i), 26), U32.is_lt(i, 26), True{},
+        Equal.cong(U32, Bool, x => U32.is_lt(x, 26), u6(i), i, Equal.sym(U32, i, u6(i), eq)), e)
+      %Equal.sym(U32, i, u6(i), eq) : {Bool.or(Csv.special((65 + _ : U32)), Csv.first_space(SCon{Chr{(65 + _ : U32)}, r})) == False{} : Bool}
+      q26(pb0(i), pb1(i), pb2(i), pb3(i), pb4(i), pb5(i), r, h2)
+    case False{}:
+      cq2(U32.is_lt(i, 52), i, r, {==})
+
+def cq(+i: U32, +r: String)
+  -> {Bool.or(Csv.special(B64.char.code(i)), Csv.first_space(SCon{Chr{B64.char.code(i)}, r})) == False{} : Bool}:
+  cq1(U32.is_lt(i, 26), i, r, {==})
+
+def sp_c(+i: U32) -> {Csv.special(B64.char.code(i)) == False{} : Bool}:
+  or_l(Csv.special(B64.char.code(i)), Csv.first_space(SCon{Chr{B64.char.code(i)}, SNil{}}), cq(i, SNil{}))
+
+def fs_c(+i: U32, +r: String) -> {Csv.first_space(SCon{Chr{B64.char.code(i)}, r}) == False{} : Bool}:
+  or_r(Csv.special(B64.char.code(i)), Csv.first_space(SCon{Chr{B64.char.code(i)}, r}), cq(i, r))
+
+# the scan finds nothing in base64 text
+def ase(s: String) -> {Csv.any_special(B64.encode(s)) == False{} : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+a, +r1}:
+      match r1:
+        case SNil{}:
+          +i1 = (B64.code(a) >> 2n : U32)
+          +i2 = ((B64.code(a) .&. 3) << 4n : U32)
+          %Equal.sym(Bool, Csv.special(B64.char.code(i1)), False{}, sp_c(i1))
+            : {Csv.any_special.go(SCon{Chr{B64.char.code(i1)}, SCon{Chr{B64.char.code(i2)}, "=="}}, _) == False{} : Bool}
+          %Equal.sym(Bool, Csv.special(B64.char.code(i2)), False{}, sp_c(i2))
+            : {Csv.any_special.go(SCon{Chr{B64.char.code(i2)}, "=="}, _) == False{} : Bool}
+          {==}
+        case SCon{+b, +r2}:
+          match r2:
+            case SNil{}:
+              +i1 = (B64.code(a) >> 2n : U32)
+              +i2 = (((B64.code(a) .&. 3) << 4n) .|. (B64.code(b) >> 4n) : U32)
+              +i3 = ((B64.code(b) .&. 15) << 2n : U32)
+              %Equal.sym(Bool, Csv.special(B64.char.code(i1)), False{}, sp_c(i1))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i1)}, SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, "="}}}, _) == False{} : Bool}
+              %Equal.sym(Bool, Csv.special(B64.char.code(i2)), False{}, sp_c(i2))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, "="}}, _) == False{} : Bool}
+              %Equal.sym(Bool, Csv.special(B64.char.code(i3)), False{}, sp_c(i3))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i3)}, "="}, _) == False{} : Bool}
+              {==}
+            case SCon{+c, +r3}:
+              +i1 = (B64.code(a) >> 2n : U32)
+              +i2 = (((B64.code(a) .&. 3) << 4n) .|. (B64.code(b) >> 4n) : U32)
+              +i3 = (((B64.code(b) .&. 15) << 2n) .|. (B64.code(c) >> 6n) : U32)
+              +i4 = (B64.code(c) .&. 63 : U32)
+              +e = B64.encode(r3)
+              %Equal.sym(Bool, Csv.special(B64.char.code(i1)), False{}, sp_c(i1))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i1)}, SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, SCon{Chr{B64.char.code(i4)}, e}}}}, _) == False{} : Bool}
+              %Equal.sym(Bool, Csv.special(B64.char.code(i2)), False{}, sp_c(i2))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, SCon{Chr{B64.char.code(i4)}, e}}}, _) == False{} : Bool}
+              %Equal.sym(Bool, Csv.special(B64.char.code(i3)), False{}, sp_c(i3))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i3)}, SCon{Chr{B64.char.code(i4)}, e}}, _) == False{} : Bool}
+              %Equal.sym(Bool, Csv.special(B64.char.code(i4)), False{}, sp_c(i4))
+                : {Csv.any_special.go(SCon{Chr{B64.char.code(i4)}, e}, _) == False{} : Bool}
+              ase(r3)
+
+# three or more bytes, none special, not starting with a space: bare
+def nq3(+c0: Char, +c1: Char, +c2: Char, +r: String,
+        hfs: {Csv.first_space(SCon{c0, SCon{c1, SCon{c2, r}}}) == False{} : Bool},
+        has: {Csv.any_special(SCon{c0, SCon{c1, SCon{c2, r}}}) == False{} : Bool})
+  -> {Csv.needs_quotes(SCon{c0, SCon{c1, SCon{c2, r}}}) == False{} : Bool}:
+  +e = {SCon{c0, SCon{c1, SCon{c2, r}}} : String}
+  +x = Bool.and(U32.is_eq(Csv.code(c0), 92), U32.is_eq(Csv.code(c1), 46))
+  %Equal.sym(Bool, Bool.and(x, False{}), False{}, and_f(x))
+    : {Bool.or(_, Bool.or(Csv.first_space(e), Csv.any_special(e))) == False{} : Bool}
+  %Equal.sym(Bool, Csv.first_space(e), False{}, hfs) : {Bool.or(False{}, Bool.or(_, Csv.any_special(e))) == False{} : Bool}
+  %Equal.sym(Bool, Csv.any_special(e), False{}, has) : {Bool.or(False{}, Bool.or(False{}, _)) == False{} : Bool}
+  {==}
+
+def nq_b64(s: String) -> {Csv.needs_quotes(B64.encode(s)) == False{} : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+a, +r1}:
+      match r1:
+        case SNil{}:
+          +i1 = (B64.code(a) >> 2n : U32)
+          +i2 = ((B64.code(a) .&. 3) << 4n : U32)
+          nq3(Chr{B64.char.code(i1)}, Chr{B64.char.code(i2)}, Chr{61}, "=",
+            fs_c(i1, SCon{Chr{B64.char.code(i2)}, "=="}), ase(SCon{a, SNil{}}))
+        case SCon{+b, +r2}:
+          match r2:
+            case SNil{}:
+              +i1 = (B64.code(a) >> 2n : U32)
+              +i2 = (((B64.code(a) .&. 3) << 4n) .|. (B64.code(b) >> 4n) : U32)
+              +i3 = ((B64.code(b) .&. 15) << 2n : U32)
+              nq3(Chr{B64.char.code(i1)}, Chr{B64.char.code(i2)}, Chr{B64.char.code(i3)}, "=",
+                fs_c(i1, SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, "="}}), ase(SCon{a, SCon{b, SNil{}}}))
+            case SCon{+c, +r3}:
+              +i1 = (B64.code(a) >> 2n : U32)
+              +i2 = (((B64.code(a) .&. 3) << 4n) .|. (B64.code(b) >> 4n) : U32)
+              +i3 = (((B64.code(b) .&. 15) << 2n) .|. (B64.code(c) >> 6n) : U32)
+              +i4 = (B64.code(c) .&. 63 : U32)
+              nq3(Chr{B64.char.code(i1)}, Chr{B64.char.code(i2)}, Chr{B64.char.code(i3)}, SCon{Chr{B64.char.code(i4)}, B64.encode(r3)},
+                fs_c(i1, SCon{Chr{B64.char.code(i2)}, SCon{Chr{B64.char.code(i3)}, SCon{Chr{B64.char.code(i4)}, B64.encode(r3)}}}),
+                ase(SCon{a, SCon{b, SCon{c, r3}}}))
+
+# so a base64 field is written as it is, in place
+def fb(+x: String, +t: String) -> {B64.encode_into(x, t) == Csv.field_into(B64.encode(x), t) : String}:
+  %Equal.sym(Bool, Csv.needs_quotes(B64.encode(x)), False{}, nq_b64(x))
+    : {B64.encode_into(x, t) == Csv.field.of(_, B64.encode(x), t) : String}
+  enc_into(x, t)

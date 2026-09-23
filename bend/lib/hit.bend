@@ -1,6 +1,8 @@
 # A Vegeta result (Go's vegeta.Result) and its CSV/JSON codecs.
 #
-# The writers follow the LAWS helpers (csv_text, json_text) def for def.
+# The writers build their text front to back (each *_into(..., t) is the
+# LAWS helper's text ++ t, so every byte is written once), and the
+# base64 CSV fields are encoded in place (base64 never needs quotes).
 #
 # The readers never measure or copy the input past the record they read:
 # a stream can hold a million records, so every scan of it is a loop with
@@ -89,8 +91,16 @@ def token_punct(+k: U32) -> Bool:
   Bool.or(U32.is_eq(45, k), Bool.or(U32.is_eq(46, k), Bool.or(U32.is_eq(94, k), Bool.or(U32.is_eq(95, k),
   Bool.or(U32.is_eq(96, k), Bool.or(U32.is_eq(124, k), Bool.or(U32.is_eq(126, k), False{})))))))))))))))
 
+# the punctuation is looked at only when k is not alphanumeric
+def token_byte.of(a: Bool, +k: U32) -> Bool:
+  match a:
+    case True{}:
+      True{}
+    case False{}:
+      token_punct(k)
+
 def token_byte(+k: U32) -> Bool:
-  Bool.or(is_alnum(k), token_punct(k))
+  token_byte.of(is_alnum(k), k)
 
 def all_token(s: String) -> Bool:
   match s:
@@ -174,13 +184,53 @@ def nl_to_space(s: String) -> String:
     case SCon{+c, +rest}:
       SCon{nl_char(c), nl_to_space(rest)}
 
+# String.is_lt(a, b) without rebuilding the strings (String.cmp hands
+# both back): lt.st is the verdict on the heads, 0 less, 1 not less, 2
+# equal so far
+def lt.st(+a: String, +b: String) -> Nat:
+  match a:
+    case SNil{}:
+      match b:
+        case SNil{}:
+          1n
+        case SCon{+cb, +rb}:
+          0n
+    case SCon{+ca, +ra}:
+      match b:
+        case SNil{}:
+          1n
+        case SCon{+cb, +rb}:
+          pick(Nat, U32.is_lt(code(ca), code(cb)), 0n, pick(Nat, U32.is_eq(code(ca), code(cb)), 2n, 1n))
+
+def lt.go(a: String, b: String, st: Nat) -> Bool:
+  match a:
+    case SNil{}:
+      Nat.is_eq(st, 0n)
+    case SCon{+ca, +ra}:
+      match b:
+        case SNil{}:
+          Nat.is_eq(st, 0n)
+        case SCon{+cb, +rb}:
+          match st:
+            case 0n:
+              True{}
+            case 1n+x:
+              match x:
+                case 0n:
+                  False{}
+                case 1n+y:
+                  lt.go(ra, rb, lt.st(ra, rb))
+
+def str_lt(+a: String, +b: String) -> Bool:
+  lt.go(a, b, lt.st(a, b))
+
 # h goes before the head of hs
 def key_lt(+h: Hdr.Header, hs: List<&2, Hdr.Header>) -> Bool:
   match hs:
     case Nil{}:
       False{}
     case Con{+x, +rest}:
-      String.is_lt(hdr_key(h), hdr_key(x))
+      str_lt(hdr_key(h), hdr_key(x))
 
 def insert_hdr.go(hs: List<&2, Hdr.Header>, +h: Hdr.Header, lt: Bool) -> List<&2, Hdr.Header>:
   match hs:
@@ -204,26 +254,86 @@ def sort_hdrs(hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
     case Con{+h, +rest}:
       insert_hdr(h, sort_hdrs(rest))
 
-def hdr_lines(+k: String, vs: List<&2, String>) -> String:
+# The writers build front to back onto the text t that follows, so that
+# every byte is written once (a ++ copies its left side).
+
+# A header value as written, trim_ows(nl_to_space(v)), in one copy: skip
+# the blanks it starts with (CR and LF count, as they become spaces), then
+# copy up to the blanks it ends with (keep counts the bytes before them).
+def vblank(+k: U32) -> Bool:
+  Bool.or(Bool.or(U32.is_eq(k, 10), U32.is_eq(k, 13)), is_ows(k))
+
+def first_vblank(+s: String) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      vblank(code(c))
+
+# bl: s starts with a blank
+def skip_bl.go(s: String, bl: Bool) -> String:
+  match s:
+    case SNil{}:
+      SNil{}
+    case SCon{+c, +rest}:
+      match bl:
+        case True{}:
+          skip_bl.go(rest, first_vblank(rest))
+        case False{}:
+          SCon{c, rest}
+
+def skip_bl(+s: String) -> String:
+  skip_bl.go(s, first_vblank(s))
+
+def keep.of(+m: Nat, b: Bool) -> Nat:
+  pick(Nat, Bool.and(Nat.is_eq(m, 0n), b), 0n, 1n+m)
+
+def keep(s: String) -> Nat:
+  match s:
+    case SNil{}:
+      0n
+    case SCon{+c, +rest}:
+      keep.of(keep(rest), vblank(code(c)))
+
+# the first n bytes of s, CR and LF as spaces, then t
+def copy_nl(n: Nat, s: String, t: String) -> String:
+  match n:
+    case 0n:
+      t
+    case 1n+m:
+      match s:
+        case SNil{}:
+          t
+        case SCon{+c, +rest}:
+          SCon{nl_char(c), copy_nl(m, rest, t)}
+
+# trim_ows(nl_to_space(v)) ++ t
+def val_into(+v: String, t: String) -> String:
+  +u = skip_bl(v)
+  copy_nl(keep(u), u, t)
+
+# hdr_lines(k, vs) ++ t
+def lines_into(+k: String, vs: List<&2, String>, t: String) -> String:
   match vs:
     case Nil{}:
-      ""
+      t
     case Con{+v, +rest}:
-      k ++ ": " ++ trim_ows(nl_to_space(v)) ++ "\r\n" ++ hdr_lines(k, rest)
+      k ++ SCon{':', SCon{' ', val_into(v, SCon{'\r', SCon{'\n', lines_into(k, rest, t)}})}}
 
-def hdr_text(tok: Bool, +k: String, vs: List<&2, String>) -> String:
+def text_into(tok: Bool, +k: String, vs: List<&2, String>, t: String) -> String:
   match tok:
     case True{}:
-      hdr_lines(k, vs)
+      lines_into(k, vs, t)
     case False{}:
-      ""
+      t
 
-def hdrs_text(hs: List<&2, Hdr.Header>) -> String:
+# hdrs_text(hs) ++ t
+def hdrs_into(hs: List<&2, Hdr.Header>, t: String) -> String:
   match hs:
     case Nil{}:
-      ""
+      t
     case Con{+h, +rest}:
-      hdr_text(token(hdr_key(h)), hdr_key(h), hdr_vals(h)) ++ hdrs_text(rest)
+      text_into(token(hdr_key(h)), hdr_key(h), hdr_vals(h), hdrs_into(rest, t))
 
 # Go's headerBytes: http.Header.Write, then a blank line; nothing for nil
 def hdr_block(+m: Maybe<&2, List<&2, Hdr.Header>>) -> String:
@@ -231,7 +341,7 @@ def hdr_block(+m: Maybe<&2, List<&2, Hdr.Header>>) -> String:
     case None{}:
       ""
     case Some{hs}:
-      hdrs_text(sort_hdrs(hs)) ++ "\r\n"
+      hdrs_into(sort_hdrs(hs), "\r\n")
 
 # ---------------------------------------------------------------------
 # Writing (the LAWS "Results" helpers)
@@ -240,66 +350,135 @@ def hdr_block(+m: Maybe<&2, List<&2, Hdr.Header>>) -> String:
 def body_or_empty(+m: Maybe<&2, String>) -> String:
   Maybe.default(&2, String, m, "")
 
-def join_str(+sep: String, xs: List<&2, String>) -> String:
-  match xs:
+# the fields, each followed by a comma, then t
+def csv_into(fs: List<&2, String>, t: String) -> String:
+  match fs:
     case Nil{}:
-      ""
-    case Con{+x, +rest}:
-      match rest:
-        case Nil{}:
-          x
-        case Con{+y, +more}:
-          x ++ sep ++ join_str(sep, Con{y, more})
+      t
+    case Con{+f, +rest}:
+      Csv.field_into(f, SCon{',', csv_into(rest, t)})
 
-def json_strs(vs: List<&2, String>) -> List<&2, String>:
-  match vs:
-    case Nil{}:
-      []
-    case Con{+v, +rest}:
-      Con{Json.str(v), json_strs(rest)}
+# the field B64.encode(x), then t: base64 text never needs quotes (a
+# letter, digit, + or / is not a comma, quote, CR, LF or space), so it is
+# encoded in place
+def b64_field_into(x: String, t: String) -> String:
+  B64.encode_into(x, t)
 
-def json_list(vs: List<&2, String>) -> String:
-  join_str(",", json_strs(vs))
-
-def json_hdr_items(hs: List<&2, Hdr.Header>) -> List<&2, String>:
-  match hs:
-    case Nil{}:
-      []
-    case Con{+h, +rest}:
-      Con{Json.str(hdr_key(h)) ++ ":[" ++ json_list(hdr_vals(h)) ++ "]", json_hdr_items(rest)}
-
-def json_hdrs(hs: List<&2, Hdr.Header>) -> String:
-  join_str(",", json_hdr_items(hs))
-
-def json_body(+m: Maybe<&2, String>) -> String:
-  match m:
-    case None{}:
-      "null"
-    case Some{x}:
-      "\"" ++ B64.encode(x) ++ "\""
-
-def json_hdrs_of(+m: Maybe<&2, List<&2, Hdr.Header>>) -> String:
-  match m:
-    case None{}:
-      "null"
-    case Some{hs}:
-      "{" ++ json_hdrs(sort_hdrs(hs)) ++ "}"
-
-# the CSV record Go's NewCSVEncoder writes
+# the CSV record Go's NewCSVEncoder writes (Csv.row of its 12 fields)
 def to_csv(+h: Hit) -> String:
   Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
-  Csv.row([Civil.unix_nanos(ts), Dec.show(code), Dec.show(lat), Dec.show(bout), Dec.show(bin), err,
-    B64.encode(body_or_empty(body)), attack, Dec.show(seq), method, url, B64.encode(hdr_block(hdrs))])
+  csv_into([Civil.unix_nanos(ts), Dec.show(code), Dec.show(lat), Dec.show(bout), Dec.show(bin), err],
+    b64_field_into(body_or_empty(body), SCon{',', csv_into([attack, Dec.show(seq), method, url],
+      b64_field_into(hdr_block(hdrs), "\n"))}))
+
+# JSON, front to back: json_list(vs) ++ t, json_hdrs(hs) ++ t, ...
+def json_list_into(vs: List<&2, String>, t: String) -> String:
+  match vs:
+    case Nil{}:
+      t
+    case Con{+v, +rest}:
+      match rest:
+        case Nil{}:
+          Json.str_into(v, t)
+        case Con{+w, +more}:
+          Json.str_into(v, SCon{',', json_list_into(Con{w, more}, t)})
+
+def json_item_into(+h: Hdr.Header, t: String) -> String:
+  Json.str_into(hdr_key(h), SCon{':', SCon{'[', json_list_into(hdr_vals(h), SCon{']', t})}})
+
+def json_items_into(hs: List<&2, Hdr.Header>, t: String) -> String:
+  match hs:
+    case Nil{}:
+      t
+    case Con{+h, +rest}:
+      match rest:
+        case Nil{}:
+          json_item_into(h, t)
+        case Con{+g, +more}:
+          json_item_into(h, SCon{',', json_items_into(Con{g, more}, t)})
+
+def json_body_into(+m: Maybe<&2, String>, t: String) -> String:
+  match m:
+    case None{}:
+      "null" ++ t
+    case Some{x}:
+      SCon{'"', B64.encode_into(x, SCon{'"', t})}
+
+def json_hdrs_into(+m: Maybe<&2, List<&2, Hdr.Header>>, t: String) -> String:
+  match m:
+    case None{}:
+      "null" ++ t
+    case Some{hs}:
+      SCon{'{', json_items_into(sort_hdrs(hs), SCon{'}', t})}
+
+def json_body(+m: Maybe<&2, String>) -> String:
+  json_body_into(m, "")
+
+def json_hdrs_of(+m: Maybe<&2, List<&2, Hdr.Header>>) -> String:
+  json_hdrs_into(m, "")
+
+# The JSON keys, each as a chain of bytes before t: a literal ++ t walks a
+# shared constant byte by byte (several times slower than building it).
+
+# "{\"attack\":" ++ t
+def jk_attack(t: String) -> String:
+  SCon{'{', SCon{'"', SCon{'a', SCon{'t', SCon{'t', SCon{'a', SCon{'c', SCon{'k', SCon{'"', SCon{':', t}}}}}}}}}}
+
+# ",\"seq\":" ++ t
+def jk_seq(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'s', SCon{'e', SCon{'q', SCon{'"', SCon{':', t}}}}}}}
+
+# ",\"code\":" ++ t
+def jk_code(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'c', SCon{'o', SCon{'d', SCon{'e', SCon{'"', SCon{':', t}}}}}}}}
+
+# ",\"timestamp\":\"" ++ t
+def jk_ts(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'t', SCon{'i', SCon{'m', SCon{'e', SCon{'s', SCon{'t', SCon{'a', SCon{'m', SCon{'p', SCon{'"', SCon{':', SCon{'"', t}}}}}}}}}}}}}}
+
+# "\",\"latency\":" ++ t
+def jk_lat(t: String) -> String:
+  SCon{'"', SCon{',', SCon{'"', SCon{'l', SCon{'a', SCon{'t', SCon{'e', SCon{'n', SCon{'c', SCon{'y', SCon{'"', SCon{':', t}}}}}}}}}}}}
+
+# ",\"bytes_out\":" ++ t
+def jk_bout(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'b', SCon{'y', SCon{'t', SCon{'e', SCon{'s', SCon{'_', SCon{'o', SCon{'u', SCon{'t', SCon{'"', SCon{':', t}}}}}}}}}}}}}
+
+# ",\"bytes_in\":" ++ t
+def jk_bin(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'b', SCon{'y', SCon{'t', SCon{'e', SCon{'s', SCon{'_', SCon{'i', SCon{'n', SCon{'"', SCon{':', t}}}}}}}}}}}}
+
+# ",\"error\":" ++ t
+def jk_err(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'e', SCon{'r', SCon{'r', SCon{'o', SCon{'r', SCon{'"', SCon{':', t}}}}}}}}}
+
+# ",\"body\":" ++ t
+def jk_body(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'b', SCon{'o', SCon{'d', SCon{'y', SCon{'"', SCon{':', t}}}}}}}}
+
+# ",\"method\":" ++ t
+def jk_method(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'m', SCon{'e', SCon{'t', SCon{'h', SCon{'o', SCon{'d', SCon{'"', SCon{':', t}}}}}}}}}}
+
+# ",\"url\":" ++ t
+def jk_url(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'u', SCon{'r', SCon{'l', SCon{'"', SCon{':', t}}}}}}}
+
+# ",\"headers\":" ++ t
+def jk_hdrs(t: String) -> String:
+  SCon{',', SCon{'"', SCon{'h', SCon{'e', SCon{'a', SCon{'d', SCon{'e', SCon{'r', SCon{'s', SCon{'"', SCon{':', t}}}}}}}}}}}
+
+# Dec.show(n) ++ t (show.go prepends the digits to what it is given)
+def show_into(+n: Nat, t: String) -> String:
+  Dec.show.go(1n+n, False{}, n, t)
 
 # the JSON line Go's NewJSONEncoder writes (header names sorted)
 def to_json(+h: Hit) -> String:
   Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
-  "{\"attack\":" ++ Json.str(attack) ++ ",\"seq\":" ++ Dec.show(seq) ++ ",\"code\":" ++ Dec.show(code)
-    ++ ",\"timestamp\":\"" ++ Civil.rfc3339(ts) ++ "\",\"latency\":" ++ Dec.show(lat)
-    ++ ",\"bytes_out\":" ++ Dec.show(bout) ++ ",\"bytes_in\":" ++ Dec.show(bin)
-    ++ ",\"error\":" ++ Json.str(err) ++ ",\"body\":" ++ json_body(body)
-    ++ ",\"method\":" ++ Json.str(method) ++ ",\"url\":" ++ Json.str(url)
-    ++ ",\"headers\":" ++ json_hdrs_of(hdrs) ++ "}\n"
+  jk_attack(Json.str_into(attack, jk_seq(show_into(seq, jk_code(show_into(code,
+    jk_ts(Civil.rfc3339(ts) ++ jk_lat(show_into(lat, jk_bout(show_into(bout, jk_bin(show_into(bin,
+    jk_err(Json.str_into(err, jk_body(json_body_into(body, jk_method(Json.str_into(method,
+    jk_url(Json.str_into(url, jk_hdrs(json_hdrs_into(hdrs, SCon{'}', SCon{'\n', SNil{}}})))))))))))))))))))))))
 
 # ---------------------------------------------------------------------
 # Scanning the stream (stop-flag loops)
