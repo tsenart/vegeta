@@ -4567,3 +4567,573 @@ def L.http_waits_chunked(r, sizes, k, h0, h1):
   match r:
     case Http.Resp{+c, +st, +hs, +b, +kk}:
       waits_gen(L.render_chunked(Http.Resp{c, st, hs, b, kk}, sizes), Http.Resp{c, st, hs, b, kk}, k, chunked_main(c, st, hs, b, kk, sizes, "", h0), h1)
+
+# ---------------------------------------------------------------------
+# Lower-casing a name: Base's Char.to_lower is U32 arithmetic, so a byte
+# in [65, 90] is split into its bits (the 25 high ones are zero by one
+# comparison, the 7 low ones by cases) and every other byte is unchanged
+# (adding 0 is the identity on any word)
+# ---------------------------------------------------------------------
+
+type LSig is Data:
+  LSig{a: U32, b: U32, e: Bool, t: Bool}
+
+# what canon.go and token do with a byte: its image after a dash or not,
+# whether it is a dash, whether it is a token byte
+def lsig(+k: U32) -> LSig:
+  LSig{L.pick(U32, Bool.and(True{}, L.in_range32(k, 97, 122)), (k - 32 : U32), L.pick(U32, Bool.and(Bool.not(True{}), L.in_range32(k, 65, 90)), (k + 32 : U32), k)),
+       L.pick(U32, Bool.and(False{}, L.in_range32(k, 97, 122)), (k - 32 : U32), L.pick(U32, Bool.and(Bool.not(False{}), L.in_range32(k, 65, 90)), (k + 32 : U32), k)),
+       U32.is_eq(k, 45), L.token_byte(k)}
+
+def lsig_a(+s: LSig) -> U32:
+  LSig{a, b, e, t} = s
+  a
+
+def lsig_b(+s: LSig) -> U32:
+  LSig{a, b, e, t} = s
+  b
+
+def lsig_e(+s: LSig) -> Bool:
+  LSig{a, b, e, t} = s
+  e
+
+def lsig_t(+s: LSig) -> Bool:
+  LSig{a, b, e, t} = s
+  t
+
+def lo_up(+k: U32) -> Type:
+  {lsig(U32.add(k, U32.mul(Bool.to_u32(True{}), 32))) == lsig(k) : LSig}
+
+def lo_mk(x0: Bool, x1: Bool, x2: Bool, x3: Bool, x4: Bool, x5: Bool, x6: Bool) -> U32:
+  U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, Word.zero(25n)}}}}}}}}
+
+def lo_mkt(x0: Bool, x1: Bool, x2: Bool, x3: Bool, x4: Bool, x5: Bool, x6: Bool, t: Word(25n)) -> U32:
+  U32{WCon{x0, WCon{x1, WCon{x2, WCon{x3, WCon{x4, WCon{x5, WCon{x6, t}}}}}}}}
+
+# is_upper on a byte whose high bits compare to zero as c
+def lo_f(+c: Cmp, +x0: Bool, +x1: Bool, +x2: Bool, +x3: Bool, +x4: Bool, +x5: Bool, +x6: Bool) -> Bool:
+  Bool.and(Cmp.is_ge(Word.cmp.fin(x0, True{}, Word.cmp.fin(x1, False{}, Word.cmp.fin(x2, False{}, Word.cmp.fin(x3, False{}, Word.cmp.fin(x4, False{}, Word.cmp.fin(x5, False{}, Word.cmp.fin(x6, True{}, c)))))))), Cmp.is_le(Word.cmp.fin(x0, False{}, Word.cmp.fin(x1, True{}, Word.cmp.fin(x2, False{}, Word.cmp.fin(x3, True{}, Word.cmp.fin(x4, True{}, Word.cmp.fin(x5, False{}, Word.cmp.fin(x6, True{}, c)))))))))
+
+def lo_low(+x6: Bool, +x5: Bool, +x4: Bool, +x3: Bool, +x2: Bool, +x1: Bool, +x0: Bool, e: {lo_f(EQ{}, x0, x1, x2, x3, x4, x5, x6) == True{} : Bool}) -> lo_up(lo_mk(x0, x1, x2, x3, x4, x5, x6)):
+  match x6:
+    case True{}:
+      match x5:
+        case True{}:
+          Empty.absurd(lo_up(lo_mk(x0, x1, x2, x3, x4, True{}, True{})), no_ft(e))
+        case False{}:
+          match x4:
+            case True{}:
+              match x3:
+                case True{}:
+                  match x2:
+                    case True{}:
+                      Empty.absurd(lo_up(lo_mk(x0, x1, True{}, True{}, True{}, False{}, True{})), no_ft(e))
+                    case False{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              Empty.absurd(lo_up(lo_mk(True{}, True{}, False{}, True{}, True{}, False{}, True{})), no_ft(e))
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                case False{}:
+                  match x2:
+                    case True{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                    case False{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+            case False{}:
+              match x3:
+                case True{}:
+                  match x2:
+                    case True{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                    case False{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                case False{}:
+                  match x2:
+                    case True{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                    case False{}:
+                      match x1:
+                        case True{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              {==}
+                        case False{}:
+                          match x0:
+                            case True{}:
+                              {==}
+                            case False{}:
+                              Empty.absurd(lo_up(lo_mk(False{}, False{}, False{}, False{}, False{}, False{}, True{})), no_ft(e))
+    case False{}:
+      Empty.absurd(lo_up(lo_mk(x0, x1, x2, x3, x4, x5, False{})), no_ft(e))
+
+def lo_hi(c: Cmp, +x0: Bool, +x1: Bool, +x2: Bool, +x3: Bool, +x4: Bool, +x5: Bool, +x6: Bool, +t: Word(25n),
+          ec: {Word.cmp(25n, t, Word.zero(25n)) == c : Cmp}, e: {lo_f(c, x0, x1, x2, x3, x4, x5, x6) == True{} : Bool})
+  -> lo_up(lo_mkt(x0, x1, x2, x3, x4, x5, x6, t)):
+  match c:
+    case LT{}:
+      Empty.absurd(lo_up(lo_mkt(x0, x1, x2, x3, x4, x5, x6, t)), no_ft(e))
+    case GT{}:
+      Empty.absurd(lo_up(lo_mkt(x0, x1, x2, x3, x4, x5, x6, t)), no_ft(e))
+    case EQ{}:
+      %Equal.sym(Word(25n), t, Word.zero(25n), weq(25n, t, Word.zero(25n), Equal.cong(Cmp, Bool, z => Cmp.is_eq(z), Word.cmp(25n, t, Word.zero(25n)), EQ{}, ec)))
+        : lo_up(lo_mkt(x0, x1, x2, x3, x4, x5, x6, _))
+      lo_low(x6, x5, x4, x3, x2, x1, x0, e)
+
+def lo_true(k: U32, e: {Bool.and(U32.is_ge(k, 65), U32.is_le(k, 90)) == True{} : Bool}) -> lo_up(k):
+  match k:
+    case U32{w0}:
+      match w0:
+        case WCon{+x0, w1}:
+          match w1:
+            case WCon{+x1, w2}:
+              match w2:
+                case WCon{+x2, w3}:
+                  match w3:
+                    case WCon{+x3, w4}:
+                      match w4:
+                        case WCon{+x4, w5}:
+                          match w5:
+                            case WCon{+x5, w6}:
+                              match w6:
+                                case WCon{+x6, +t}:
+                                  lo_hi(Word.cmp(25n, t, Word.zero(25n)), x0, x1, x2, x3, x4, x5, x6, t, {==}, e)
+
+# adding zero
+def adc_z(n: Nat, w: Word(n)) -> {Word.adc(n, w, Word.zero(n), False{}, False{}) == w : Word(n)}:
+  match n:
+    case 0n:
+      match w:
+        case WNil{}:
+          {==}
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          match b:
+            case False{}:
+              Equal.cong(Word(p), Word(1n+p), z => WCon{False{}, z}, Word.adc(p, t, Word.zero(p), False{}, False{}), t, adc_z(p, t))
+            case True{}:
+              Equal.cong(Word(p), Word(1n+p), z => WCon{True{}, z}, Word.adc(p, t, Word.zero(p), False{}, False{}), t, adc_z(p, t))
+
+def add_z(k: U32) -> {U32.add(k, U32.mul(Bool.to_u32(False{}), 32)) == k : U32}:
+  match k:
+    case U32{w}:
+      Equal.cong(Word(32n), U32, z => U32{z}, Word.adc(32n, w, Word.zero(32n), False{}, False{}), w, adc_z(32n, w))
+
+def lo_of(u: Bool, +k: U32, e: {Bool.and(U32.is_ge(k, 65), U32.is_le(k, 90)) == u : Bool})
+  -> {lsig(U32.add(k, U32.mul(Bool.to_u32(u), 32))) == lsig(k) : LSig}:
+  match u:
+    case True{}:
+      lo_true(k, e)
+    case False{}:
+      %Equal.sym(U32, U32.add(k, U32.mul(Bool.to_u32(False{}), 32)), k, add_z(k)) : {lsig(_) == lsig(k) : LSig}
+      {==}
+
+# a byte and its lower case act alike in canon.go and token
+def lo_sig(+k: U32) -> {lsig(Char.to_u32(Char.to_lower(Chr{k}))) == lsig(k) : LSig}:
+  lo_of(Bool.and(U32.is_ge(k, 65), U32.is_le(k, 90)), k, {==})
+
+def lsig_ea(+j: U32, +k: U32, +hs: {lsig(j) == lsig(k) : LSig})
+  -> {U32.is_eq(k, 45) == U32.is_eq(j, 45) : Bool}:
+  Equal.sym(Bool, U32.is_eq(j, 45), U32.is_eq(k, 45), Equal.cong(LSig, Bool, s => lsig_e(s), lsig(j), lsig(k), hs))
+
+def lsig_ta(+j: U32, +k: U32, +hs: {lsig(j) == lsig(k) : LSig})
+  -> {L.token_byte(k) == L.token_byte(j) : Bool}:
+  Equal.sym(Bool, L.token_byte(j), L.token_byte(k), Equal.cong(LSig, Bool, s => lsig_t(s), lsig(j), lsig(k), hs))
+
+def cl_step(+j: U32, +k: U32, +r1: String, +r2: String, up: Bool, +hs: {lsig(j) == lsig(k) : LSig},
+            +ih: {L.canon.go(r1, U32.is_eq(k, 45)) == L.canon.go(r2, U32.is_eq(k, 45)) : String})
+  -> {L.canon.go(SCon{Chr{j}, r1}, up) == L.canon.go(SCon{Chr{k}, r2}, up) : String}:
+  match up:
+    case True{}:
+      %Equal.cong(LSig, U32, s => lsig_a(s), lsig(j), lsig(k), hs)
+        : {SCon{Chr{lsig_a(lsig(j))}, L.canon.go(r1, U32.is_eq(j, 45))} == SCon{Chr{_}, L.canon.go(r2, U32.is_eq(k, 45))} : String}
+      %lsig_ea(j, k, hs)
+        : {SCon{Chr{lsig_a(lsig(j))}, L.canon.go(r1, _)} == SCon{Chr{lsig_a(lsig(j))}, L.canon.go(r2, U32.is_eq(k, 45))} : String}
+      Equal.cong(String, String, z => SCon{Chr{lsig_a(lsig(j))}, z}, L.canon.go(r1, U32.is_eq(k, 45)), L.canon.go(r2, U32.is_eq(k, 45)), ih)
+    case False{}:
+      %Equal.cong(LSig, U32, s => lsig_b(s), lsig(j), lsig(k), hs)
+        : {SCon{Chr{lsig_b(lsig(j))}, L.canon.go(r1, U32.is_eq(j, 45))} == SCon{Chr{_}, L.canon.go(r2, U32.is_eq(k, 45))} : String}
+      %lsig_ea(j, k, hs)
+        : {SCon{Chr{lsig_b(lsig(j))}, L.canon.go(r1, _)} == SCon{Chr{lsig_b(lsig(j))}, L.canon.go(r2, U32.is_eq(k, 45))} : String}
+      Equal.cong(String, String, z => SCon{Chr{lsig_b(lsig(j))}, z}, L.canon.go(r1, U32.is_eq(k, 45)), L.canon.go(r2, U32.is_eq(k, 45)), ih)
+
+# a name and its lower case canonicalize alike
+def canon_lo(s: String, +up: Bool) -> {L.canon.go(String.to_lower(s), up) == L.canon.go(s, up) : String}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+c, +rest}:
+      match c:
+        case Chr{+k}:
+          cl_step(Char.to_u32(Char.to_lower(Chr{k})), k, String.to_lower(rest), rest, up, lo_sig(k), canon_lo(rest, U32.is_eq(k, 45)))
+
+def tok_lo(s: String) -> {L.all_token(String.to_lower(s)) == L.all_token(s) : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+c, +rest}:
+      match c:
+        case Chr{+k}:
+          %Equal.sym(Bool, L.all_token(String.to_lower(rest)), L.all_token(rest), tok_lo(rest))
+            : {Bool.and(L.token_byte(Char.to_u32(Char.to_lower(Chr{k}))), _) == Bool.and(L.token_byte(k), L.all_token(rest)) : Bool}
+          %lsig_ta(Char.to_u32(Char.to_lower(Chr{k})), k, lo_sig(k))
+            : {Bool.and(_, L.all_token(rest)) == Bool.and(L.token_byte(k), L.all_token(rest)) : Bool}
+          {==}
+
+def token_lo(+s: String) -> {L.token(String.to_lower(s)) == L.token(s) : Bool}:
+  match s:
+    case SNil{}:
+      {==}
+    case SCon{+c, +rest}:
+      Equal.cong(Bool, Bool, z => Bool.and(Bool.not(False{}), z), L.all_token(String.to_lower(SCon{c, rest})), L.all_token(SCon{c, rest}), tok_lo(SCon{c, rest}))
+
+def canon_tok(+s: String, +h: {L.token(s) == True{} : Bool}) -> {L.canon(s) == L.canon.go(s, True{}) : String}:
+  %Equal.sym(Bool, L.token(s), True{}, h) : {L.pick(String, _, L.canon.go(s, True{}), s) == L.canon.go(s, True{}) : String}
+  {==}
+
+# the parser stores a lower-cased token name under the name's canonical form
+def canon_lo_h(+k: String, +h: {L.token(k) == True{} : Bool}) -> {Http.canon(String.to_lower(k)) == Http.canon(k) : String}:
+  Equal.trans(String, Http.canon(String.to_lower(k)), L.canon.go(k, True{}), Http.canon(k),
+    Equal.trans(String, Http.canon(String.to_lower(k)), L.canon(String.to_lower(k)), L.canon.go(k, True{}), canon_h(String.to_lower(k)),
+      Equal.trans(String, L.canon(String.to_lower(k)), L.canon.go(String.to_lower(k), True{}), L.canon.go(k, True{}),
+        canon_tok(String.to_lower(k), Equal.trans(Bool, L.token(String.to_lower(k)), L.token(k), True{}, token_lo(k), h)),
+        canon_lo(k, True{}))),
+    Equal.sym(String, Http.canon(k), L.canon.go(k, True{}), Equal.trans(String, Http.canon(k), L.canon(k), L.canon.go(k, True{}), canon_h(k), canon_tok(k, h))))
+
+# ---------------------------------------------------------------------
+# A padded value is written trimmed
+# ---------------------------------------------------------------------
+
+def nl_app(a: String, +b: String) -> {L.nl_to_space(a ++ b) == L.nl_to_space(a) ++ L.nl_to_space(b) : String}:
+  match a:
+    case SNil{}:
+      {==}
+    case SCon{+c, +rest}:
+      Equal.trans(String, L.nl_to_space(SCon{c, rest} ++ b),
+        L.pick(String, Bool.or(U32.is_eq(L.code(c), 10), U32.is_eq(L.code(c), 13)), " ", SCon{c, SNil{}}) ++ (L.nl_to_space(rest) ++ L.nl_to_space(b)),
+        L.nl_to_space(SCon{c, rest}) ++ L.nl_to_space(b),
+        Equal.cong(String, String, z => L.pick(String, Bool.or(U32.is_eq(L.code(c), 10), U32.is_eq(L.code(c), 13)), " ", SCon{c, SNil{}}) ++ z, L.nl_to_space(rest ++ b), L.nl_to_space(rest) ++ L.nl_to_space(b), nl_app(rest, b)),
+        Equal.sym(String, (L.pick(String, Bool.or(U32.is_eq(L.code(c), 10), U32.is_eq(L.code(c), 13)), " ", SCon{c, SNil{}}) ++ L.nl_to_space(rest)) ++ L.nl_to_space(b),
+          L.pick(String, Bool.or(U32.is_eq(L.code(c), 10), U32.is_eq(L.code(c), 13)), " ", SCon{c, SNil{}}) ++ (L.nl_to_space(rest) ++ L.nl_to_space(b)),
+          app_assoc(L.pick(String, Bool.or(U32.is_eq(L.code(c), 10), U32.is_eq(L.code(c), 13)), " ", SCon{c, SNil{}}), L.nl_to_space(rest), L.nl_to_space(b))))
+
+def rtrim_tab(+a: String) -> {rtrim(a ++ "\t") == rtrim(a) : String}:
+  Equal.cong(String, String, x => rev(Http.trim_ows_l(x)), rev(a ++ "\t"), rev("\t") ++ rev(a), rev_app(a, "\t"))
+
+def nil_cons(+c: Char, +r: String, e: {"" == SCon{c, r} : String}) -> Empty:
+  no_tf(Equal.cong(String, Bool, z => String.is_empty(z), "", SCon{c, r}, e))
+
+# a clean value has a left trim that is not empty
+def pad_ne(b: Bool, +c: Char, +r: String, +e: {String.is_empty(Http.trim_ows_l(SCon{c, r})) == b : Bool},
+           +ht: {rtrim(Http.trim_ows_l(SCon{c, r})) == SCon{c, r} : String})
+  -> {String.is_empty(Http.trim_ows_l(SCon{c, r})) == False{} : Bool}:
+  match b:
+    case False{}:
+      e
+    case True{}:
+      Empty.absurd({String.is_empty(Http.trim_ows_l(SCon{c, r})) == False{} : Bool},
+        nil_cons(c, r, Equal.trans(String, "", rtrim(Http.trim_ows_l(SCon{c, r})), SCon{c, r},
+          Equal.cong(String, String, z => rtrim(z), "", Http.trim_ows_l(SCon{c, r}), Equal.sym(String, Http.trim_ows_l(SCon{c, r}), "", empty_nil(Http.trim_ows_l(SCon{c, r}), e))),
+          ht)))
+
+def val_pad_t(+v: String, +ht: {rtrim(Http.trim_ows_l(v)) == v : String}, +hne: {String.is_empty(Http.trim_ows_l(v)) == False{} : Bool})
+  -> {rtrim(Http.trim_ows_l(v ++ "\t")) == v : String}:
+  %Equal.sym(String, Http.trim_ows_l(v ++ "\t"), Http.trim_ows_l(v) ++ "\t", tl_app(v, "\t", hne)) : {rtrim(_) == v : String}
+  %Equal.sym(String, rtrim(Http.trim_ows_l(v) ++ "\t"), rtrim(Http.trim_ows_l(v)), rtrim_tab(Http.trim_ows_l(v))) : {_ == v : String}
+  ht
+
+def val_pad_r(v: String, +ht: {rtrim(Http.trim_ows_l(v)) == v : String}) -> {rtrim(Http.trim_ows_l(v ++ "\t")) == v : String}:
+  match v:
+    case SNil{}:
+      {==}
+    case SCon{+c, +r}:
+      val_pad_t(SCon{c, r}, ht, pad_ne(String.is_empty(Http.trim_ows_l(SCon{c, r})), c, r, {==}, ht))
+
+# " v\t" is written as v
+def val_pad(+v: String, +h: {L.clean_val(v) == True{} : Bool}) -> {L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) == v : String}:
+  %Equal.sym(String, L.nl_to_space(v ++ "\t"), L.nl_to_space(v) ++ "\t", nl_app(v, "\t")) : {L.trim_ows(SCon{Chr{32}, _}) == v : String}
+  %Equal.sym(String, L.nl_to_space(v), v, nl_id(v, and_l(L.no_ctl(v), String.eq(L.trim_ows(v), v), and_r(L.bytes(v), Bool.and(L.no_ctl(v), String.eq(L.trim_ows(v), v)), h))))
+    : {L.trim_ows(SCon{Chr{32}, _ ++ "\t"}) == v : String}
+  %trim_h(SCon{Chr{32}, v ++ "\t"}) : {_ == v : String}
+  %Equal.sym(String, Http.trim_ows(SCon{Chr{32}, v ++ "\t"}), rtrim(Http.trim_ows_l(SCon{Chr{32}, v ++ "\t"})), tr_eq(SCon{Chr{32}, v ++ "\t"})) : {_ == v : String}
+  val_pad_r(v,
+    Equal.trans(String, rtrim(Http.trim_ows_l(v)), Http.trim_ows(v), v, Equal.sym(String, Http.trim_ows(v), rtrim(Http.trim_ows_l(v)), tr_eq(v)),
+      Equal.trans(String, Http.trim_ows(v), L.trim_ows(v), v, trim_h(v),
+        str_eq(L.trim_ows(v), v, and_r(L.no_ctl(v), String.eq(L.trim_ows(v), v), and_r(L.bytes(v), Bool.and(L.no_ctl(v), String.eq(L.trim_ows(v), v)), h))))))
+
+# ---------------------------------------------------------------------
+# A response's lower-cased, padded header text as KV lines
+# ---------------------------------------------------------------------
+
+def fll(hs: List<&2, Hdr.Header>) -> List<&2, KV>:
+  match hs:
+    case Nil{}:
+      []
+    case Con{+h, +rest}:
+      kvs(String.to_lower(L.hdr_key(h)), L.hdr_vals(h), fll(rest))
+
+def txt_pad(+k: String, vs: List<&2, String>, +tail: List<&2, KV>, +h: {L.all_clean(vs) == True{} : Bool})
+  -> {L.hdr_lines(k, L.pad_vals(vs)) ++ plines(tail) == plines(kvs(k, vs, tail)) : String}:
+  match vs:
+    case Nil{}:
+      {==}
+    case Con{+v, +rest}:
+      %Equal.sym(String, (k ++ (": " ++ (L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) ++ ("\r\n" ++ L.hdr_lines(k, L.pad_vals(rest)))))) ++ plines(tail),
+          k ++ ((": " ++ (L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) ++ ("\r\n" ++ L.hdr_lines(k, L.pad_vals(rest))))) ++ plines(tail)),
+          app_assoc(k, ": " ++ (L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) ++ ("\r\n" ++ L.hdr_lines(k, L.pad_vals(rest)))), plines(tail)))
+        : {_ == plines(kvs(k, Con{v, rest}, tail)) : String}
+      %Equal.sym(String, (L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) ++ ("\r\n" ++ L.hdr_lines(k, L.pad_vals(rest)))) ++ plines(tail),
+          L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))) ++ (("\r\n" ++ L.hdr_lines(k, L.pad_vals(rest))) ++ plines(tail)),
+          app_assoc(L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))), "\r\n" ++ L.hdr_lines(k, L.pad_vals(rest)), plines(tail)))
+        : {k ++ (": " ++ _) == plines(kvs(k, Con{v, rest}, tail)) : String}
+      %Equal.sym(String, L.trim_ows(L.nl_to_space(" " ++ (v ++ "\t"))), v, val_pad(v, and_l(L.clean_val(v), L.all_clean(rest), h)))
+        : {k ++ (": " ++ (_ ++ ("\r\n" ++ (L.hdr_lines(k, L.pad_vals(rest)) ++ plines(tail))))) == plines(kvs(k, Con{v, rest}, tail)) : String}
+      %Equal.sym(String, L.hdr_lines(k, L.pad_vals(rest)) ++ plines(tail), plines(kvs(k, rest, tail)), txt_pad(k, rest, tail, and_r(L.clean_val(v), L.all_clean(rest), h)))
+        : {k ++ (": " ++ (v ++ ("\r\n" ++ _))) == plines(kvs(k, Con{v, rest}, tail)) : String}
+      {==}
+
+def txt_l(hs: List<&2, Hdr.Header>, +h: {L.hdrs_resp_ok(hs) == True{} : Bool}) -> {L.resp_hdr_lines(L.lower_names(hs)) == plines(fll(hs)) : String}:
+  match hs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      %Equal.sym(String, L.resp_hdr_lines(L.lower_names(rest)), plines(fll(rest)), txt_l(rest, rest_of(x, rest, h)))
+        : {L.hdr_lines(String.to_lower(L.hdr_key(x)), L.pad_vals(L.hdr_vals(x))) ++ _ == plines(fll(Con{x, rest})) : String}
+      txt_pad(String.to_lower(L.hdr_key(x)), L.hdr_vals(x), fll(rest), clean_of(x, rest, h))
+
+def pok_fll(hs: List<&2, Hdr.Header>, +h: {L.hdrs_resp_ok(hs) == True{} : Bool}) -> {pok(fll(hs)) == True{} : Bool}:
+  match hs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      pok_vals(String.to_lower(L.hdr_key(x)), L.hdr_vals(x), fll(rest),
+        Equal.trans(Bool, L.token(String.to_lower(L.hdr_key(x))), L.token(L.hdr_key(x)), True{}, token_lo(L.hdr_key(x)),
+          hr_1(L.token(L.hdr_key(x)), String.eq(L.canon(L.hdr_key(x)), L.hdr_key(x)), Bool.not(L.has_key(L.hdr_key(x), rest)), Bool.not(List.is_empty(&2, String, L.hdr_vals(x))), L.all_clean(L.hdr_vals(x)), L.hdrs_resp_ok(rest), h)),
+        hr_5(L.token(L.hdr_key(x)), String.eq(L.canon(L.hdr_key(x)), L.hdr_key(x)), Bool.not(L.has_key(L.hdr_key(x), rest)), Bool.not(List.is_empty(&2, String, L.hdr_vals(x))), L.all_clean(L.hdr_vals(x)), L.hdrs_resp_ok(rest), h),
+        pok_fll(rest, hr_6(L.token(L.hdr_key(x)), String.eq(L.canon(L.hdr_key(x)), L.hdr_key(x)), Bool.not(L.has_key(L.hdr_key(x), rest)), Bool.not(List.is_empty(&2, String, L.hdr_vals(x))), L.all_clean(L.hdr_vals(x)), L.hdrs_resp_ok(rest), h)))
+
+def addall_fll(hs: List<&2, Hdr.Header>, +t: List<&2, Hdr.Header>, +hd: {disj(hs, t) == True{} : Bool}, +h: {L.hdrs_resp_ok(hs) == True{} : Bool})
+  -> {addall(fll(hs), t) == List.append(&2, Hdr.Header, t, hs) : List<&2, Hdr.Header>}:
+  match hs:
+    case Nil{}:
+      Equal.sym(List<&2, Hdr.Header>, List.append(&2, Hdr.Header, t, []), t, lapp_nil(Hdr.Header, t))
+    case Con{x, +rest}:
+      match x:
+        case Hdr.Header{+k, +vs}:
+          Equal.trans(List<&2, Hdr.Header>, addall(kvs(String.to_lower(k), vs, fll(rest)), t), addall(fll(rest), addvals(Http.canon(String.to_lower(k)), vs, t)), List.append(&2, Hdr.Header, t, Con{Hdr.Header{k, vs}, rest}),
+            addall_kvs(String.to_lower(k), vs, fll(rest), t),
+            Equal.trans(List<&2, Hdr.Header>, addall(fll(rest), addvals(Http.canon(String.to_lower(k)), vs, t)), addall(fll(rest), addvals(k, vs, t)), List.append(&2, Hdr.Header, t, Con{Hdr.Header{k, vs}, rest}),
+              Equal.cong(String, List<&2, Hdr.Header>, z => addall(fll(rest), addvals(z, vs, t)), Http.canon(String.to_lower(k)), k,
+                Equal.trans(String, Http.canon(String.to_lower(k)), Http.canon(k), k,
+                  canon_lo_h(k, hr_1(L.token(k), String.eq(L.canon(k), k), Bool.not(L.has_key(k, rest)), Bool.not(List.is_empty(&2, String, vs)), L.all_clean(vs), L.hdrs_resp_ok(rest), h)),
+                  Equal.trans(String, Http.canon(k), L.canon(k), k, canon_h(k),
+                    str_eq(L.canon(k), k, hr_2(L.token(k), String.eq(L.canon(k), k), Bool.not(L.has_key(k, rest)), Bool.not(List.is_empty(&2, String, vs)), L.all_clean(vs), L.hdrs_resp_ok(rest), h))))),
+              Equal.trans(List<&2, Hdr.Header>, addall(fll(rest), addvals(k, vs, t)), addall(fll(rest), List.append(&2, Hdr.Header, t, [Hdr.Header{k, vs}])), List.append(&2, Hdr.Header, t, Con{Hdr.Header{k, vs}, rest}),
+                Equal.cong(List<&2, Hdr.Header>, List<&2, Hdr.Header>, z => addall(fll(rest), z), addvals(k, vs, t), List.append(&2, Hdr.Header, t, [Hdr.Header{k, vs}]),
+                  addvals_new(k, vs, t, not_t(L.has_key(k, t), and_l(Bool.not(L.has_key(k, t)), disj(rest, t), hd)),
+                    not_t(List.is_empty(&2, String, vs), hr_4(L.token(k), String.eq(L.canon(k), k), Bool.not(L.has_key(k, rest)), Bool.not(List.is_empty(&2, String, vs)), L.all_clean(vs), L.hdrs_resp_ok(rest), h)))),
+                Equal.trans(List<&2, Hdr.Header>, addall(fll(rest), List.append(&2, Hdr.Header, t, [Hdr.Header{k, vs}])), List.append(&2, Hdr.Header, List.append(&2, Hdr.Header, t, [Hdr.Header{k, vs}]), rest), List.append(&2, Hdr.Header, t, Con{Hdr.Header{k, vs}, rest}),
+                  addall_fll(rest, List.append(&2, Hdr.Header, t, [Hdr.Header{k, vs}]),
+                    disj_ext(rest, t, k, vs, and_r(Bool.not(L.has_key(k, t)), disj(rest, t), hd),
+                      not_t(L.has_key(k, rest), hr_3(L.token(k), String.eq(L.canon(k), k), Bool.not(L.has_key(k, rest)), Bool.not(List.is_empty(&2, String, vs)), L.all_clean(vs), L.hdrs_resp_ok(rest), h))),
+                    hr_6(L.token(k), String.eq(L.canon(k), k), Bool.not(L.has_key(k, rest)), Bool.not(List.is_empty(&2, String, vs)), L.all_clean(vs), L.hdrs_resp_ok(rest), h)),
+                  lapp_assoc(Hdr.Header, t, [Hdr.Header{k, vs}], rest)))))
+
+# ---------------------------------------------------------------------
+# http_lenient: the head of a response with lower-case names and padded
+# values reads as the canonical one
+# ---------------------------------------------------------------------
+def head_keep_lo(+hs: List<&2, Hdr.Header>, +w: String, +c: Nat, +st: String, +mi: Nat, +mb: Maybe<&2, Nat>, +hd: Bool, +cl: Bool,
+              +hok: {L.hdrs_resp_ok(hs) == True{} : Bool})
+  -> {Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("\r\n" ++ w), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}})
+      == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, hs, hd)}) : Http.Parse}:
+  %Equal.sym(String, L.resp_hdr_lines(L.lower_names(hs)), plines(fll(hs)), txt_l(hs, hok))
+    : {Http.feed.go(_ ++ ("\r\n" ++ w), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}) == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, hs, hd)}) : Http.Parse}
+  Equal.trans(Http.Parse, Http.feed.go(plines(fll(hs)) ++ ("\r\n" ++ w), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}),
+    Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, addall(fll(hs), []), hd)}), Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, hs, hd)}),
+    flat(fll(hs), w, c, st, mi, [], None{}, [], mb, hd, cl, {==}, pok_fll(hs, hok)),
+    Equal.cong(List<&2, Hdr.Header>, Http.Parse, z => Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, z, hd)}), addall(fll(hs), []), hs, addall_fll(hs, [], disj_nil(hs), hok)))
+
+def head_close_lo(+hs: List<&2, Hdr.Header>, +w: String, +c: Nat, +st: String, +mi: Nat, +mb: Maybe<&2, Nat>, +hd: Bool, +cl: Bool,
+               +hok: {L.hdrs_resp_ok(hs) == True{} : Bool}, +hnc: {L.has_key("Connection", hs) == False{} : Bool})
+  -> {Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("Connection: close\r\n" ++ ("\r\n" ++ w)), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}})
+      == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hd)}) : Http.Parse}:
+  %Equal.sym(String, L.resp_hdr_lines(L.lower_names(hs)), plines(fll(hs)), txt_l(hs, hok))
+    : {Http.feed.go(_ ++ ("Connection: close\r\n" ++ ("\r\n" ++ w)), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}) == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hd)}) : Http.Parse}
+  %app_assoc(plines(fll(hs)), plines([KV{"Connection", "close"}]), "\r\n" ++ w)
+    : {Http.feed.go(_, Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}) == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hd)}) : Http.Parse}
+  %plines_app(fll(hs), [KV{"Connection", "close"}])
+    : {Http.feed.go(_ ++ ("\r\n" ++ w), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}) == Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hd)}) : Http.Parse}
+  Equal.trans(Http.Parse, Http.feed.go(plines(List.append(&2, KV, fll(hs), [KV{"Connection", "close"}])) ++ ("\r\n" ++ w), Http.Parse{mb, hd, cl, Http.HHdr{c, st, mi, [], None{}, ""}}),
+    Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, addall(List.append(&2, KV, fll(hs), [KV{"Connection", "close"}]), []), hd)}),
+    Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hd)}),
+    flat(List.append(&2, KV, fll(hs), [KV{"Connection", "close"}]), w, c, st, mi, [], None{}, [], mb, hd, cl, {==}, pok_app(fll(hs), [KV{"Connection", "close"}], pok_fll(hs, hok), {==})),
+    Equal.cong(List<&2, Hdr.Header>, Http.Parse, z => Http.feed.go(w, Http.Parse{mb, hd, cl, Http.framing(c, st, mi, z, hd)}),
+      addall(List.append(&2, KV, fll(hs), [KV{"Connection", "close"}]), []), List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]),
+      Equal.trans(List<&2, Hdr.Header>, addall(List.append(&2, KV, fll(hs), [KV{"Connection", "close"}]), []), addall([KV{"Connection", "close"}], addall(fll(hs), [])), List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]),
+        addall_app(fll(hs), [KV{"Connection", "close"}], []),
+        Equal.trans(List<&2, Hdr.Header>, addall([KV{"Connection", "close"}], addall(fll(hs), [])), addall([KV{"Connection", "close"}], hs), List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]),
+          Equal.cong(List<&2, Hdr.Header>, List<&2, Hdr.Header>, z => addall([KV{"Connection", "close"}], z), addall(fll(hs), []), hs, addall_fll(hs, [], disj_nil(hs), hok)),
+          add_new("Connection", "close", hs, hnc)))))
+
+def hs_keep_lo(+c: Nat, +st: String, +hs: List<&2, Hdr.Header>, +b: String, +mb: Maybe<&2, Nat>, +cl: Bool,
+            +h: {L.resp_base_ok(Http.Resp{c, st, hs, b, True{}}) == True{} : Bool},
+            +hv: {L.vals_are("Content-Length", Dec.show(String.length(b)), hs) == True{} : Bool})
+  -> {Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, True{}}), Http.Parse{mb, False{}, cl, Http.HStat{0n, ""}})
+      == Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", True{}})} : Http.Parse}:
+  Equal.trans(Http.Parse, Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, True{}}), Http.Parse{mb, False{}, cl, Http.HStat{0n, ""}}),
+    Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("\r\n" ++ ""), Http.Parse{mb, False{}, cl, Http.HHdr{c, st, 1n, [], None{}, ""}}),
+    Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", True{}})},
+    stat_st(c, st, L.resp_hdr_lines(L.lower_names(hs)) ++ ("\r\n" ++ ""), mb, False{}, cl,
+      rA_ge(c, hs, True{}, rb_A(c, st, hs, b, True{}, h)), rA_le(c, hs, True{}, rb_A(c, st, hs, b, True{}, h)),
+      and_l(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, True{}, h)), rb_B(c, st, hs, b, True{}, h)),
+    Equal.trans(Http.Parse, Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("\r\n" ++ ""), Http.Parse{mb, False{}, cl, Http.HHdr{c, st, 1n, [], None{}, ""}}),
+      Http.Parse{mb, False{}, cl, Http.framing(c, st, 1n, hs, False{})},
+      Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", True{}})},
+      head_keep_lo(hs, "", c, st, 1n, mb, False{}, cl, and_r(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, True{}, h))),
+      Equal.cong(Http.Ph, Http.Parse, ph => Http.Parse{mb, False{}, cl, ph}, Http.framing(c, st, 1n, hs, False{}), Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", True{}}),
+        fr_cl_main(c, st, 1n, hs, hs, True{}, String.length(b),
+          hdr_get_none("Pragma", hs, rA_prag(c, hs, True{}, rb_A(c, st, hs, b, True{}, h))),
+          hdr_get_none("Transfer-Encoding", hs, rF_te(c, hs, rb_F(c, st, hs, b, True{}, h))),
+          hdr_del_none("Transfer-Encoding", hs, rF_te(c, hs, rb_F(c, st, hs, b, True{}, h))),
+          hcf_keep(hs, rA_close(c, hs, True{}, rb_A(c, st, hs, b, True{}, h))),
+          hko_keep(hs, rA_close(c, hs, True{}, rb_A(c, st, hs, b, True{}, h))),
+          nb_f(c, rA_ge(c, hs, True{}, rb_A(c, st, hs, b, True{}, h)), rF_codes(c, hs, rb_F(c, st, hs, b, True{}, h))),
+          eq_f(101n, 200n, c, {==}, rA_ge(c, hs, True{}, rb_A(c, st, hs, b, True{}, h))),
+          hcl_of(hs, String.length(b), hv),
+          hdr_set_id("Content-Length", [Dec.show(String.length(b))], hs, hcl_of(hs, String.length(b), hv), and_r(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, True{}, h)))))))
+
+def hs_close_lo(+c: Nat, +st: String, +hs: List<&2, Hdr.Header>, +b: String, +mb: Maybe<&2, Nat>, +cl: Bool,
+             +h: {L.resp_base_ok(Http.Resp{c, st, hs, b, False{}}) == True{} : Bool},
+             +hv: {L.vals_are("Content-Length", Dec.show(String.length(b)), hs) == True{} : Bool})
+  -> {Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, False{}}), Http.Parse{mb, False{}, cl, Http.HStat{0n, ""}})
+      == Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", False{}})} : Http.Parse}:
+  Equal.trans(Http.Parse, Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, False{}}), Http.Parse{mb, False{}, cl, Http.HStat{0n, ""}}),
+    Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("Connection: close\r\n" ++ ("\r\n" ++ "")), Http.Parse{mb, False{}, cl, Http.HHdr{c, st, 1n, [], None{}, ""}}),
+    Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", False{}})},
+    stat_st(c, st, L.resp_hdr_lines(L.lower_names(hs)) ++ ("Connection: close\r\n" ++ ("\r\n" ++ "")), mb, False{}, cl,
+      rA_ge(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)), rA_le(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)),
+      and_l(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, False{}, h)), rb_B(c, st, hs, b, False{}, h)),
+    Equal.trans(Http.Parse, Http.feed.go(L.resp_hdr_lines(L.lower_names(hs)) ++ ("Connection: close\r\n" ++ ("\r\n" ++ "")), Http.Parse{mb, False{}, cl, Http.HHdr{c, st, 1n, [], None{}, ""}}),
+      Http.Parse{mb, False{}, cl, Http.framing(c, st, 1n, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), False{})},
+      Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", False{}})},
+      head_close_lo(hs, "", c, st, 1n, mb, False{}, cl, and_r(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, False{}, h)),
+        hnc_of(hs, rA_conn(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)))),
+      Equal.cong(Http.Ph, Http.Parse, ph => Http.Parse{mb, False{}, cl, ph},
+        Http.framing(c, st, 1n, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), False{}), Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", False{}}),
+        fr_cl_main(c, st, 1n, List.append(&2, Hdr.Header, hs, [Hdr.Header{"Connection", ["close"]}]), hs, False{}, String.length(b),
+          hte_close("Pragma", hs, rA_prag(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)), {==}),
+          hte_close("Transfer-Encoding", hs, rF_te(c, hs, rb_F(c, st, hs, b, False{}, h)), {==}),
+          hted_close(hs, rF_te(c, hs, rb_F(c, st, hs, b, False{}, h))),
+          hcf_close(hs, hnc_of(hs, rA_conn(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)))),
+          hko_close(hs, hnc_of(hs, rA_conn(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)))),
+          nb_f(c, rA_ge(c, hs, False{}, rb_A(c, st, hs, b, False{}, h)), rF_codes(c, hs, rb_F(c, st, hs, b, False{}, h))),
+          eq_f(101n, 200n, c, {==}, rA_ge(c, hs, False{}, rb_A(c, st, hs, b, False{}, h))),
+          hcl_of(hs, String.length(b), hv),
+          hdr_set_id("Content-Length", [Dec.show(String.length(b))], hs, hcl_of(hs, String.length(b), hv), and_r(L.printable(st), L.hdrs_resp_ok(hs), rb_C(c, st, hs, b, False{}, h)))))))
+
+def head_cl_lo(+c: Nat, +st: String, +hs: List<&2, Hdr.Header>, +b: String, k: Bool, +mb: Maybe<&2, Nat>, +cl: Bool,
+            +h: {L.resp_base_ok(Http.Resp{c, st, hs, b, k}) == True{} : Bool},
+            +hv: {L.vals_are("Content-Length", Dec.show(String.length(b)), hs) == True{} : Bool})
+  -> {Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, k}), Http.Parse{mb, False{}, cl, Http.HStat{0n, ""}})
+      == Http.Parse{mb, False{}, cl, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", k})} : Http.Parse}:
+  match k:
+    case True{}:
+      hs_keep_lo(c, st, hs, b, mb, cl, h, hv)
+    case False{}:
+      hs_close_lo(c, st, hs, b, mb, cl, h, hv)
+
+def len_main(+c: Nat, +st: String, +hs: List<&2, Hdr.Header>, +b: String, +k: Bool, +rest: String,
+            +h: {L.resp_cl_ok(Http.Resp{c, st, hs, b, k}) == True{} : Bool})
+  -> {L.parse_of(None{}, False{}, L.render_cl(Http.Resp{c, st, L.lower_names(hs), b, k}) ++ rest) == Some{Done{(Http.Resp{c, st, hs, b, k}, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}:
+  %Equal.sym(Http.Parse, Http.feed.go((L.render_head(Http.Resp{c, st, L.lower_names(hs), b, k}) ++ b) ++ rest, Http.Parse{None{}, False{}, False{}, Http.HStat{0n, ""}}),
+      Http.feed.go(rest, Http.feed.go(b, Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, k}), Http.Parse{None{}, False{}, False{}, Http.HStat{0n, ""}}))),
+      feed3(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, k}), b, rest, Http.Parse{None{}, False{}, False{}, Http.HStat{0n, ""}}))
+    : {Http.done(_) == Some{Done{(Http.Resp{c, st, hs, b, k}, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+  %Equal.sym(Http.Parse, Http.feed.go(L.render_head(Http.Resp{c, st, L.lower_names(hs), b, k}), Http.Parse{None{}, False{}, False{}, Http.HStat{0n, ""}}),
+      Http.Parse{None{}, False{}, False{}, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", k})},
+      head_cl_lo(c, st, hs, b, k, None{}, False{},
+        and_l(L.resp_base_ok(Http.Resp{c, st, hs, b, k}), L.vals_are("Content-Length", Dec.show(String.length(b)), hs), h),
+        and_r(L.resp_base_ok(Http.Resp{c, st, hs, b, k}), L.vals_are("Content-Length", Dec.show(String.length(b)), hs), h)))
+    : {Http.done(Http.feed.go(rest, Http.feed.go(b, _))) == Some{Done{(Http.Resp{c, st, hs, b, k}, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+  %Equal.sym(Http.Parse, Http.feed.go(b, Http.Parse{None{}, False{}, False{}, Http.fr_len(Some{String.length(b)}, Http.Resp{c, st, hs, "", k})}),
+      Http.Parse{None{}, False{}, False{}, Http.HDone{Http.Resp{c, st, hs, b, k}, ""}}, body_none(b, c, st, hs, k, False{}, False{}))
+    : {Http.done(Http.feed.go(rest, _)) == Some{Done{(Http.Resp{c, st, hs, b, k}, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+  finish(Http.Resp{c, st, hs, b, k}, rest, None{}, False{})
+
+def L.http_lenient(r, rest, h):
+  match r:
+    case Http.Resp{+c, +st, +hs, +b, +k}:
+      len_main(c, st, hs, b, k, rest, h)
+

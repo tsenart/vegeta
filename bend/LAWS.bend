@@ -1018,6 +1018,16 @@ def valid_time(+t: Civil.Time) -> Bool:
 def pad2(+n: Nat) -> String:
   Dec.pad(2n, n)
 
+def ymd_year(+t: Civil.Ymd) -> Nat:
+  Civil.Ymd{y, m, d} = t
+  y
+
+# the local date's year has four digits: Go's MarshalJSON refuses the rest
+# ("year outside of range [0,9999]"), and its parser reads four
+def year_ok(+t: Civil.Time) -> Bool:
+  +local = Nat.sub(Nat.add(time_sec(t), time_off(t)), 86400n)
+  Nat.is_le(ymd_year(Civil.days_to_ymd(Nat.div(local, 86400n))), 9999n)
+
 # Go's time.Time.MarshalJSON text, unquoted: local date and time, the
 # fraction without trailing zeros, and Z or the signed offset
 def rfc_date(+t: Civil.Ymd) -> String:
@@ -1041,7 +1051,7 @@ law civil_rfc3339:
 
 law civil_rfc3339_parse:
   for +t: Civil.Time
-  for h: {valid_time(t) == True{} : Bool}
+  for h: {Bool.and(valid_time(t), year_ok(t)) == True{} : Bool}
   {Civil.parse_rfc3339(Civil.rfc3339(t)) == Some{t} : Maybe<&2, Civil.Time>}
 
 # LAW: instants compare by their nanosecond count, whatever their zones
@@ -1569,10 +1579,11 @@ def csv_ok(+h: Hit.Hit) -> Bool:
   Bool.and(Bool.and(all_bytes([attack, err, method, url]), no_crlf_pair([attack, err, method, url])),
   Bool.and(Bool.and(hit_fits(seq, lat, bout, bin), nat_fits(time_sec(ts))), maybe_hdrs_ok(True{}, hdrs))))))))
 
-# a result JSON carries unchanged: an RFC3339 time, UTF-8 text
+# a result JSON carries unchanged: an RFC3339 time Go would write (a
+# four-digit year), UTF-8 text
 def json_ok(+h: Hit.Hit) -> Bool:
   Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
-  Bool.and(Nat.is_lt(code, 65536n), Bool.and(valid_time(ts), Bool.and(bytes(body_or_empty(body)),
+  Bool.and(Nat.is_lt(code, 65536n), Bool.and(Bool.and(valid_time(ts), year_ok(ts)), Bool.and(bytes(body_or_empty(body)),
   Bool.and(all_utf8([attack, err, method, url]), Bool.and(hit_fits(seq, lat, bout, bin), maybe_hdrs_ok(False{}, hdrs))))))
 
 law hit_of_csv:
