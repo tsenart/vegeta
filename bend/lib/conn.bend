@@ -765,6 +765,20 @@ def head_of(+c: Cfg, +ff: String, +ah: String) -> Head:
   +k = code_at(ff)
   head_of.of(Bool.and(Maybe.is_some(&2, Nat, c_rd(c)), is_30x(k)), k, ff, ah)
 
+def head_bytes.of(in: Bool, +c: Cfg, +ff: String, +ah: String) -> Head:
+  match in:
+    case True{}:
+      head_of(c, ff, ah)
+    case False{}:
+      HOut{}
+
+# the final head's facts read off the bytes (HOut while its blank line
+# is not in)
+def head_bytes(+c: Cfg, +buf: String) -> Head:
+  +ff = final_from(buf)
+  +ah = after_head(ff)
+  head_bytes.of(Bool.not(String.is_empty(ah)), c, ff, ah)
+
 # ---------------------------------------------------------------------
 # Taking bytes in
 # ---------------------------------------------------------------------
@@ -790,11 +804,14 @@ def walk_ff(+w: Walk) -> String:
   Walk{ok, ff, ah} = w
   ff
 
-# a head is in for good once its blank line is in and it has 9 bytes or
-# more before it: its status code is then read inside it (or runs into
-# its blank line, and then it is no code the client acts on)
+# a head is in for good once its blank line is in, it has 9 bytes or
+# more before it, and the 3 bytes its status code is read from are in:
+# its status code is then read inside it (or runs into its blank line,
+# and then it is no code the client acts on), and it reads the same
+# however many bytes follow
 def fixed(+s: String, +ah: String) -> Bool:
-  Bool.and(Bool.not(String.is_empty(ah)), Nat.is_ge(Nat.sub(String.length(s), String.length(ah)), 9n))
+  Bool.and(Bool.and(Bool.not(String.is_empty(ah)), Nat.is_ge(Nat.sub(String.length(s), String.length(ah)), 9n)),
+    Nat.is_eq(String.length(String.take(Http.trim_sp_l(String.drop(s, 9n)), 3n)), 3n))
 
 def skip_of(+s: String, +ah: String) -> Bool:
   Bool.and(interim(code_at(s)), Bool.not(String.is_empty(ah)))
@@ -870,37 +887,10 @@ def in_of(h: Head, +rbuf: String) -> Bool:
     case HIn{r, k, l, g}:
       True{}
 
-# the body bytes a parse without -max-body holds (the length of its
-# partial body, counted rather than rebuilt)
-def ph_kept(ph: Http.Ph) -> Nat:
-  match ph:
-    case Http.HLen{r, left, body, kept}:
-      kept
-    case Http.HChSize{r, line, body, kept}:
-      kept
-    case Http.HChData{r, left, body, kept}:
-      kept
-    case Http.HChCR{r, body, kept}:
-      kept
-    case Http.HChLF{r, body, kept}:
-      kept
-    case Http.HTrail{r, line, body}:
-      String.length(body)
-    case Http.HClose{r, body, kept}:
-      kept
-    case Http.HDone{r, rest}:
-      String.length(r_body(r))
-    case _:
-      0n
-
-def p_kept(+p: Http.Parse) -> Nat:
-  Http.Parse{mb, head, closed, ph} = p
-  ph_kept(ph)
-
 # Go is done with a redirect's body
 def drained(+x: Rx) -> Bool:
   Bool.or(Bool.or(hd_big(rx_hd(x)), p_closed(rx_p(x))),
-    Bool.or(is_done(Http.done(rx_p0(x))), Nat.is_ge(p_kept(rx_p0(x)), 2048n)))
+    Bool.or(is_done(Http.done(rx_p0(x))), Nat.is_ge(String.length(Http.partial(rx_p0(x))), 2048n)))
 
 def due.of(go: Bool, +x: Rx) -> Bool:
   match go:
@@ -1399,19 +1389,29 @@ def late.in(in: Bool, +s: State) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
     case False{}:
       fail(s, prefix(s) ++ awaiting(), None{})
 
-def late.redir(r: Bool, +c: Cfg, +s: State) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
+def late.redir(r: Bool, +c: Cfg, +s: State, +h: Head) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
   match r:
     case True{}:
       +q = st_req(s)
-      +h = rx_hd(st_rx(s))
       +n = rd_limit(c_rd(c))
       fail(s, pick(String, Nat.is_ge(cur_hops(st_cur(s)), n), stop_text(q, hd_loc(h), n),
         named(q, loc_url(q_url(cur_req(st_cur(s))), hd_loc(h))) ++ awaiting()), None{})
     case False{}:
       late.in(in_of(rx_hd(st_rx(s)), rx_buf(st_rx(s))), s)
 
+# the head's facts: kept once it is in for good, else read off the bytes
+def late.head(h: Head, +c: Cfg, +rbuf: String) -> Head:
+  match h:
+    case HOut{}:
+      head_bytes(c, String.reverse(rbuf))
+    case HIn{r, k, l, g}:
+      HIn{r, k, l, g}
+
+def late.of(+c: Cfg, +s: State, +h: Head) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
+  late.redir(hd_redir(h), c, s, h)
+
 def on_late(+c: Cfg, +s: State) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
-  late.redir(hd_redir(rx_hd(st_rx(s))), c, s)
+  late.of(c, s, late.head(rx_hd(st_rx(s)), c, rx_buf(st_rx(s))))
 
 def on_opened(ph: Phase, +c: Cfg, +s: State) -> Sigma<&2, &2, State, _ => List<&2, Cmd>>:
   match ph:

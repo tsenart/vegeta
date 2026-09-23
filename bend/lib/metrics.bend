@@ -307,9 +307,14 @@ def add(+a: Acc, +h: Hit.Hit) -> Acc:
 # Closing
 # ---------------------------------------------------------------------
 
+# F64.of_nat(sec()) = 1953125 * 2^9, as a literal (the checker would
+# unfold a closed Big.of(10^9) one unit at a time)
+def sec_f64() -> F64.F64:
+  F64.F64{Big.Big{[3125n, 195n]}, 9n, False{}}
+
 # Go's Duration.Seconds(): float64(d / 1s) + float64(d % 1s) / 1e9
 def seconds(+d: Nat) -> F64.F64:
-  F64.add(F64.of_nat(Nat.div(d, sec())), F64.div(F64.of_nat(Nat.mod(d, sec())), F64.of_nat(sec())))
+  F64.add(F64.of_nat(Nat.div(d, sec())), F64.div(F64.of_nat(Nat.mod(d, sec())), sec_f64()))
 
 # (s2, n2) - (s1, n1) in ns, for (s1, n1) no later
 def span_ns(+s1: Nat, +n1: Nat, +s2: Nat, +n2: Nat) -> Nat:

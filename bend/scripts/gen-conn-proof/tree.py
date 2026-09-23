@@ -2,24 +2,27 @@
 # matches a computed value, down to the leaves (the moves). A law's proof
 # instantiates it with its goal G(result) and its leaf proofs.
 
-FIELDS = [('q', 'Conn.Req'), ('o', 'Bool'), ('k', 'Conn.Cur'), ('xb', 'String'), ('xhd', 'Conn.Head'), ('xp', 'Http.Parse'), ('xp0', 'Http.Parse'), ('xmet', 'Bool'), ('ph', 'Conn.Phase'),
+FIELDS = [('q', 'Conn.Req'), ('o', 'Bool'), ('kq', 'Conn.Req'), ('kt', 'String'), ('kn', 'Nat'), ('kg', 'Bool'), ('ku', 'Bool'), ('kh', 'Nat'), ('xb', 'String'), ('xhd', 'Conn.Head'), ('xp', 'Http.Parse'), ('xp0', 'Http.Parse'), ('xmet', 'Bool'), ('ph', 'Conn.Phase'),
           ('pd', 'Conn.Req'), ('pt', 'String'), ('hp', 'Bool'), ('ip', 'String'), ('pr', 'Nat')]
+
+def K(env):
+    return 'Conn.Cur{%s}' % ', '.join(env[f] for f in ['kq', 'kt', 'kn', 'kg', 'ku', 'kh'])
 
 def X(env):
     return 'Conn.Rx{%s, %s, %s, %s, %s}' % tuple(env[f] for f in ['xb', 'xhd', 'xp', 'xp0', 'xmet'])
 
 def S(env):
-    return 'Conn.CState{%s, %s, False{}, %s, %s, %s, %s, %s, %s, %s, %s}' % tuple([env['q'], env['o'], env['k'], X(env)] + [env[f] for f in ['ph', 'pd', 'pt', 'hp', 'ip', 'pr']])
+    return 'Conn.CState{%s, %s, False{}, %s, %s, %s, %s, %s, %s, %s, %s}' % tuple([env['q'], env['o'], K(env), X(env)] + [env[f] for f in ['ph', 'pd', 'pt', 'hp', 'ip', 'pr']])
 
 MRES = 'Maybe<&1, Result<&1, &1, String, Http.Resp & String>>'
 
 def NT(E):
     return ('Conn.redirect_target(Conn.u_host(Conn.q_url(%s)), Conn.q_target(Conn.cur_req(%s)), Conn.q_url(Conn.cur_req(%s)), Conn.hd_code(Conn.rx_hd(%s)), Conn.hd_loc(Conn.rx_hd(%s)))'
-            % (E['q'], E['k'], E['k'], X(E), X(E)))
+            % (E['q'], K(E), K(E), X(E), X(E)))
 
 def NQ(E):
     return ('Conn.Req{nt, Conn.url_or(Conn.q_url(Conn.cur_req(%s)), pu), "", Conn.redirect_body(kk, Conn.q_body(Conn.cur_req(%s))), Conn.q_seq(%s), Conn.q_name(%s)}'
-            % (E['k'], E['k'], E['q'], E['q']))
+            % (K(E), K(E), E['q'], E['q']))
 
 def TEXT(E):
     nq = NQ(E)
@@ -27,7 +30,10 @@ def TEXT(E):
 
 def KEPT(E):
     return ('Bool.and(Bool.and(Conn.kept_of(Conn.c_ka(c), Http.done(Conn.rx_p0(%s))), Nat.is_eq(Conn.u_port(Conn.q_url(nq)), Conn.u_port(Conn.q_url(Conn.cur_req(%s))))), %s)'
-            % (X(E), E['k'], E['o']))
+            % (X(E), K(E), E['o']))
+
+def LH(E):
+    return 'Conn.late.head(%s, c, %s)' % (E['xhd'], E['xb'])
 
 def TT(E):
     return 'Conn.rx_feed.hd(%s, c, %s, p2, %s, %s, d)' % (E['xhd'], E['xb'], E['xp0'], E['xmet'])
@@ -51,10 +57,10 @@ node('ev', 'e', 'Conn.Ev', lambda E: 'Conn.step.ev(%s, c, %s)' % (E['e'], S(E)),
     ('Conn.Sent{}', None, sub('sent', lambda E: E['ph'])),
     ('Conn.SendFailed{+m}', None, sub('sendfailed', lambda E: 'Conn.lost(%s)' % S(E), {'o': 'False{}'}, {'m': 'm'})),
     ('Conn.Got{+d}', None, sub('gotfin', lambda E: 'Conn.final_of(c, Http.done(Http.feed(Conn.rx_p(%s), d)))' % X(E),
-        {'k': lambda E: 'Conn.set_got(%s, d)' % E['k']}, {'p2': lambda E: 'Http.feed(Conn.rx_p(%s), d)' % X(E), 'd': 'd'})),
+        {'kg': lambda E: 'Bool.or(%s, Bool.not(String.is_empty(d)))' % E['kg']}, {'p2': lambda E: 'Http.feed(Conn.rx_p(%s), d)' % X(E), 'd': 'd'})),
     ('Conn.Eof{}', None, sub('eoffin', lambda E: 'Conn.final_of(c, Http.done(Conn.rx_p(Conn.rx_eof(%s))))' % X(E),
         {'o': 'False{}', 'xp': lambda E: 'Http.eof(%s)' % E['xp']})),
-    ('Conn.Late{}', None, sub('lateredir', lambda E: 'Conn.hd_redir(Conn.rx_hd(%s))' % X(E))),
+    ('Conn.Late{}', None, sub('lateredir', lambda E: 'Conn.hd_redir(%s)' % LH(E))),
     ('Conn.Resolved{+ip2}', None, sub('resolved', lambda E: E['ph'], {'ip': 'ip2'})),
     ('Conn.ResolveFailed{+m}', None, sub('resolvefailed', lambda E: E['ph'], {}, {'m': 'm'})),
 ])
@@ -71,7 +77,8 @@ node('sendpend', 'hp', 'Bool', lambda E: 'Conn.send_pend(%s, c, %s)' % (E['hp'],
 node('sent', 'ph', 'Conn.Phase', lambda E: 'Conn.on_sent(%s, %s)' % (E['ph'], S(E)),
      phcases('Conn.PSend{}', leaf('sent'), leaf('stay')))
 node('sendfailed', 'l', 'Bool', lambda E: 'Conn.on_send_failed(%s, %s, m)' % (E['l'], S(E)),
-     [('True{}', 'l', leaf('retry')), ('False{}', 'l', leaf('fail'))], extra=[('m', 'String')])
+     [('True{}', 'l', leaf('retry')), ('False{}', 'l', leaf('fail'))], extra=[('m', 'String')], eqv=lambda E: 'Conn.lost(%s)' % S(E))
+
 node('gotfin', 'f', 'Bool', lambda E: 'Conn.got.fin(%s, c, %s, p2, d)' % (E['f'], S(E)),
      [('True{}', 'f', sub('answer', lambda E: 'Http.done(p2)', hy={'hf': 'ev'})),
       ('False{}', 'f', sub('gotdue', lambda E: 'Conn.due(Conn.rx_feed(c, %s, p2, d))' % X(E),
@@ -79,15 +86,17 @@ node('gotfin', 'f', 'Bool', lambda E: 'Conn.got.fin(%s, c, %s, p2, d)' % (E['f']
           {'old': lambda E: E['xp'], 'data': 'd'}))],
      extra=[('p2', 'Http.Parse'), ('d', 'String')], eqv=lambda E: 'Conn.final_of(c, Http.done(p2))')
 node('gotdue', 'dd', 'Bool', lambda E: 'Conn.got.due(%s, c, %s, old, data)' % (E['dd'], S(E)),
-     [('True{}', 'dd', sub('redirect', lambda E: 'Nat.is_ge(Conn.cur_hops(%s), Conn.rd_limit(Conn.c_rd(c)))' % E['k'])),
+     [('True{}', 'dd', sub('redirect', lambda E: 'Nat.is_ge(Conn.cur_hops(%s), Conn.rd_limit(Conn.c_rd(c)))' % K(E))),
       ('False{}', 'dd', sub('gotbad', lambda E: 'Conn.is_fail(Http.done(Conn.rx_p(%s)))' % X(E), {}, {'old': 'old', 'data': 'data'}))],
-     extra=[('old', 'Http.Parse'), ('data', 'String')])
+     extra=[('old', 'Http.Parse'), ('data', 'String')], eqv=lambda E: 'Conn.due(%s)' % X(E))
+
 node('gotbad', 'b', 'Bool', lambda E: 'Conn.got.bad(%s, %s, old, data)' % (E['b'], S(E)),
      [('True{}', 'b', sub('badof', lambda E: 'Conn.p_body(Conn.upto(data, False{}, old, old))', {},
           {'good': 'Conn.upto(data, False{}, old, old)',
            'msg': lambda E: 'Conn.bad.msg(Conn.p_stat(Conn.upto(data, False{}, old, old)), %s, Conn.fail_msg(Http.done(Conn.rx_p(%s))))' % (S(E), X(E))})),
       ('False{}', 'b', sub('gotmore', lambda E: E['ph']))],
-     extra=[('old', 'Http.Parse'), ('data', 'String')])
+     extra=[('old', 'Http.Parse'), ('data', 'String')], eqv=lambda E: 'Conn.is_fail(Http.done(Conn.rx_p(%s)))' % X(E))
+
 node('badof', 'body', 'Bool', lambda E: 'Conn.bad.of(%s, %s, good, msg)' % (E['body'], S(E)),
      [('True{}', 'body', leaf('fail')), ('False{}', 'body', leaf('fail'))], extra=[('good', 'Http.Parse'), ('msg', 'String')])
 node('gotmore', 'ph', 'Conn.Phase', lambda E: 'Conn.got.more(%s, %s)' % (E['ph'], S(E)),
@@ -98,7 +107,7 @@ node('redirect', 'stop', 'Bool', lambda E: 'Conn.redirect.of(%s, c, %s)' % (E['s
           {'nt': NT, 'pu': lambda E: 'Tgt.parse_url(Conn.tgt_url(%s))' % NT(E), 'kk': lambda E: 'Conn.hd_code(Conn.rx_hd(%s))' % X(E)}))])
 
 node('followok', 'ok', 'Bool', lambda E: 'Conn.follow.ok(%s, c, %s, nt, pu, kk)' % (E['ok'], S(E)),
-     [('True{}', 'ok', sub('followhost', lambda E: 'Conn.same_host(Conn.u_host(Conn.q_url(%s)), Conn.u_host(Conn.q_url(Conn.cur_req(%s))))' % (NQ(E), E['k']), {},
+     [('True{}', 'ok', sub('followhost', lambda E: 'Conn.same_host(Conn.u_host(Conn.q_url(%s)), Conn.u_host(Conn.q_url(Conn.cur_req(%s))))' % (NQ(E), K(E)), {},
           {'nq': NQ, 'text': TEXT})),
       ('False{}', 'ok', leaf('fail'))],
      extra=[('nt', 'Tgt.Target'), ('pu', 'Result<&2, &2, String, Tgt.Url>'), ('kk', 'Nat')])
@@ -116,23 +125,30 @@ node('eoffin', 'f', 'Bool', lambda E: 'Conn.eof.fin(%s, c, %s)' % (E['f'], S(E))
      [('True{}', 'f', sub('answer', lambda E: 'Http.done(%s)' % E['xp'], hy={'hf': 'ev'})),
       ('False{}', 'f', sub('eoflost', lambda E: 'Conn.lost(%s)' % S(E)))], eqv=lambda E: 'Conn.final_of(c, Http.done(%s))' % E['xp'])
 node('eoflost', 'l', 'Bool', lambda E: 'Conn.eof.lost(%s, c, %s)' % (E['l'], S(E)),
-     [('True{}', 'l', leaf('retry')), ('False{}', 'l', sub('eofmet', lambda E: E['xmet']))])
+     [('True{}', 'l', leaf('retry')), ('False{}', 'l', sub('eofmet', lambda E: E['xmet']))], eqv=lambda E: 'Conn.lost(%s)' % S(E))
+
 node('eofmet', 'xmet', 'Bool', lambda E: 'Conn.eof.met(%s, c, %s)' % (E['xmet'], S(E)),
      [('True{}', 'xmet', leaf('metstay')), ('False{}', 'xmet', sub('eofredir', lambda E: 'Conn.hd_redir(Conn.rx_hd(%s))' % X(E)))])
 node('eofredir', 'r', 'Bool', lambda E: 'Conn.eof.redir(%s, c, %s)' % (E['r'], S(E)),
-     [('True{}', 'r', sub('redirect', lambda E: 'Nat.is_ge(Conn.cur_hops(%s), Conn.rd_limit(Conn.c_rd(c)))' % E['k'])),
-      ('False{}', 'r', sub('eoftext', lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E))))])
+     [('True{}', 'r', sub('redirect', lambda E: 'Nat.is_ge(Conn.cur_hops(%s), Conn.rd_limit(Conn.c_rd(c)))' % K(E))),
+      ('False{}', 'r', sub('eoftext', lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E))))], eqv=lambda E: 'Conn.hd_redir(Conn.rx_hd(%s))' % X(E))
+
 node('eoftext', 'hin', 'Bool', lambda E: 'Conn.eof.text(%s, %s)' % (E['hin'], S(E)),
-     [('True{}', 'hin', leaf('fail')), ('False{}', 'hin', sub('eofempty', lambda E: 'String.is_empty(Conn.rx_buf(%s))' % X(E)))])
+     [('True{}', 'hin', leaf('fail')), ('False{}', 'hin', sub('eofempty', lambda E: 'String.is_empty(Conn.rx_buf(%s))' % X(E)))], eqv=lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E)))
+
 node('eofempty', 'em', 'Bool', lambda E: 'Conn.eof.text.empty(%s, %s)' % (E['em'], S(E)),
      [('True{}', 'em', leaf('fail')),
-      ('False{}', 'em', sub('eofnl', lambda E: 'String.ends_with(Conn.final_from(String.reverse(Conn.rx_buf(%s))), "\\n")' % X(E)))])
+      ('False{}', 'em', sub('eofnl', lambda E: 'String.ends_with(Conn.final_from(String.reverse(Conn.rx_buf(%s))), "\\n")' % X(E)))], eqv=lambda E: 'String.is_empty(Conn.rx_buf(%s))' % X(E))
+
 node('eofnl', 'nl', 'Bool', lambda E: 'Conn.eof.text.nl(%s, %s)' % (E['nl'], S(E)),
-     [('True{}', 'nl', leaf('fail')), ('False{}', 'nl', leaf('fail'))])
-node('lateredir', 'r', 'Bool', lambda E: 'Conn.late.redir(%s, c, %s)' % (E['r'], S(E)),
-     [('True{}', 'r', leaf('fail')), ('False{}', 'r', sub('latein', lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E))))])
+     [('True{}', 'nl', leaf('fail')), ('False{}', 'nl', leaf('fail'))], eqv=lambda E: 'String.ends_with(Conn.final_from(String.reverse(Conn.rx_buf(%s))), "\\n")' % X(E))
+
+node('lateredir', 'r', 'Bool', lambda E: 'Conn.late.redir(%s, c, %s, %s)' % (E['r'], S(E), LH(E)),
+     [('True{}', 'r', leaf('fail')), ('False{}', 'r', sub('latein', lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E))))], eqv=lambda E: 'Conn.hd_redir(%s)' % LH(E))
+
 node('latein', 'hin', 'Bool', lambda E: 'Conn.late.in(%s, %s)' % (E['hin'], S(E)),
-     [('True{}', 'hin', leaf('fail')), ('False{}', 'hin', leaf('fail'))])
+     [('True{}', 'hin', leaf('fail')), ('False{}', 'hin', leaf('fail'))], eqv=lambda E: 'Conn.in_of(Conn.rx_hd(%s), Conn.rx_buf(%s))' % (X(E), X(E)))
+
 node('resolved', 'ph', 'Conn.Phase', lambda E: 'Conn.on_resolved(%s, %s)' % (E['ph'], S(E)),
      phcases('Conn.PResolve{}', leaf('resolved'), leaf('stay')))
 node('resolvefailed', 'ph', 'Conn.Phase', lambda E: 'Conn.on_resolve_failed(%s, %s, m)' % (E['ph'], S(E)),

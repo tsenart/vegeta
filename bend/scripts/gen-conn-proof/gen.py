@@ -3,11 +3,11 @@ from emit import Law
 import tree
 
 C = 'Conn.CCfg{ka, to, mb, rd}'
-SF = 'q, o, False{}, k, Conn.Rx{xb, xhd, xp, xp0, xmet}, ph, pd, pt, hp, ip, pr'
+SF = 'q, o, False{}, Conn.Cur{kq, kt, kn, kg, ku, kh}, Conn.Rx{xb, xhd, xp, xp0, xmet}, ph, pd, pt, hp, ip, pr'
 S0 = 'Conn.CState{%s}' % SF
-ARGS = 'ka, to, mb, rd, q, o, k, xb, xhd, xp, xp0, xmet, ph, pd, pt, hp, ip, pr'
+ARGS = 'ka, to, mb, rd, q, o, kq, kt, kn, kg, ku, kh, xb, xhd, xp, xp0, xmet, ph, pd, pt, hp, ip, pr'
 CP = '+ka: Bool, +to: Nat, +mb: Maybe<&2, Nat>, +rd: Maybe<&2, Nat>'
-SP = '+q: Conn.Req, +o: Bool, +k: Conn.Cur, +xb: String, +xhd: Conn.Head, +xp: Http.Parse, +xp0: Http.Parse, +xmet: Bool, +ph: Conn.Phase, +pd: Conn.Req, +pt: String, +hp: Bool, +ip: String, +pr: Nat'
+SP = '+q: Conn.Req, +o: Bool, +kq: Conn.Req, +kt: String, +kn: Nat, +kg: Bool, +ku: Bool, +kh: Nat, +xb: String, +xhd: Conn.Head, +xp: Http.Parse, +xp0: Http.Parse, +xmet: Bool, +ph: Conn.Phase, +pd: Conn.Req, +pt: String, +hp: Bool, +ip: String, +pr: Nat'
 
 def R():
     return 'Conn.step.ev(e, %s, %s)' % (C, S0)
@@ -28,17 +28,21 @@ def steps(name, chk, flag, over, ev_extra='', hyps=''):
         case Conn.CState{{+q, +o, +v, +k, +x, +ph, +pd, +pt, +hp, +ip, +pr}}:
           match v:
             case True{{}}:
-              match x:
-                case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
-                  {over}
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
+                  match x:
+                    case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
+                      {over}
             case False{{}}:
-              match x:
-                case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
-                  %Equal.sym(Bool, {chk('Con{L.CIEv{e}, %s}' % app_items(R(), T), flag(S0))},
-                      {chk(T, flag(st))},
-                      {name}_ev(e, {ARGS}, {T}))
-                    : {{_ == True{{}} : Bool}}
-                  {name}_steps(rest, ka, to, mb, rd, {st})
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
+                  match x:
+                    case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
+                      %Equal.sym(Bool, {chk('Con{L.CIEv{e}, %s}' % app_items(R(), T), flag(S0))},
+                          {chk(T, flag(st))},
+                          {name}_ev(e, {ARGS}, {T}))
+                        : {{_ == True{{}} : Bool}}
+                      {name}_steps(rest, ka, to, mb, rd, {st})
 '''
 
 out = [open('head.bend').read(), open('ans_pre.bend').read()]
@@ -51,7 +55,7 @@ out.append('# ------------------------------------------------------------------
 FIN = Law('fin', fin_goal, lambda tag, E, name: '{==}')
 out.append(FIN.all())
 out.append(steps('fin', lambda xs, f: 'L.chk_cfinish(%s, %s)' % (xs, f), lambda s: 'ov(%s)' % s,
-                 'fin_steps(rest, ka, to, mb, rd, Conn.CState{q, o, True{}, k, Conn.Rx{xb, xhd, xp, xp0, xmet}, ph, pd, pt, hp, ip, pr})'))
+                 'fin_steps(rest, ka, to, mb, rd, Conn.CState{q, o, True{}, Conn.Cur{kq, kt, kn, kg, ku, kh}, Conn.Rx{xb, xhd, xp, xp0, xmet}, ph, pd, pt, hp, ip, pr})'))
 out.append(open('fin.bend').read())
 
 # conn_send_open
@@ -66,7 +70,7 @@ def op_leaf(tag, E, name):
     if tag == 'hopkept':
         H = dict(E); H['o'] = '_'
         P = op_goal(tree.N[name]['call'](H), H, name)
-        return ('%%Equal.sym(Bool, o, True{}, and_r(Bool.and(Conn.kept_of(Conn.c_ka(c), Http.done(xp0)), Nat.is_eq(Conn.u_port(Conn.q_url(nq)), Conn.u_port(Conn.q_url(Conn.cur_req(k))))), o, ev))\n  : %s\n{==}' % P)
+        return ('%%Equal.sym(Bool, o, True{}, and_r(Bool.and(Conn.kept_of(Conn.c_ka(c), Http.done(xp0)), Nat.is_eq(Conn.u_port(Conn.q_url(nq)), Conn.u_port(Conn.q_url(Conn.cur_req(Conn.Cur{kq, kt, kn, kg, ku, kh}))))), o, ev))\n  : %s\n{==}' % P)
     return '{==}'
 
 out.append('# ---------------------------------------------------------------------\n# conn_send_open: one lemma per dispatcher\n# ---------------------------------------------------------------------\n')
@@ -74,7 +78,7 @@ OP = Law('op', op_goal, op_leaf)
 out.append(OP.all())
 out.append(open('open_pre.bend').read())
 out.append(steps('op', lambda xs, f: 'L.chk_open(%s, %s)' % (xs, f), lambda s: 'op(%s)' % s,
-                 'op_over(Con{e, rest}, ka, to, mb, rd, q, o, k, xb, xhd, xp, xp0, xmet, ph, pd, pt, hp, ip, pr, o)'))
+                 'op_over(Con{e, rest}, ka, to, mb, rd, q, o, Conn.Cur{kq, kt, kn, kg, ku, kh}, xb, xhd, xp, xp0, xmet, ph, pd, pt, hp, ip, pr, o)'))
 out.append(open('open.bend').read())
 
 
@@ -159,20 +163,24 @@ out.append(f'''def lv_steps(evs: List<&2, Conn.Ev>, {CP}, s: Conn.State, w: L.Wa
         case Conn.CState{{+q, +o, +v, +k, +x, +ph, +pd, +pt, +hp, +ip, +pr}}:
           match v:
             case True{{}}:
-              match w:
-                case L.Wait{{+rs, +op, +sd, +rv, +out, +dn}}:
-                  %Equal.sym(Bool, dn, True{{}}, h) : {{L.chk_pending(L.csteps(Con{{e, rest}}, {C}, Conn.CState{{q, o, True{{}}, k, x, ph, pd, pt, hp, ip, pr}}), L.Wait{{rs, op, sd, rv, out, _}}) == True{{}} : Bool}}
-                  lv_over(Con{{e, rest}}, ka, to, mb, rd, q, o, k, x, ph, pd, pt, hp, ip, pr, rs, op, sd, rv, out)
-            case False{{}}:
-              match x:
-                case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
                   match w:
                     case L.Wait{{+rs, +op, +sd, +rv, +out, +dn}}:
-                      %Equal.sym(Bool, L.w_live({W6}), True{{}}, live_of(ph, rs, op, sd, rv, out, dn, and_l(ph_ok(ph, rs, op, sd, rv, out), met_ok(xmet, ph), h)))
-                        : {{Bool.and(_, L.chk_pending({app_items(R(), T)}, {WE})) == True{{}} : Bool}}
-                      %Equal.sym(Bool, L.chk_pending({app_items(R(), T)}, {WE}), L.chk_pending({T}, wcmds({CSR}, {WE})), pend_app({CSR}, {T}, {WE}))
-                        : {{Bool.and(True{{}}, _) == True{{}} : Bool}}
-                      lv_steps(rest, ka, to, mb, rd, L.cst_of({R()}), wcmds({CSR}, {WE}), lv_ev(e, {ARGS}, rs, op, sd, rv, out, dn, {T}, h))
+                      %Equal.sym(Bool, dn, True{{}}, h) : {{L.chk_pending(L.csteps(Con{{e, rest}}, {C}, Conn.CState{{q, o, True{{}}, Conn.Cur{{kq, kt, kn, kg, ku, kh}}, x, ph, pd, pt, hp, ip, pr}}), L.Wait{{rs, op, sd, rv, out, _}}) == True{{}} : Bool}}
+                      lv_over(Con{{e, rest}}, ka, to, mb, rd, q, o, Conn.Cur{{kq, kt, kn, kg, ku, kh}}, x, ph, pd, pt, hp, ip, pr, rs, op, sd, rv, out)
+            case False{{}}:
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
+                  match x:
+                    case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
+                      match w:
+                        case L.Wait{{+rs, +op, +sd, +rv, +out, +dn}}:
+                          %Equal.sym(Bool, L.w_live({W6}), True{{}}, live_of(ph, rs, op, sd, rv, out, dn, and_l(ph_ok(ph, rs, op, sd, rv, out), met_ok(xmet, ph), h)))
+                            : {{Bool.and(_, L.chk_pending({app_items(R(), T)}, {WE})) == True{{}} : Bool}}
+                          %Equal.sym(Bool, L.chk_pending({app_items(R(), T)}, {WE}), L.chk_pending({T}, wcmds({CSR}, {WE})), pend_app({CSR}, {T}, {WE}))
+                            : {{Bool.and(True{{}}, _) == True{{}} : Bool}}
+                          lv_steps(rest, ka, to, mb, rd, L.cst_of({R()}), wcmds({CSR}, {WE}), lv_ev(e, {ARGS}, rs, op, sd, rv, out, dn, {T}, h))
 
 def lv_start(open: Bool, {CP}, +r: Conn.Req, +evs: List<&2, Conn.Ev>)
   -> {{L.chk_pending(L.ctimeline({C}, r, open, evs), L.Wait{{False{{}}, False{{}}, False{{}}, False{{}}, False{{}}, False{{}}}}) == True{{}} : Bool}}:
@@ -328,6 +336,7 @@ T = 'L.csteps(rest, %s, L.cst_of(%s))' % (C, R())
 CSR = 'L.ccs_of(%s)' % R()
 ST = 'L.cst_of(%s)' % R()
 OVF = 'q, o, k, x, ph, pd, pt, hp, ip, pr'
+OVK = 'q, o, Conn.Cur{kq, kt, kn, kg, ku, kh}, x, ph, pd, pt, hp, ip, pr'
 out.append(f'''def an_over(evs: List<&2, Conn.Ev>, {CP}, +q: Conn.Req, +o: Bool, +k: Conn.Cur, +x: Conn.Rx, +ph: Conn.Phase, +pd: Conn.Req, +pt: String, +hp: Bool, +ip: String, +pr: Nat, +hd: Bool, +bf: String, +ef: Bool)
   -> {{L.chk_answer(L.csteps(evs, {C}, Conn.CState{{q, o, True{{}}, k, x, ph, pd, pt, hp, ip, pr}}), {C}, hd, bf, ef, True{{}}) == True{{}} : Bool}}:
   match evs:
@@ -364,16 +373,20 @@ def an_steps(evs: List<&2, Conn.Ev>, {CP}, s: Conn.State, +hd: Bool, +bf: String
         case Conn.CState{{+q, +o, +v, +k, +x, +ph, +pd, +pt, +hp, +ip, +pr}}:
           match v:
             case True{{}}:
-              an_over(Con{{e, rest}}, ka, to, mb, rd, {OVF}, hd, bf, ef)
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
+                  an_over(Con{{e, rest}}, ka, to, mb, rd, {OVK}, hd, bf, ef)
             case False{{}}:
-              match x:
-                case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
-                  %Equal.sym(Bool, L.chk_answer(Con{{L.CIEv{{e}}, {app_items(R(), T)}}}, {C}, hd, bf, ef, False{{}}),
-                      L.chk_answer({T}, {C}, a_hd({CSR}, hd), a_bf({CSR}, ev_bf(e, bf)), a_ef({CSR}, ev_ef(e, ef)), ov({ST})),
-                      an_ev(e, {ARGS}, hd, bf, ef, {T}, hX))
-                    : {{_ == True{{}} : Bool}}
-                  an_steps(rest, ka, to, mb, rd, {ST}, a_hd({CSR}, hd), a_bf({CSR}, ev_bf(e, bf)), a_ef({CSR}, ev_ef(e, ef)),
-                    ai_ev(e, {ARGS}, hd, bf, ef, {T}, hX))
+              match k:
+                case Conn.Cur{{+kq, +kt, +kn, +kg, +ku, +kh}}:
+                  match x:
+                    case Conn.Rx{{+xb, +xhd, +xp, +xp0, +xmet}}:
+                      %Equal.sym(Bool, L.chk_answer(Con{{L.CIEv{{e}}, {app_items(R(), T)}}}, {C}, hd, bf, ef, False{{}}),
+                          L.chk_answer({T}, {C}, a_hd({CSR}, hd), a_bf({CSR}, ev_bf(e, bf)), a_ef({CSR}, ev_ef(e, ef)), ov({ST})),
+                          an_ev(e, {ARGS}, hd, bf, ef, {T}, hX))
+                        : {{_ == True{{}} : Bool}}
+                      an_steps(rest, ka, to, mb, rd, {ST}, a_hd({CSR}, hd), a_bf({CSR}, ev_bf(e, bf)), a_ef({CSR}, ev_ef(e, ef)),
+                        ai_ev(e, {ARGS}, hd, bf, ef, {T}, hX))
 
 def an_start(open: Bool, {CP}, +r: Conn.Req, +evs: List<&2, Conn.Ev>)
   -> {{L.chk_answer(L.ctimeline({C}, r, open, evs), {C}, False{{}}, "", False{{}}, False{{}}) == True{{}} : Bool}}:

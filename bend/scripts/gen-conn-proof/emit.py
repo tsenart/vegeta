@@ -15,8 +15,9 @@ class Law:
     extra: law-wide params (name, type); efix(name) -> {extra: value} fixed in a lemma;
     case_extra(name, pat, E) -> {extra: value} passed to the child of a case;
     hyps(name, E) -> [(hname, type)]; hyparg(hname, parent, pat, child, CE) -> proof text."""
-    def __init__(self, prefix, goal, leaf, extra=(), efix=None, case_extra=None, hyps=None, hyparg=None, pre=None):
+    def __init__(self, prefix, goal, leaf, extra=(), efix=None, case_extra=None, hyps=None, hyparg=None, pre=None, wrap=None):
         self.pre = pre or (lambda name, pat, CE: '')
+        self.wrap = wrap or (lambda name, pat, CE, s: s)
         self.prefix, self.goal, self.leaf = prefix, goal, leaf
         self.extra = list(extra)
         self.efix = efix or (lambda name: {})
@@ -100,7 +101,7 @@ class Law:
                 pr = self.pre(name, pat, CE)
                 if pr:
                     body += ind(pr, 4) + '\n'
-                body += '    ' + self.call(name, CE, sname, v, fo, ex, hy, pat) + '\n'
+                body += ind(self.wrap(name, pat, CE, self.call(name, CE, sname, v, fo, ex, hy, pat)), 4) + '\n'
         return out + ind(body, 2) + '\n'
 
     def all(self):

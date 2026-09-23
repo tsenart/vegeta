@@ -11,6 +11,8 @@
 # and LAWS' trim_ows is trim_ws on printable text (ows).
 #
 # Not proved here: hit_of_csv, hit_of_json, hit_stream_csv, hit_stream_json.
+# The stream loop is proved from the one-record laws (stream_csv,
+# stream_json, at the end; see there for what is missing).
 import Base
 import ../LAWS.bend as L
 import ../lib/hit.bend as Hit
@@ -1675,8 +1677,8 @@ def fd_pick(b: Bool, +x: Nat, +y: Nat, +n: Nat) -> {first_dig(Civil.pick(String,
 
 # the CSV timestamp starts with a digit
 def fd_nanos(+t: Civil.Time) -> {first_dig(Civil.unix_nanos(t)) == True{} : Bool}:
-  +s = Nat.add(Civil.time_sec(t), Nat.div(Civil.time_nsec(t), Civil.sec()))
-  +n = Nat.mod(Civil.time_nsec(t), Civil.sec())
+  +s = Nat.add(Civil.time_sec(t), Civil.ns_carry(Civil.time_nsec(t)))
+  +n = Civil.ns_low(Civil.time_nsec(t))
   fd_pick(Nat.is_eq(s, 0n), n, s, n)
 
 # a string starting with a byte that is not blank and not '{' is not JSON
@@ -3992,3 +3994,235 @@ def e3(t: Tgt.Target, +l: String,
 
 def L.targets_errors(tok, m, rest, t, l, h0, h1, h2, h3, h4):
   (e1(tok, h0), (e2(m, rest, h1, h2), e3(t, l, h3, h4)))
+
+# ---------------------------------------------------------------------
+# hit_stream_json, hit_stream_csv: decode_all reads record after record
+# ---------------------------------------------------------------------
+
+# a record starting with a non-blank byte: skip_ws leaves it
+def ne_chr(+k: U32, +t: String, +hb: {Hit.blank(True{}, k) == False{} : Bool})
+  -> {String.is_empty(Hit.skip_ws(SCon{Chr{k}, t})) == False{} : Bool}:
+  %Equal.sym(Bool, Hit.blank(True{}, k), False{}, hb)
+    : {String.is_empty(Hit.skip.go(SCon{Chr{k}, t}, Bool.not(_), True{}, String.drop(SCon{Chr{k}, t}, Hit.pick(Nat, _, 1n, 0n)))) == False{} : Bool}
+  {==}
+
+def ne_dig(d: String, +t: String, h: {first_dig(d) == True{} : Bool}) -> {String.is_empty(Hit.skip_ws(String.append(d, t))) == False{} : Bool}:
+  match d:
+    case SNil{}:
+      Empty.absurd({String.is_empty(Hit.skip_ws(t)) == False{} : Bool}, no_ft(h))
+    case SCon{c, +r}:
+      match c:
+        case Chr{+k}:
+          +hd = h
+          +hb = blank_f(k, dig_ne(k, 32, {==}, hd), dig_ne(k, 9, {==}, hd), dig_ne(k, 13, {==}, hd), dig_ne(k, 10, {==}, hd))
+          ne_chr(k, String.append(r, t), hb)
+
+def ne_f(b: Bool, +u: String, +T: String, +rest: String, +hu: {first_dig(u) == True{} : Bool})
+  -> {String.is_empty(Hit.skip_ws(String.append(Csv.field.of(b, u, T), rest))) == False{} : Bool}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      %Equal.sym(String, String.append(String.append(u, T), rest), String.append(u, String.append(T, rest)), app_assoc(u, T, rest))
+        : {String.is_empty(Hit.skip_ws(_)) == False{} : Bool}
+      ne_dig(u, String.append(T, rest), hu)
+
+def ne_row(+u: String, +g: String, +more: List<&2, String>, +rest: String, +hu: {first_dig(u) == True{} : Bool})
+  -> {String.is_empty(Hit.skip_ws(String.append(Csv.row(Con{u, Con{g, more}}), rest))) == False{} : Bool}:
+  ne_f(Csv.needs_quotes(u), u, SCon{',', Csv.row_into(Con{g, more})}, rest, hu)
+
+# a CSV record is not blank
+def csv_ne(h: Hit.Hit, +rest: String) -> {String.is_empty(Hit.skip_ws(String.append(Hit.to_csv(h), rest))) == False{} : Bool}:
+  match h:
+    case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
+      +hh = {Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} : Hit.Hit}
+      %Equal.sym(String, Hit.to_csv(hh), L.csv_text(hh), L.hit_to_csv(hh)) : {String.is_empty(Hit.skip_ws(String.append(_, rest))) == False{} : Bool}
+      ne_row(Civil.unix_nanos(ts), Dec.show(code), [Dec.show(lat), Dec.show(bout), Dec.show(bin), err,
+        B64.encode(L.body_or_empty(body)), attack, Dec.show(seq), method, url, B64.encode(L.hdr_block(hdrs))], rest, fd_nanos(ts))
+
+# a JSON line is not blank
+def json_ne(h: Hit.Hit, +rest: String) -> {String.is_empty(Hit.skip_ws(String.append(Hit.to_json(h), rest))) == False{} : Bool}:
+  match h:
+    case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
+      {==}
+
+# a string whose skip_ws is not empty is not empty
+def sk_ne(y: String, h: {String.is_empty(Hit.skip_ws(y)) == False{} : Bool}) -> {String.is_empty(y) == False{} : Bool}:
+  match y:
+    case SNil{}:
+      Empty.absurd({True{} == False{} : Bool}, no_tf(h))
+    case SCon{+c, +r}:
+      {==}
+
+def ne_app0(y: String, h: {String.is_empty(String.append(y, SNil{})) == False{} : Bool}) -> {String.is_empty(y) == False{} : Bool}:
+  match y:
+    case SNil{}:
+      Empty.absurd({True{} == False{} : Bool}, no_tf(h))
+    case SCon{+c, +r}:
+      {==}
+
+def csv_ne0(+h: Hit.Hit) -> {String.is_empty(Hit.to_csv(h)) == False{} : Bool}:
+  ne_app0(Hit.to_csv(h), sk_ne(String.append(Hit.to_csv(h), SNil{}), csv_ne(h, SNil{})))
+
+def json_ne0(+h: Hit.Hit) -> {String.is_empty(Hit.to_json(h)) == False{} : Bool}:
+  ne_app0(Hit.to_json(h), sk_ne(String.append(Hit.to_json(h), SNil{}), json_ne(h, SNil{})))
+
+# decode picks JSON on a JSON line, CSV on a CSV record (hit_decode)
+def dec_json(h: Hit.Hit, +rest: String) -> {Hit.decode(String.append(Hit.to_json(h), rest)) == Hit.of_json(String.append(Hit.to_json(h), rest)) : Maybe<&1, Hit.Hit & String>}:
+  match h:
+    case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
+      dec_js(Hit.to_json(Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs}) ++ rest, {==})
+
+def dec_csv_h(h: Hit.Hit, +rest: String) -> {Hit.decode(String.append(Hit.to_csv(h), rest)) == Hit.of_csv(String.append(Hit.to_csv(h), rest)) : Maybe<&1, Hit.Hit & String>}:
+  match h:
+    case Hit.Hit{+attack, +seq, +code, +ts, +lat, +bout, +bin, +err, +body, +method, +url, +hdrs}:
+      dec_csv(attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs, rest)
+
+# the fuel P ++ (x ++ S) of a loop, x not empty, as a head and a tail ++ S
+def rf_c(P: String, x: String) -> Char:
+  match P:
+    case SCon{p, r}:
+      p
+    case SNil{}:
+      match x:
+        case SCon{c, r}:
+          c
+        case SNil{}:
+          Chr{0}
+
+def rf_p(P: String, +x: String) -> String:
+  match P:
+    case SCon{p, r}:
+      String.append(r, x)
+    case SNil{}:
+      match x:
+        case SCon{c, r}:
+          r
+        case SNil{}:
+          SNil{}
+
+def refuel(P: String, x: String, +S: String, h: {String.is_empty(x) == False{} : Bool})
+  -> {String.append(P, String.append(x, S)) == SCon{rf_c(P, x), String.append(rf_p(P, x), S)} : String}:
+  match P:
+    case SCon{+p, +r}:
+      %Equal.sym(String, String.append(String.append(r, x), S), String.append(r, String.append(x, S)), app_assoc(r, x, S))
+        : {SCon{p, String.append(r, String.append(x, S))} == SCon{p, _} : String}
+      {==}
+    case SNil{}:
+      match x:
+        case SCon{+c, +r}:
+          {==}
+        case SNil{}:
+          Empty.absurd({S == SCon{Chr{0}, String.append(SNil{}, S)} : String}, no_tf(h))
+
+# reversing the accumulated results
+def hrr(xs: List<&2, Hit.Hit>, +acc: List<&2, Hit.Hit>, +b: List<&2, Hit.Hit>)
+  -> {List.reverse.go(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, xs, acc), b) == List.reverse.go(&2, Hit.Hit, acc, List.append(&2, Hit.Hit, xs, b)) : List<&2, Hit.Hit>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      hrr(t, Con{h, acc}, b)
+
+def happ_nil(xs: List<&2, Hit.Hit>) -> {List.append(&2, Hit.Hit, xs, []) == xs : List<&2, Hit.Hit>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      %happ_nil(t) : {Con{h, List.append(&2, Hit.Hit, t, [])} == Con{h, _} : List<&2, Hit.Hit>}
+      {==}
+
+def revrev(+xs: List<&2, Hit.Hit>) -> {List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, xs, [])) == xs : List<&2, Hit.Hit>}:
+  %happ_nil(xs) : {List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, xs, [])) == _ : List<&2, Hit.Hit>}
+  hrr(xs, [], [])
+
+# each record of a stream reads back (from the one-record laws)
+def JRecs(hs: List<&2, Hit.Hit>) -> Type:
+  match hs:
+    case Nil{}:
+      Unit
+    case Con{+h, +t}:
+      {Hit.of_json(String.append(Hit.to_json(h), L.json_stream(t))) == Some{(h, L.json_stream(t))} : Maybe<&1, Hit.Hit & String>} & JRecs(t)
+
+def CRecs(hs: List<&2, Hit.Hit>) -> Type:
+  match hs:
+    case Nil{}:
+      Unit
+    case Con{+h, +t}:
+      {Hit.of_csv(String.append(Hit.to_csv(h), L.csv_stream(t))) == Some{(h, L.csv_stream(t))} : Maybe<&1, Hit.Hit & String>} & CRecs(t)
+
+def sj(hs: List<&2, Hit.Hit>, +acc: List<&2, Hit.Hit>, +a: Char, +b: Char, +P: String, r: JRecs(hs))
+  -> {Hit.all.loop(SCon{a, SCon{b, String.append(P, L.json_stream(hs))}}, Hit.DAll{acc, L.json_stream(hs), Hit.JKey{}})
+      == Some{List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, hs, acc))} : Maybe<&2, List<&2, Hit.Hit>>}:
+  match hs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      match r:
+        case (e, rt):
+          +S = L.json_stream(t)
+          +x = Hit.to_json(h)
+          +R = {Some{List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, t, Con{h, acc}))} : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Bool, String.is_empty(Hit.skip_ws(String.append(x, S))), False{}, json_ne(h, S))
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.step(_, acc, String.append(x, S))) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Maybe<&1, Hit.Hit & String>, Hit.decode(String.append(x, S)), Hit.of_json(String.append(x, S)), dec_json(h, S))
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.rec(acc, _)) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Maybe<&1, Hit.Hit & String>, Hit.of_json(String.append(x, S)), Some{(h, S)}, e)
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.rec(acc, _)) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(String, String.append(P, String.append(x, S)), SCon{rf_c(P, x), String.append(rf_p(P, x), S)}, refuel(P, x, S, json_ne0(h)))
+            : {Hit.all.loop(SCon{b, _}, Hit.DAll{Con{h, acc}, S, Hit.JKey{}}) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          sj(t, Con{h, acc}, b, rf_c(P, x), rf_p(P, x), rt)
+
+def sc(hs: List<&2, Hit.Hit>, +acc: List<&2, Hit.Hit>, +a: Char, +b: Char, +P: String, r: CRecs(hs))
+  -> {Hit.all.loop(SCon{a, SCon{b, String.append(P, L.csv_stream(hs))}}, Hit.DAll{acc, L.csv_stream(hs), Hit.JKey{}})
+      == Some{List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, hs, acc))} : Maybe<&2, List<&2, Hit.Hit>>}:
+  match hs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      match r:
+        case (e, rt):
+          +S = L.csv_stream(t)
+          +x = Hit.to_csv(h)
+          +R = {Some{List.reverse(&2, Hit.Hit, List.reverse.go(&2, Hit.Hit, t, Con{h, acc}))} : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Bool, String.is_empty(Hit.skip_ws(String.append(x, S))), False{}, csv_ne(h, S))
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.step(_, acc, String.append(x, S))) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Maybe<&1, Hit.Hit & String>, Hit.decode(String.append(x, S)), Hit.of_csv(String.append(x, S)), dec_csv_h(h, S))
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.rec(acc, _)) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(Maybe<&1, Hit.Hit & String>, Hit.of_csv(String.append(x, S)), Some{(h, S)}, e)
+            : {Hit.all.loop(SCon{b, String.append(P, String.append(x, S))}, Hit.all.rec(acc, _)) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          %Equal.sym(String, String.append(P, String.append(x, S)), SCon{rf_c(P, x), String.append(rf_p(P, x), S)}, refuel(P, x, S, csv_ne0(h)))
+            : {Hit.all.loop(SCon{b, _}, Hit.DAll{Con{h, acc}, S, Hit.JKey{}}) == R : Maybe<&2, List<&2, Hit.Hit>>}
+          sc(t, Con{h, acc}, b, rf_c(P, x), rf_p(P, x), rt)
+
+# a stream whose records each read back reads back whole
+def stream_json(+hs: List<&2, Hit.Hit>, r: JRecs(hs)) -> {Hit.decode_all(L.json_stream(hs)) == Some{hs} : Maybe<&2, List<&2, Hit.Hit>>}:
+  %revrev(hs) : {Hit.decode_all(L.json_stream(hs)) == Some{_} : Maybe<&2, List<&2, Hit.Hit>>}
+  sj(hs, [], Chr{0}, Chr{0}, "", r)
+
+def stream_csv(+hs: List<&2, Hit.Hit>, r: CRecs(hs)) -> {Hit.decode_all(L.csv_stream(hs)) == Some{hs} : Maybe<&2, List<&2, Hit.Hit>>}:
+  %revrev(hs) : {Hit.decode_all(L.csv_stream(hs)) == Some{_} : Maybe<&2, List<&2, Hit.Hit>>}
+  sc(hs, [], Chr{0}, Chr{0}, "", r)
+
+# The laws follow from the one-record laws, once those are proven
+# (an unfilled law cannot be used): hit_stream_csv once L.hit_of_csv is
+# filled,
+#
+#   def crecs(hs: List<&2, Hit.Hit>, +ok: {L.all_csv_ok(hs) == True{} : Bool}) -> CRecs(hs):
+#     match hs:
+#       case Nil{}:
+#         Unit{}
+#       case Con{+h, +t}:
+#         (L.hit_of_csv(h, L.csv_stream(t), and_l(L.csv_ok(h), L.all_csv_ok(t), ok)), crecs(t, and_r(L.csv_ok(h), L.all_csv_ok(t), ok)))
+#
+#   def L.hit_stream_csv(hs, ok):
+#     stream_csv(hs, crecs(hs, ok))
+#
+# and hit_stream_json the same way once L.hit_of_json is (jrecs from
+# L.hit_of_json, then stream_json).
+#
+# hit_of_json and civil_rfc3339_parse need the fraction read back, which
+# needs Dec.show(nsec) to have at most 9 digits; the hypothesis states
+# nsec < 1000000000n, and relating that literal to nine digits costs 10^9
+# checker steps. Stated as a digit count (as nat_fits does), it would be
+# symbolic.

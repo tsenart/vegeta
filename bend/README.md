@@ -6,7 +6,8 @@ dependently typed language that compiles to native code with automatic
 parallelism. The port has two sides:
 
 - **A spec.** 124 laws in `LAWS.bend` say what the pure core must do.
-  Bend's checker verifies proofs against them, and 95 are proven.
+  Bend's checker verifies proofs against them. 103 are proven, and the
+  other 21 are tested against Go.
 - **A working tool.** The binary speaks Go Vegeta's result formats byte
   for byte. An end-to-end suite runs it next to Go Vegeta against the
   same test server, and the two agree on every case: status, bytes and
@@ -81,43 +82,39 @@ list of events, so they cover every ordering of timeouts, closes, partial
 reads and retries, not just the ones a test thought of. The only
 unproven code is the IO loop that runs the commands, and the C effects.
 
-## What's proven
+## What's proven, and what's only tested
 
-95 of 124 laws.
+103 of 124 laws are proven. The other 21 are tested against Go, not
+proven. We stopped there on purpose, for the reasons in "Was Bend the
+right tool?" below.
 
 | Area | Proven | What the laws say |
 |---|---|---|
 | Attack scheduler | **13/13** | pacing (never early, at the exact slot), seq and time order, round-robin, worker growth only when all are busy, sent + dropped = scheduled, liveness, the attack always ends |
 | Decimals, big naturals | **11/11** | show/read round trips, canonical form, exact add/mul/divmod/compare |
 | Codecs | **17/17** | base64, CSV fields and rows (Go's quoting and reading), JSON strings, UTF-8, URL parsing, the targets file format |
-| HTTP/1.1 | 15/16 | request bytes as Go writes them; the incremental parser for Content-Length, chunked and until-close bodies, split at any byte; 1xx, HEAD/204/304, HTTP/1.0, `Connection`, `Pragma`, max-body, garbage |
+| HTTP/1.1 | **16/16** | request bytes as Go writes them; the incremental parser for Content-Length, chunked and until-close bodies, split at any byte; 1xx, HEAD/204/304, HTTP/1.0, `Connection`, `Pragma`, max-body, garbage, lenient header case |
+| Metrics, reports | **13/13** | counts, error set, totals, true min/max, nearest-rank percentiles, histogram, any merge tree gives the same report, Go's float arithmetic for rates, the text, JSON and histogram report bytes, tabwriter |
 | HTTP client | 7/10 | the request sent first, nothing after a request finishes, sends only on open connections, liveness, answering as soon as a response is complete, EOF errors, the result recorded |
-| Metrics, reports | 10/13 | counts, error set, totals, true min/max, nearest-rank percentiles, histogram, any merge tree gives the same report, the JSON report bytes, tabwriter |
+| Durations, calendar | 12/16 | Go's `Duration.String()`, rounding, parse domain and sign, days↔dates, RFC 3339 output and read-back, the CSV timestamp, compare, add/sub |
 | Flags, rates | 7/9 | defaults, `-k v`/`-k=v`/`--k` forms, refused flags, `-header`, `-rate` parsing with Go's error texts |
-| Durations, calendar | 10/16 | Go's `Duration.String()`, rounding, parse domain and sign, days↔dates, RFC 3339 output, compare, add/sub |
-| float64 | 2/12 | conversion and truncation |
+| float64 | 4/12 | conversion, truncation, fixed-point text |
 | Result round trips | 3/7 | the CSV and JSON result bytes, format detection |
 
-**Still open (29):**
-- **Checker cost.** Most of these need the checker to compute with a
-  closed number near 10^9, or with a float constant built from big
-  naturals. Its naturals are unary, so these don't finish. This blocks:
-  - rounding (`f64_*`) and duration parsing (`dur_parse_*`);
-  - `civil_unix_nanos`, `met_floats`, `report_text`, `report_hist`;
-  - decoding results back (`hit_of_*`).
-- **Missing theory.** The other three client laws (failures, retries,
-  redirects) need a theory relating the client's cached view of a
-  response head to the laws' reading of the raw bytes.
-- **Just out of reach.** `http_lenient` needs facts about 32-bit
-  arithmetic, and the two remaining flags laws wait on the duration
-  proofs.
+**Tested, not proven (21).** Each group is checked against Go instead:
 
-**No law is known to be false.** The client laws were also checked
-against the implementation over every event sequence up to length 4:
-56,247 timelines, 0 failures.
+| Laws | Why not proven | What checks them instead |
+|---|---|---|
+| client failures, retries, redirects (3) | needs a theory relating the client's cached view of a response head to the laws' reading of the raw bytes | every event sequence up to length 4 (56,247 timelines, 0 failures), Go goldens from Go's real `http.Client`, the end-to-end suite |
+| float64 rounding and JSON float text (8) | a theory of correct IEEE rounding, and the checker cannot compute with the constants involved | Go goldens and fuzzing against Go's formatting |
+| duration parsing (4), and the 2 flag laws that use it | a large parser proof, plus a restatement for the unit constants | Go goldens and a 500-string fuzz against Go's `ParseDuration` |
+| reading results back (4) | large reader proofs (JSON objects, MIME headers) | round trips on Go's own result files, and both directions end to end (Go reads ours, we read Go's) |
 
-`bend PROOF.bend` checks everything in about 30 s. `bend LAWS.bend` states
-the laws in under 1 s.
+**No law is known to be false.** Several were false at first, and were
+found and repaired (see below).
+
+`bend PROOF.bend` checks the proofs, and `scripts/open-laws.txt` lists the
+21 laws that stay open. `bend LAWS.bend` states the laws in under 1 s.
 
 ## Laws caught real bugs, and so did the code
 
@@ -138,6 +135,45 @@ Go's actual behavior. Laws that looked right were not. Some examples:
   fresh connection, so a client sending the wrong bytes would have passed.
 - **Flags round trips.** `-rate=infinity` means "keep the default" to
   Go's flag package. A round-trip law had assumed it meant unbounded.
+- **Years past 9999.** A timestamp in year 10000 prints as five digits,
+  which Go's parser (and ours) can't read back. Go refuses to write such
+  years, so the laws now require a four-digit year.
+
+Restating laws was sometimes needed to make them checkable, never to make
+them weaker. For example, "nanoseconds below 10^9" became "at most nine
+digits", because the checker counts in unary and never finishes counting
+to a billion. Every restatement was reviewed as an exact equivalent. One
+proposal was rejected: a hypothesis stating 10^9 = 10^9, which is true
+but which no proof could ever establish. The law was instead stated as
+the text Go writes.
+
+## Was Bend the right tool?
+
+For a load tester, honestly, no. It's a flamethrower for lighting a
+cigarette.
+
+- **Where the effort went.** Vegeta's hard parts are IO, speed and
+  matching Go's exact bytes. Bend's strengths are proving pure logic, and
+  its weak spots (strings as byte lists, IO on one core, a checker that
+  can't count past about 10^5) all land on exactly this kind of program.
+- **The cost.** About 11k lines of library, 5k of laws and 36k of proofs,
+  for a tool that is 1.6-6x slower than Go and has a list of deviations.
+  A lot of the proof effort went into arithmetic the checker can't do,
+  like 10^9 and float rounding.
+- **What the effort bought.**
+  - Real bugs that tests hadn't caught: in the laws, in the client, and
+    in our understanding of Go's behavior (all listed above).
+  - Guarantees over every ordering of events for the scheduler and most
+    of the client, which no test suite gives.
+- **Where it pays.** Small, pure, high-stakes cores, like the sans-IO
+  state machines at the center of this port, or the verified SHA-256 and
+  EVM packages others have published for Bend.
+
+If we did it again, we'd write the tool in Go and extract only the
+scheduler and HTTP client state machines into something provable. That
+would give most of the value at a fraction of the cost.
+
+
 
 ## Performance
 
@@ -176,10 +212,11 @@ where the ceiling is.
 **The checker**
 - **Naturals are unary.** Any closed arithmetic past about 10^5 overflows
   or never finishes, even for `x == x`. Big constants have to stay
-  symbolic or be written as limb literals, and 29 laws are open mostly
-  for this reason.
+  symbolic, be written as literals, or be restated by digit count (as
+  `nsec_ok` and `nat_fits` do). Most of the laws left unproven trace back
+  to this.
 - **Base has almost no lemmas.** We wrote our own arithmetic, string,
-  list and sort theory. `proofs/` is about 31.6k lines against 11k in
+  list and sort theory. `proofs/` is about 35.6k lines against 11k in
   `lib/`.
 - **Mechanical proofs had to be generated.** The engine and client proofs
   come from scripts in `scripts/gen-engine-proof/` and
@@ -258,7 +295,11 @@ The full list, with the reasons, is in
   - the laws are stated;
   - 32 test files print their expected lines, most of them goldens
     produced by Go programs in `scripts/`;
-  - the proofs check within budget.
+  - the proofs check with no errors, and exactly the laws listed in
+    `scripts/open-laws.txt` stay open. Proving another law means taking it
+    off the list, and a proof that stops closing its law fails the gate.
+    The 60 s budget holds on an idle machine; set `PROOF_BUDGET` on a busy
+    one.
 - **`sh scripts/e2e.sh`** runs the binary against a Go test server next to
   Go Vegeta. It checks:
   - pacing;

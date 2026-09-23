@@ -17,3 +17,4 @@ import ./proofs/civil.bend as PCivil
 import ./proofs/metrics.bend as PMet
 import ./proofs/f64.bend as PF64
 import ./proofs/conn.bend as PConn
+import ./proofs/nums.bend as PNums

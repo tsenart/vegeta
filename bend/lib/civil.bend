@@ -278,10 +278,11 @@ def zone_num_ok(+z: String) -> Bool:
 def zone_ok(+z: String) -> Bool:
   Bool.or(String.eq(z, "Z"), zone_num_ok(z))
 
-# the zone as an offset plus 86400
+# the zone as an offset plus 86400 (the literal second, so the checker
+# never unfolds it)
 def zone_off(+z: String) -> Nat:
   +secs = Nat.add(Nat.mul(num(z, 1n, 2n), 3600n), Nat.mul(num(z, 4n, 2n), 60n))
-  pick(Nat, String.eq(z, "Z"), 86400n, pick(Nat, first_is(z, 43), Nat.add(86400n, secs), Nat.sub(86400n, secs)))
+  pick(Nat, String.eq(z, "Z"), 86400n, pick(Nat, first_is(z, 43), Nat.add(secs, 86400n), Nat.sub(86400n, secs)))
 
 def date_ok(+s: String) -> Bool:
   +y = num(s, 0n, 4n)
@@ -316,17 +317,50 @@ def parse_rfc3339.go(+s: String) -> Maybe<&2, Time>:
     Bool.and(Bool.and(frac_ok(r, FZ.frac(fz)), zone_ok(FZ.zone(fz))), Nat.is_ge(l, off)))
   parse.of(ok, Time{Nat.sub(l, off), frac_ns(FZ.frac(fz)), off})
 
+# "" reads as nothing, as .go reads it; the match first keeps the checker
+# from unfolding the parser on a text it cannot see
 def parse_rfc3339(s: String) -> Maybe<&2, Time>:
-  parse_rfc3339.go(s)
+  match s:
+    case SNil{}:
+      None{}
+    case SCon{+c, +rest}:
+      parse_rfc3339.go(SCon{c, rest})
 
 # ---------------------------------------------------------------------
 # Instants
 # ---------------------------------------------------------------------
 
+# ns has at most nine digits: it is below a second, told by its digit
+# count (LAWS' nsec_ok), so a proof never compares it with 10^9
+def nsec_fits(+ns: Nat) -> Bool:
+  Nat.is_lt(String.length(Dec.show(ns)), 10n)
+
+# the whole seconds in ns: 0 when it fits (no division to reason about)
+def ns_carry.of(fits: Bool, +ns: Nat) -> Nat:
+  match fits:
+    case True{}:
+      0n
+    case False{}:
+      Nat.div(ns, sec())
+
+def ns_carry(+ns: Nat) -> Nat:
+  ns_carry.of(nsec_fits(ns), ns)
+
+# ns below a second: ns itself when it fits
+def ns_low.of(fits: Bool, +ns: Nat) -> Nat:
+  match fits:
+    case True{}:
+      ns
+    case False{}:
+      Nat.mod(ns, sec())
+
+def ns_low(+ns: Nat) -> Nat:
+  ns_low.of(nsec_fits(ns), ns)
+
 # the CSV timestamp: the decimal nanosecond count
 def unix_nanos(+t: Time) -> String:
-  +s = Nat.add(time_sec(t), Nat.div(time_nsec(t), sec()))
-  +n = Nat.mod(time_nsec(t), sec())
+  +s = Nat.add(time_sec(t), ns_carry(time_nsec(t)))
+  +n = ns_low(time_nsec(t))
   pick(String, Nat.is_eq(s, 0n), Dec.show(n), Dec.show(s) ++ Dec.pad(9n, n))
 
 # by seconds then nanoseconds (carried, so any nsec compares right)

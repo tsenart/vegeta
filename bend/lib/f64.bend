@@ -58,6 +58,27 @@ def pow2.go(n: Nat, +acc: Big.Big) -> Big.Big:
 def pow2(+k: Nat) -> Big.Big:
   Big.mul_small(pow2.go(Nat.div(k, 30n), big1()), Nat.pow(2n, Nat.mod(k, 30n)))
 
+# b * 2^n, by doubling (LAWS' bshl doubles with Big.mul; mul_small is
+# linear, and the values agree)
+def bshl(n: Nat, +b: Big.Big) -> Big.Big:
+  match n:
+    case 0n:
+      b
+    case 1n+p:
+      bshl(p, Big.mul_small(b, 2n))
+
+def p2.go(n: Nat, +acc: Big.Big) -> Big.Big:
+  match n:
+    case 0n:
+      acc
+    case 1n+p:
+      p2.go(p, Big.mul_small(acc, 1024n))
+
+# 2^k, ten bits a step (a proof can tell 2^10 is 1024; 2^30 is too big
+# for it to evaluate)
+def p2(+k: Nat) -> Big.Big:
+  bshl(Nat.mod(k, 10n), p2.go(Nat.div(k, 10n), big1()))
+
 def pow10.go(n: Nat, +acc: Big.Big) -> Big.Big:
   match n:
     case 0n:
@@ -112,6 +133,35 @@ def bitlen.go(fuel: Nat, stop: Bool, +b: Big.Big, +acc: Nat) -> Nat:
 def bitlen(+b: Big.Big) -> Nat:
   bitlen.go(400n, small(b), b, 0n)
 
+# bit length: the least l with b < 2^l (acc is 2^l); ten bits a step,
+# then one
+def blen.one(fuel: Nat, stop: Bool, +b: Big.Big, +acc: Big.Big, +l: Nat) -> Nat:
+  match fuel:
+    case 0n:
+      l
+    case 1n+f:
+      match stop:
+        case True{}:
+          l
+        case False{}:
+          +a2 = Big.mul_small(acc, 2n)
+          blen.one(f, Cmp.is_lt(Big.cmp(b, a2)), b, a2, 1n+l)
+
+def blen.ten(fuel: Nat, stop: Bool, +b: Big.Big, +acc: Big.Big, +l: Nat) -> Nat:
+  match fuel:
+    case 0n:
+      l
+    case 1n+f:
+      match stop:
+        case True{}:
+          blen.one(11n, Cmp.is_lt(Big.cmp(b, acc)), b, acc, l)
+        case False{}:
+          +a2 = Big.mul_small(acc, 1024n)
+          blen.ten(f, Cmp.is_lt(Big.cmp(b, Big.mul_small(a2, 1024n))), b, a2, Nat.add(10n, l))
+
+def blen(+b: Big.Big) -> Nat:
+  blen.ten(Nat.add(2n, Nat.mul(List.length(&2, Nat, Big.limbs(b)), 2n)), Cmp.is_lt(Big.cmp(b, Big.mul_small(big1(), 1024n))), b, big1(), 0n)
+
 # trailing zero bits of a Big above zero
 def tz.go(fuel: Nat, stop: Bool, +b: Big.Big, +acc: Nat) -> Nat:
   match fuel:
@@ -131,15 +181,6 @@ def tz(+b: Big.Big) -> Nat:
 # Rounding an exact rational to a double
 # ---------------------------------------------------------------------
 
-# b * 2^n, by doubling (LAWS' bshl doubles with Big.mul; mul_small is
-# linear, and the values agree)
-def bshl(n: Nat, +b: Big.Big) -> Big.Big:
-  match n:
-    case 0n:
-      b
-    case 1n+p:
-      bshl(p, Big.mul_small(b, 2n))
-
 # x = num(x) / den(x)
 def num(+x: F64) -> Big.Big:
   pick(Big.Big, f_neg(x), f_m(x), bshl(f_e(x), f_m(x)))
@@ -147,42 +188,69 @@ def num(+x: F64) -> Big.Big:
 def den(+x: F64) -> Big.Big:
   pick(Big.Big, f_neg(x), bshl(f_e(x), Big.of(1n)), Big.of(1n))
 
-# m * 2^(off + t - s), with t the trailing zeros of m, m above zero
-def finish.nz(+m: Big.Big, +s: Nat) -> F64:
-  +t = tz(m)
-  +m2 = Big.div(m, pow2(t))
-  +pos = Nat.add(off(), t)
-  pick(F64, Nat.is_ge(pos, s), F64{m2, Nat.sub(pos, s), False{}}, F64{m2, Nat.sub(s, pos), True{}})
+# b / 2, as LAWS divides
+def half2(+b: Big.Big) -> Big.Big:
+  Big.div(b, Big.of(2n))
 
-def finish(z: Bool, +m: Big.Big, +s: Nat) -> F64:
+# b is odd, as LAWS tells it (through Big.mod)
+def odd(+b: Big.Big) -> Bool:
+  Bool.not(Cmp.is_eq(Big.cmp(Big.mod(b, Big.of(2n)), Big.of(0n))))
+
+# 10^n, by multiplying (LAWS' bpow10, for the small d of fixed notation)
+def bpow10(n: Nat) -> Big.Big:
+  match n:
+    case 0n:
+      Big.of(1n)
+    case 1n+p:
+      Big.mul(bpow10(p), Big.of(10n))
+
+# p/q to the nearest integer, ties to even
+def round_int(+p: Big.Big, +q: Big.Big) -> Big.Big:
+  +k = Big.div(p, q)
+  +r = Big.mod(p, q)
+  +c = Big.cmp(Big.add(r, r), q)
+  pick(Big.Big, Bool.or(Cmp.is_gt(c), Bool.and(Cmp.is_eq(c), odd(k))), Big.add(k, big1()), k)
+
+# m * 2^(t + b) / 2^a
+def strip.mk(+m: Big.Big, +t: Nat, +a: Nat, +b: Nat) -> F64:
+  +u = Nat.add(t, b)
+  pick(F64, Nat.is_ge(u, a), F64{m, Nat.sub(u, a), False{}}, F64{m, Nat.sub(a, u), True{}})
+
+# halve m while it is even (t halvings so far)
+def strip.go(fuel: Nat, stop: Bool, +m: Big.Big, +t: Nat, +a: Nat, +b: Nat) -> F64:
+  match fuel:
+    case 0n:
+      strip.mk(m, t, a, b)
+    case 1n+f:
+      match stop:
+        case True{}:
+          strip.mk(m, t, a, b)
+        case False{}:
+          strip.go(f, odd(half2(m)), half2(m), 1n+t, a, b)
+
+# the double m * 2^b / 2^a (m below 2^54), m's trailing zeros moved to
+# the exponent
+def finish(z: Bool, +m: Big.Big, +a: Nat, +b: Nat) -> F64:
   match z:
     case True{}:
       zero()
     case False{}:
-      finish.nz(m, s)
+      strip.go(60n, odd(m), m, 0n, a, b)
 
-# l/r is p/q scaled by 2^(s - off); round it to an integer, ties to even
-def round.at(+s: Nat, +l: Big.Big, +r: Big.Big) -> F64:
-  +qr = Big.divmod(l, r)
-  +m0 = quo(qr)
-  +c = Big.cmp(Big.add(Big.QR.r(qr), Big.QR.r(qr)), r)
-  +up = Bool.or(Cmp.is_gt(c), Bool.and(Cmp.is_eq(c), is_odd(m0)))
-  +m = pick(Big.Big, up, Big.add(m0, big1()), m0)
-  finish(Big.is_zero(m), m, s)
-
-def lhs(+p: Big.Big, +s: Nat) -> Big.Big:
-  Big.mul(p, pow2(Nat.sub(s, off())))
-
-def rhs(+q: Big.Big, +s: Nat) -> Big.Big:
-  Big.mul(q, pow2(Nat.sub(off(), s)))
-
-# the scale s (offset) putting p/q * 2^(s - off) in [2^52, 2^53), but at
-# most 1074 (the subnormals)
+# p/q above zero, scaled by 2^a / 2^b to [2^52, 2^53) (or below, when a
+# is 1074: the subnormals), rounded to an integer, ties to even. The first
+# scale comes from the bit lengths and lands in [2^52, 2^54)
 def round.nz(+p: Big.Big, +q: Big.Big) -> F64:
-  +s0 = Nat.sub(Nat.add(Nat.add(53n, bitlen(q)), off()), bitlen(p))
-  +over = b_ge(lhs(p, s0), Big.mul(pow2(53n), rhs(q, s0)))
-  +s = Nat.min(pick(Nat, over, Nat.sub(s0, 1n), s0), Nat.add(1074n, off()))
-  round.at(s, lhs(p, s), rhs(q, s))
+  +x = Nat.add(53n, blen(q))
+  +bp = blen(p)
+  +a0 = Nat.sub(x, bp)
+  +b0 = Nat.sub(bp, x)
+  +over = b_ge(Big.mul(p, p2(a0)), Big.mul(p2(53n), Big.mul(q, p2(b0))))
+  +a1 = pick(Nat, over, Nat.sub(a0, 1n), a0)
+  +b = pick(Nat, Bool.and(over, Nat.is_eq(a0, 0n)), 1n+b0, b0)
+  +a = pick(Nat, Nat.is_lt(a1, 1075n), a1, 1074n)
+  +m = round_int(Big.mul(p, p2(a)), Big.mul(q, p2(b)))
+  finish(Big.is_zero(m), m, a, b)
 
 def round.of(z: Bool, +p: Big.Big, +q: Big.Big) -> F64:
   match z:
@@ -195,8 +263,33 @@ def round.of(z: Bool, +p: Big.Big, +q: Big.Big) -> F64:
 def round(+p: Big.Big, +q: Big.Big) -> F64:
   round.of(Bool.or(Big.is_zero(p), Big.is_zero(q)), p, q)
 
+# b / 2^n, by halving
+def shr(n: Nat, +b: Big.Big) -> Big.Big:
+  match n:
+    case 0n:
+      b
+    case 1n+p:
+      shr(p, half(b))
+
+# a Big above zero below 10^12 < 2^53 is a double as it is: its odd part
+# times 2^tz, what round(b, 1) gives. This path keeps a closed constant
+# like of_nat(100n) cheap in the checker (round's 2^30 steps are not)
+def of_big.exact(z: Bool, +b: Big.Big) -> F64:
+  match z:
+    case True{}:
+      zero()
+    case False{}:
+      F64{shr(tz(b), b), tz(b), False{}}
+
+def of_big.of(few: Bool, +b: Big.Big) -> F64:
+  match few:
+    case True{}:
+      of_big.exact(Big.is_zero(b), b)
+    case False{}:
+      round(b, big1())
+
 def of_big(+b: Big.Big) -> F64:
-  round(b, big1())
+  of_big.of(small(b), b)
 
 def of_nat(n: Nat) -> F64:
   of_big(Big.of(n))
@@ -228,15 +321,8 @@ def zeros(n: Nat) -> String:
 def zpad(+w: Nat, +s: String) -> String:
   zeros(Nat.sub(w, String.length(s))) ++ s
 
-# p/q to the nearest integer, ties to even
-def round_int(+p: Big.Big, +q: Big.Big) -> Big.Big:
-  +qr = Big.divmod(p, q)
-  +k = quo(qr)
-  +c = Big.cmp(Big.add(Big.QR.r(qr), Big.QR.r(qr)), q)
-  pick(Big.Big, Bool.or(Cmp.is_gt(c), Bool.and(Cmp.is_eq(c), is_odd(k))), Big.add(k, big1()), k)
-
 def fixed_text.frac(+d: Nat, +k: Big.Big) -> String:
-  Big.show(Big.div(k, pow10(d))) ++ "." ++ zpad(d, Big.show(Big.mod(k, pow10(d))))
+  Big.show(Big.div(k, bpow10(d))) ++ "." ++ zpad(d, Big.show(Big.mod(k, bpow10(d))))
 
 # K with d decimals: "12.50" for (2, 1250)
 def fixed_text(d: Nat, +k: Big.Big) -> String:
@@ -247,7 +333,7 @@ def fixed_text(d: Nat, +k: Big.Big) -> String:
       fixed_text.frac(1n+p, k)
 
 def fixed.go(+d: Nat, +x: F64) -> String:
-  fixed_text(d, round_int(Big.mul(num(x), pow10(d)), den(x)))
+  fixed_text(d, round_int(Big.mul(num(x), bpow10(d)), den(x)))
 
 def fixed(d: Nat, +x: F64) -> String:
   fixed.go(d, x)
