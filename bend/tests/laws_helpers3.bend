@@ -59,6 +59,18 @@ def retry() -> List<&2, L.CItem>:
 def stall() -> List<&2, L.CItem>:
   [L.CICmd{Conn.Open{"127.0.0.1", 80n}}, L.CIEv{Conn.Opened{}}, L.CIEv{Conn.Late{}}]
 
+def req0() -> Conn.Req:
+  Conn.Req{Tgt.Target{"GET", "http://h/", [], None{}}, Tgt.Url{"http", "h", None{}, "/"}, "127.0.0.1", "", 0n, ""}
+
+def cfg0() -> Conn.Cfg:
+  Conn.CCfg{True{}, 0n, None{}, Some{0n}}
+
+# -redirects=0: a 302, Go's stop error, then the server closes
+def stop_then_eof() -> List<&2, L.CItem>:
+  [L.CICmd{Conn.Send{"GET / HTTP/1.1"}}, L.CIEv{Conn.Sent{}}, L.CICmd{Conn.Recv{}},
+   L.CIEv{Conn.Got{"HTTP/1.1 302 Found\r\nLocation: /x\r\nContent-Length: 0\r\n\r\n"}},
+   L.CICmd{Conn.Finish{Conn.Failed{"Get \"/x\": stopped after 0 redirects", None{}}, False{}}}, L.CIEv{Conn.Eof{}}]
+
 def keys(hs: List<&2, Hdr.Header>) -> String:
   match hs:
     case Nil{}:
@@ -87,6 +99,7 @@ def main() -> IO(Unit):
     IO.print(L.pick(String, L.chk_pending(retry(), w0()), "T", "F") ++ L.pick(String, L.chk_pending(stall(), w0()), "T", "F"))
     IO.print(L.pick(String, L.drained(Conn.CCfg{True{}, 0n, None{}, Some{10n}}, False{}, "HTTP/1.1 302 Found\r\nLocation: /x\r\nContent-Length: 5000\r\n\r\nabc", False{}), "T", "F")
       ++ L.pick(String, L.drained(Conn.CCfg{True{}, 0n, None{}, Some{10n}}, False{}, "HTTP/1.1 302 Found\r\nLocation: /x\r\nContent-Length: 10\r\n\r\nabc", False{}), "T", "F"))
+    IO.print(L.pick(String, L.chk_redirect(stop_then_eof(), cfg0(), req0(), L.q_target(req0()), L.q_url(req0()), "", None{}, 0n, False{}, "", False{}, False{}, False{}), "T", "F"))
     IO.print(L.redirect_method(302n, "PUT") ++ " " ++ L.redirect_method(301n, "DELETE") ++ " " ++ L.redirect_method(302n, "HEAD") ++ " " ++ L.redirect_method(308n, "PUT"))
 
 #|0 999 1000 1499 1500 1500000 1500000 2000000000 59500000000 3600000000000 3660000000000 5400000000000
@@ -102,4 +115,5 @@ def main() -> IO(Unit):
 #|Authorization=secret;Referer=http://x.a.test/r2;
 #|TF
 #|TF
+#|T
 #|GET GET HEAD PUT

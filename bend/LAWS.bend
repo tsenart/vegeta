@@ -4168,11 +4168,16 @@ def redirect_due(+c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: St
     pick(Bool, Nat.is_lt(hops, n), Bool.or(Bool.not(hop_ok(hop_of_head(u_host(q_url(q)), t, u, b, buf))), progresses(batch(rest))),
       fails_with(stop_text(q, head_location(buf), n), None{}, batch(rest))))
 
+# the redirect in the bytes so far is one the client acts on now
+def due_now(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
+  Bool.and(head_redirect(c, buf), drained(c, head, buf, eof))
+
 # every new request after the first is the redirect of the previous
-# response (a repeat of the same text is a retry), and there are at most
-# as many as -redirects allows
+# response, once Go is done with its body (a repeat of the same text is a
+# retry); the obligation to act on a redirect holds once per hop (met)
+# and never after the request finishes (done)
 def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target, +u: Tgt.Url, +b: String,
-                 +last: Maybe<&2, String>, +hops: Nat, +head: Bool, +buf: String, +eof: Bool) -> Bool:
+                 +last: Maybe<&2, String>, +hops: Nat, +head: Bool, +buf: String, +eof: Bool, +met: Bool, +done: Bool) -> Bool:
   match xs:
     case Nil{}:
       True{}
@@ -4181,30 +4186,34 @@ def chk_redirect(xs: List<&2, CItem>, +c: Conn.Cfg, +q: Conn.Req, +t: Tgt.Target
         case CIEv{e}:
           match e:
             case Conn.Got{d}:
-              Bool.and(redirect_due(c, q, t, u, b, hops, head, buf ++ d, eof, rest), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf ++ d, eof))
+              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf ++ d, eof, rest)),
+                chk_redirect(rest, c, q, t, u, b, last, hops, head, buf ++ d, eof, Bool.or(met, due_now(c, head, buf ++ d, eof)), done))
             case Conn.Eof{}:
-              Bool.and(redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest), chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}))
+              Bool.and(Bool.or(Bool.or(met, done), redirect_due(c, q, t, u, b, hops, head, buf, True{}, rest)),
+                chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, True{}, Bool.or(met, due_now(c, head, buf, True{})), done))
             case _:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof)
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done)
         case CICmd{k}:
           match k:
             case Conn.Send{d}:
               +hop = hop_of_head(u_host(q_url(q)), t, u, b, buf)
               +fresh = is_fresh(last, d)
               pick(Bool, fresh,
-                Bool.and(Bool.and(hop_ok(hop), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
+                Bool.and(Bool.and(Bool.and(hop_ok(hop), due_now(c, head, buf, eof)), Nat.is_lt(hops, rd_limit(c_redirects(c)))),
                   Bool.and(String.eq(d, Http.request(hop_t(hop), hop_u(hop), hop_b(hop), q_seq(q), q_name(q), c_ka(c))),
-                    chk_redirect(rest, c, q, hop_t(hop), hop_u(hop), hop_b(hop), Some{d}, 1n+hops, String.starts_with(d, "HEAD "), "", False{}))),
-                chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}))
+                    chk_redirect(rest, c, q, hop_t(hop), hop_u(hop), hop_b(hop), Some{d}, 1n+hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done))),
+                chk_redirect(rest, c, q, t, u, b, Some{d}, hops, String.starts_with(d, "HEAD "), "", False{}, False{}, done))
+            case Conn.Finish{o, keep}:
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, True{})
             case _:
-              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof)
+              chk_redirect(rest, c, q, t, u, b, last, hops, head, buf, eof, met, done)
 
 law conn_redirect:
   for +c: Conn.Cfg
   for +q: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), None{}, 0n, False{}, "", False{}) == True{} : Bool}
+  {chk_redirect(ctimeline(c, q, open, evs), c, q, q_target(q), q_url(q), q_body(q), None{}, 0n, False{}, "", False{}, False{}, False{}) == True{} : Bool}
 
 # the commands after the last event
 def last_batch(xs: List<&2, CItem>, +acc: List<&2, Conn.Cmd>) -> List<&2, Conn.Cmd>:
