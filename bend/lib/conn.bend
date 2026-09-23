@@ -477,8 +477,30 @@ def set_got(+k: Cur, +d: String) -> Cur:
 def is_head(+text: String) -> Bool:
   String.starts_with(text, "HEAD ")
 
+# the values of the first header named k (canonically), as a loop that
+# stops at the hit (hit: the header before hs matched, with values v)
+def hdr_get_ci.go(hs: List<&2, Hdr.Header>, hit: Bool, +k: String, +v: List<&2, String>) -> Maybe<&2, List<&2, String>>:
+  match hs:
+    case Nil{}:
+      match hit:
+        case True{}:
+          Some{v}
+        case False{}:
+          None{}
+    case Con{+h, +rest}:
+      match hit:
+        case True{}:
+          Some{v}
+        case False{}:
+          hdr_get_ci.go(rest, String.eq(Http.canon(hdr_key(h)), k), k, hdr_vals(h))
+
+def hdr_get_ci(+k: String, hs: List<&2, Hdr.Header>) -> Maybe<&2, List<&2, String>>:
+  hdr_get_ci.go(hs, False{}, k, [])
+
+# a redirect status with a Location (its name compared canonically, as
+# LAWS.bend reads it; the parser's names are canonical anyway)
 def is_redirect(+r: Http.Resp) -> Bool:
-  Bool.and(is_30x(r_code(r)), Bool.not(String.is_empty(Http.first_of("", Http.hdr_get("Location", r_hdrs(r))))))
+  Bool.and(is_30x(r_code(r)), Bool.not(String.is_empty(Http.first_of("", hdr_get_ci("Location", r_hdrs(r))))))
 
 # a complete response the client answers with: not a redirect it follows
 def final_of(+c: Cfg, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
@@ -826,9 +848,12 @@ def rx_feed.hd(h: Head, +c: Cfg, +b: String, +p2: Http.Parse, +p0: Http.Parse, +
     case HIn{+r, k, l, g}:
       Rx{b, HIn{r, k, l, g}, p2, feed_redir(Bool.and(r, Bool.not(met)), p0, d), met}
 
+# (the parse and met are set here, outside the head's match: every branch
+# keeps them)
 def rx_feed(+c: Cfg, +x: Rx, +p2: Http.Parse, +d: String) -> Rx:
   Rx{b, hd, p, p0, met} = x
-  rx_feed.hd(hd, c, b, p2, p0, met, d)
+  +t = rx_feed.hd(hd, c, b, p2, p0, met, d)
+  Rx{rx_buf(t), rx_hd(t), p2, rx_p0(t), met}
 
 def rx_eof(+x: Rx) -> Rx:
   Rx{b, hd, p, p0, met} = x
@@ -975,26 +1000,6 @@ def loc_url(+u: Tgt.Url, +loc: String) -> String:
   pick(String, String.starts_with(loc, "/"), base ++ remove_dots(lpath) ++ lq,
   pick(String, String.is_empty(lpath), base ++ bpath ++ pick(String, String.is_empty(lq), String.drop(Http.url_path(u), String.length(bpath)), lq),
     base ++ remove_dots(dir_of(bpath) ++ lpath) ++ lq))))
-
-# the values of the first header named k (canonically), as a loop that
-# stops at the hit (hit: the header before hs matched, with values v)
-def hdr_get_ci.go(hs: List<&2, Hdr.Header>, hit: Bool, +k: String, +v: List<&2, String>) -> Maybe<&2, List<&2, String>>:
-  match hs:
-    case Nil{}:
-      match hit:
-        case True{}:
-          Some{v}
-        case False{}:
-          None{}
-    case Con{+h, +rest}:
-      match hit:
-        case True{}:
-          Some{v}
-        case False{}:
-          hdr_get_ci.go(rest, String.eq(Http.canon(hdr_key(h)), k), k, hdr_vals(h))
-
-def hdr_get_ci(+k: String, hs: List<&2, Hdr.Header>) -> Maybe<&2, List<&2, String>>:
-  hdr_get_ci.go(hs, False{}, k, [])
 
 def has_key_ci(+k: String, hs: List<&2, Hdr.Header>) -> Bool:
   Maybe.is_some(&2, List<&2, String>, hdr_get_ci(k, hs))

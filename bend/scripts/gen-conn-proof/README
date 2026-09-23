@@ -1,0 +1,8 @@
+Generates proofs/conn.bend. The conn laws are checkers over a timeline of
+Conn.step; each law's proof walks the same dispatch tree of Conn.step.ev
+(tree.py: every def that matches a computed value, down to the moves), one
+lemma per dispatcher, with the law's goal and leaf proofs (gen.py). The
+hand-written parts are the .bend fragments. To re-prove after a change to
+lib/conn.bend:
+
+  cd bend/scripts/gen-conn-proof && python3 gen.py ../../proofs/conn.bend
