@@ -4,7 +4,7 @@
 
 **Goal:** Implement `bend/lib/` so that every law in `bend/LAWS.bend` is proven in `bend/PROOF.bend`, then wire the IO shell so `vegeta attack` and `vegeta report` work end to end and interoperate with Go Vegeta.
 
-**Architecture:** `LAWS.bend` is the spec (130 laws over stub signatures, human-owned). `lib/` modules are pure and proven; `engine.bend` and `conn.bend` are pure state machines; `shell.bend` is the only IO loop and runs their commands. Go goldens pin byte formats; end-to-end tests pin behavior on real sockets.
+**Architecture:** `LAWS.bend` is the spec (124 laws over stub signatures, human-owned). `lib/` modules are pure and proven; `engine.bend` and `conn.bend` are pure state machines; `shell.bend` is the only IO loop and runs their commands. Go goldens pin byte formats; end-to-end tests pin behavior on real sockets.
 
 **Tech Stack:** Bend 2.0.25 (pinned in `bend/.bend-version`), clang, Go (goldens and differential tests).
 
@@ -14,7 +14,7 @@
 
 - `bend/LAWS.bend` is read-only for implementers. A law that cannot be proven is reported to the human, never weakened or deleted. Helpers in it are part of the statement and change only with the human's approval.
 - The only edits allowed to a stub signature are ones that keep `LAWS.bend` typechecking unchanged. The stubs' types and constructor shapes are part of the spec.
-- Fast to check: `bend LAWS.bend` ≤ 10 s and `bend PROOF.bend` ≤ 60 s on an Apple M-series machine (enforced by `bend/scripts/test.sh`). Theory `Nat`s are unary in the checker, so no proof step may evaluate a closed `Nat` above 10^6; prove lemmas symbolically (induction, rewriting) instead.
+- Fast to check: `bend LAWS.bend` ≤ 10 s and `bend PROOF.bend` ≤ 60 s on an Apple M-series machine (enforced by `bend/scripts/test.sh`). Theory `Nat`s are unary in the checker: closed arithmetic on literals past ~10^5 does not finish. So no law, proof, or implementation code a proof unfolds may compute with big closed numbers: write multiples symbolic-factor-first (`Nat.mul(Nat.mul(k, 60n), 1000000000n)`), big constants as `Big` limb literals, and prove lemmas symbolically (induction, rewriting).
 - Runtime `Nat`s must stay below 2^48; values that can grow past that are `Big`.
 - Strings in `lib/` are bytes (one `Chr` per byte, 0–255). Only the shell converts (`Text.utf8` for arguments; byte-faithful effects for IO).
 - No `@unsafe` in `lib/`; `@unsafe` only in `shell.bend`.

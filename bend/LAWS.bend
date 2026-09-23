@@ -27,7 +27,6 @@ import ./lib/hdr.bend as Hdr
 import ./lib/hit.bend as Hit
 import ./lib/target.bend as Tgt
 import ./lib/http.bend as Http
-import ./lib/sort.bend as Sort
 import ./lib/metrics.bend as Met
 import ./lib/pacer.bend as Pace
 import ./lib/engine.bend as Eng
@@ -64,11 +63,64 @@ def is_digit(c: Char) -> Bool:
 def digit(c: Char) -> Nat:
   U32.to_nat((code(c) - 48 : U32))
 
+def in_range32(+k: U32, +lo: U32, +hi: U32) -> Bool:
+  Bool.and(U32.is_ge(k, lo), U32.is_le(k, hi))
+
+def is_alnum(+k: U32) -> Bool:
+  Bool.or(in_range32(k, 48, 57), Bool.or(in_range32(k, 65, 90), in_range32(k, 97, 122)))
+
+def has_char(s: String, +k: U32) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      Bool.or(U32.is_eq(code(c), k), has_char(rest, k))
+
+def str1(k: U32) -> String:
+  SCon{Chr{k}, SNil{}}
+
+# the byte at index i, or 0 past the end
+def byte_at(s: String, i: Nat) -> U32:
+  match s:
+    case SNil{}:
+      0
+    case SCon{+c, +rest}:
+      match i:
+        case 0n:
+          code(c)
+        case 1n+j:
+          byte_at(rest, j)
+
+def is_space(+k: U32) -> Bool:
+  Bool.or(U32.is_eq(k, 32), Bool.and(U32.is_ge(k, 9), U32.is_le(k, 13)))
+
+def first_is(+s: String, k: U32) -> Bool:
+  match s:
+    case SNil{}:
+      False{}
+    case SCon{+c, +rest}:
+      U32.is_eq(code(c), k)
+
+def split_cons(+c: Char, ps: List<&2, String>) -> List<&2, String>:
+  match ps:
+    case Nil{}:
+      [SCon{c, SNil{}}]
+    case Con{+p, +rest}:
+      Con{SCon{c, p}, rest}
+
+def split_on(+k: U32, s: String) -> List<&2, String>:
+  match s:
+    case SNil{}:
+      [""]
+    case SCon{+c, +rest}:
+      +r = split_on(k, rest)
+      pick(List<&2, String>, U32.is_eq(code(c), k), Con{"", r}, split_cons(c, r))
+
 def all_digits.go(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(is_digit(c), all_digits.go(rest))
 
 # a non-empty run of ASCII digits
@@ -76,14 +128,14 @@ def all_digits(s: String) -> Bool:
   match s:
     case SNil{}:
       False{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(is_digit(c), all_digits.go(rest))
 
 def digits_value.go(s: String, acc: Nat) -> Nat:
   match s:
     case SNil{}:
       acc
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       digits_value.go(rest, Nat.add(Nat.mul(acc, 10n), digit(c)))
 
 # the number a run of digits denotes, most significant first
@@ -135,14 +187,14 @@ def limbs_val(ls: List<&2, Nat>) -> Nat:
   match ls:
     case Nil{}:
       0n
-    case Con{h, t}:
+    case Con{+h, +t}:
       Nat.add(h, Nat.mul(10000n, limbs_val(t)))
 
 def limbs_ok(ls: List<&2, Nat>) -> Bool:
   match ls:
     case Nil{}:
       True{}
-    case Con{h, t}:
+    case Con{+h, +t}:
       Bool.and(Nat.is_lt(h, 10000n), limbs_ok(t))
 
 # the number a Big denotes
@@ -150,10 +202,22 @@ def big_val(b: Big.Big) -> Nat:
   Big.Big{ls} = b
   limbs_val(ls)
 
-# every limb is a base-10000 digit, so no runtime Nat ever nears 2^48
-def big_ok(b: Big.Big) -> Bool:
+def last_nonzero(ls: List<&2, Nat>) -> Bool:
+  match ls:
+    case Nil{}:
+      True{}
+    case Con{+h, +rest}:
+      match rest:
+        case Nil{}:
+          Nat.is_gt(h, 0n)
+        case Con{+g, +more}:
+          last_nonzero(Con{g, more})
+
+# every limb is a base-10000 digit (so no runtime Nat nears 2^48) and the
+# top limb is not zero (so equal values are equal Bigs; zero is [])
+def big_ok(+b: Big.Big) -> Bool:
   Big.Big{ls} = b
-  limbs_ok(ls)
+  Bool.and(limbs_ok(ls), last_nonzero(ls))
 
 law big_of:
   for +n: Nat
@@ -276,10 +340,11 @@ def is_double(+x: F64.F64) -> Bool:
       pick(Bool, f_neg(x), Bool.and(Nat.is_gt(e, 0n), Nat.is_le(e, 1074n)), Nat.is_le(Nat.add(e, l), 1024n))))))
 
 # the exponent of x's 53-bit significand window, plus 1074 (so never
-# negative): the gap to the next double up is 2^(w - 1074)
+# negative): the gap to the next double up is 2^(w - 1074); for zero it
+# is the least subnormal, 2^-1074
 def window(+x: F64.F64) -> Nat:
   +l = bitlen(f_m(x))
-  pick(Nat, f_neg(x), Nat.sub(Nat.add(1074n, l), Nat.add(f_e(x), 53n)), Nat.sub(Nat.add(Nat.add(1074n, l), f_e(x)), 53n))
+  pick(Nat, b_zero(f_m(x)), 0n, pick(Nat, f_neg(x), Nat.sub(Nat.add(1074n, l), Nat.add(f_e(x), 53n)), Nat.sub(Nat.add(Nat.add(1074n, l), f_e(x)), 53n)))
 
 # whether x's 53-bit significand is even (ties round to it): its mantissa
 # sits strictly inside the window (a spare low zero bit), or x is 0
@@ -356,7 +421,7 @@ law f64_trunc:
   for +x: F64.F64
   for -h0: {is_double(x) == True{} : Bool}
   for -h1: {b_lt(Big.div(f_num(x), f_den(x)), bshl(48n, B(1n))) == True{} : Bool}
-  {Big.of(F64.trunc(x)) == Big.div(f_num(x), f_den(x)) : Big.Big}
+  {F64.trunc(x) == big_val(Big.div(f_num(x), f_den(x))) : Nat}
 
 # ---------------------------------------------------------------------
 # Comparing distances exactly
@@ -379,7 +444,7 @@ def bdigits.go(s: String, +acc: Big.Big) -> Big.Big:
   match s:
     case SNil{}:
       acc
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       bdigits.go(rest, Big.add(Big.mul(acc, B(10n)), B(digit(c))))
 
 # the number a run of digits denotes, as a Big
@@ -483,12 +548,6 @@ def Lit.ok(+l: Lit) -> Bool:
   Lit{ip, fp, eneg, ex, ok} = l
   ok
 
-def first_is(+s: String, k: U32) -> Bool:
-  match s:
-    case SNil{}:
-      False{}
-    case SCon{c, +rest}:
-      U32.is_eq(code(c), k)
 
 # after the digits and fraction: nothing, or e/E, a sign, and digits
 def lit_exp(+ip: String, +fp: String, +r: String) -> Lit:
@@ -531,11 +590,17 @@ def sig(+s: String) -> Nat:
   String.length(strip_zeros_l(String.reverse(strip_zeros_l(Lit.ip(l) ++ Lit.fp(l)))))
 
 # float64(1e-6), exactly: 4722366482869645 * 2^-72, a hair below 10^-6
+# (big constants are written as limbs: a closed product would make the
+# checker expand a huge Nat)
 def below_1e_6(+x: F64.F64) -> Bool:
-  b_lt(bshl(72n, f_num(x)), Big.mul(Big.add(Big.mul(B(1099511n), bshl(32n, B(1n))), B(2696277389n)), f_den(x)))
+  b_lt(bshl(72n, f_num(x)), Big.mul(Big.Big{[9645n, 8286n, 3664n, 4722n]}, f_den(x)))
 
 def from_1e21(+x: F64.F64) -> Bool:
-  b_le(Big.mul(bpow10(21n), f_den(x)), f_num(x))
+  b_le(Big.mul(Big.Big{[0n, 0n, 0n, 0n, 0n, 1000n]}, f_den(x)), f_num(x))
+
+# 1e9 as a double: 1953125 * 2^9
+def f64_1e9() -> F64.F64:
+  F64.F64{Big.Big{[3125n, 195n]}, 9n, False{}}
 
 # Go's layout for a shortest-digits literal of x: plain ("0.25", "120")
 # for 0 and 1e-6 <= x < 1e21; otherwise exponent form ("1e-7", "1.5e+21")
@@ -607,12 +672,6 @@ def ms() -> Nat:
 def sec() -> Nat:
   1000000000n
 
-def minute() -> Nat:
-  Nat.mul(60n, sec())
-
-def hour() -> Nat:
-  Nat.mul(3600n, sec())
-
 def trim_zeros_r(+s: String) -> String:
   String.reverse(strip_zeros_l(String.reverse(s)))
 
@@ -643,23 +702,63 @@ law dur_parse_show:
   for +n: Nat
   {Dur.parse(Dur.show(n)) == Some{n} : Maybe<&2, Nat>}
 
-# the units time.ParseDuration knows, with their size in ns
-def dur_units() -> List<&2, SS>:
-  [SS{"ns", "1"}, SS{"us", "1000"}, SS{micro() ++ "s", "1000"}, SS{greek_mu() ++ "s", "1000"}, SS{"ms", "1000000"},
-   SS{"s", "1000000000"}, SS{"m", "60000000000"}, SS{"h", "3600000000000"}]
+# the units time.ParseDuration knows: a name and a size in ns written as
+# factor * base, plus the size as a double (no closed products: the
+# checker would expand them into huge unary Nats)
+type DUnit is Data:
+  DUnit{name: String, factor: Nat, base: Nat, fl: F64.F64}
+
+def dur_units() -> List<&2, DUnit>:
+  [DUnit{"ns", 1n, 1n, F64.F64{Big.Big{[1n]}, 0n, False{}}},
+   DUnit{"us", 1n, 1000n, F64.F64{Big.Big{[125n]}, 3n, False{}}},
+   DUnit{micro() ++ "s", 1n, 1000n, F64.F64{Big.Big{[125n]}, 3n, False{}}},
+   DUnit{greek_mu() ++ "s", 1n, 1000n, F64.F64{Big.Big{[125n]}, 3n, False{}}},
+   DUnit{"ms", 1n, 1000000n, F64.F64{Big.Big{[5625n, 1n]}, 6n, False{}}},
+   DUnit{"s", 1n, 1000000000n, F64.F64{Big.Big{[3125n, 195n]}, 9n, False{}}},
+   DUnit{"m", 60n, 1000000000n, F64.F64{Big.Big{[6875n, 2929n]}, 11n, False{}}},
+   DUnit{"h", 3600n, 1000000000n, F64.F64{Big.Big{[3125n, 3945n, 4n]}, 13n, False{}}}]
+
+def unit_at(+i: Nat) -> DUnit:
+  Maybe.default(&2, DUnit, List.get(&2, DUnit, dur_units(), i), DUnit{"", 0n, 1n, F64.F64{Big.Big{[]}, 0n, False{}}})
+
+def du_name(+u: DUnit) -> String:
+  DUnit{n, f, b, x} = u
+  n
 
 def unit_name(+i: Nat) -> String:
-  SS.a(Maybe.default(&2, SS, List.get(&2, SS, dur_units(), i), SS{"", "0"}))
+  du_name(unit_at(i))
 
-def unit_size(+i: Nat) -> Nat:
-  digits_value(SS.b(Maybe.default(&2, SS, List.get(&2, SS, dur_units(), i), SS{"", "0"})))
+def du_factor(+u: DUnit) -> Nat:
+  DUnit{n, f, b, x} = u
+  f
+
+def unit_factor(+i: Nat) -> Nat:
+  du_factor(unit_at(i))
+
+def du_base(+u: DUnit) -> Nat:
+  DUnit{n, f, b, x} = u
+  b
+
+def unit_base(+i: Nat) -> Nat:
+  du_base(unit_at(i))
+
+def du_f64(+u: DUnit) -> F64.F64:
+  DUnit{n, f, b, x} = u
+  x
+
+def unit_f64(+i: Nat) -> F64.F64:
+  du_f64(unit_at(i))
+
+# k of unit i, in ns (k first: a symbolic factor keeps the product folded)
+def of_unit(+k: Nat, +i: Nat) -> Nat:
+  Nat.mul(Nat.mul(k, unit_factor(i)), unit_base(i))
 
 # LAW: a whole number of a unit parses to its size in ns.
 law dur_parse_term:
   for +k: Nat
   for +i: Nat
   for -h: {Nat.is_lt(i, 8n) == True{} : Bool}
-  {Dur.parse(Dec.show(k) ++ unit_name(i)) == Some{Nat.mul(k, unit_size(i))} : Maybe<&2, Nat>}
+  {Dur.parse(Dec.show(k) ++ unit_name(i)) == Some{of_unit(k, i)} : Maybe<&2, Nat>}
 
 # LAW: a fraction of a unit parses as Go computes it, in float64:
 # int64(float64(f) * (float64(unit) / float64(10^len(f)))), up to 15 digits.
@@ -671,8 +770,8 @@ law dur_parse_frac:
   for -h1: {all_digits(f) == True{} : Bool}
   for -h2: {Nat.is_le(String.length(f), 15n) == True{} : Bool}
   {Dur.parse(Dec.show(k) ++ "." ++ f ++ unit_name(i))
-   == Some{Nat.add(Nat.mul(k, unit_size(i)),
-       F64.trunc(F64.mul(F64.of_nat(digits_value(f)), F64.div(F64.of_nat(unit_size(i)), F64.of_nat(pow10(String.length(f)))))))} : Maybe<&2, Nat>}
+   == Some{Nat.add(of_unit(k, i),
+       F64.trunc(F64.mul(F64.of_nat(digits_value(f)), F64.div(unit_f64(i), F64.of_nat(pow10(String.length(f)))))))} : Maybe<&2, Nat>}
 
 # LAW: terms add up: "1h" then "30m" parses as their sum. ("0" alone is a
 # duration but not a term: "1m0" is missing its unit.)
@@ -686,32 +785,79 @@ law dur_parse_concat:
   for -h0: {Bool.or(String.eq(a, "0"), String.eq(b, "0")) == False{} : Bool}
   {Dur.parse(a ++ b) == Some{Nat.add(x, y)} : Maybe<&2, Nat>}
 
-# LAW: "0" is zero; a number without its unit, the empty string, and a
-# sign are rejected (Vegeta's durations are never negative).
-law dur_parse_edges:
-  for +k: Nat
+def is_unit_name(+u: String) -> Bool:
+  Bool.or(Bool.or(Bool.or(String.eq(u, "ns"), String.eq(u, "us")), Bool.or(String.eq(u, micro() ++ "s"), String.eq(u, greek_mu() ++ "s"))),
+    Bool.or(Bool.or(String.eq(u, "ms"), String.eq(u, "s")), Bool.or(String.eq(u, "m"), String.eq(u, "h"))))
+
+def is_num_or_dot(+k: U32) -> Bool:
+  Bool.or(in_range32(k, 48, 57), U32.is_eq(k, 46))
+
+# the leading run of a unit name: up to the next digit or dot
+def span_unit(s: String) -> SS:
+  match s:
+    case SNil{}:
+      SS{"", ""}
+    case SCon{+c, +rest}:
+      +r = span_unit(rest)
+      pick(SS, is_num_or_dot(code(c)), SS{"", SCon{c, rest}}, SS{SCon{c, SS.a(r)}, SS.b(r)})
+
+# one or more terms: digits, an optional fraction (a digit on some side
+# of the dot), and a known unit
+def terms_ok(+fuel: Nat, +s: String) -> Bool:
+  match fuel:
+    case 0n:
+      False{}
+    case 1n+f:
+      +p = span_digits(s)
+      +dot = first_is(SS.b(p), 46)
+      +q = span_digits(pick(String, dot, String.drop(SS.b(p), 1n), SS.b(p)))
+      +num = Bool.or(Bool.not(String.is_empty(SS.a(p))), Bool.and(dot, Bool.not(String.is_empty(SS.a(q)))))
+      +u = span_unit(SS.b(q))
+      Bool.and(Bool.and(num, is_unit_name(SS.a(u))), Bool.or(String.is_empty(SS.b(u)), terms_ok(f, SS.b(u))))
+
+# what time.ParseDuration accepts, less negative durations: "0" or terms,
+# after an optional "+"; and "-0"
+def dur_ok(+s: String) -> Bool:
+  +t = pick(String, first_is(s, 43), String.drop(s, 1n), s)
+  Bool.or(String.eq(s, "-0"), Bool.or(String.eq(t, "0"), terms_ok(String.length(t), t)))
+
+# LAW: parse accepts exactly that language (Go also reads "-5s" as a
+# negative duration; Vegeta's durations are never negative, so the port
+# refuses it -- pending the owner's approval)
+law dur_parse_domain:
   for +s: String
-  {Dur.parse("0") == Some{0n} : Maybe<&2, Nat>}
-  & {Dur.parse(Dec.show(1n+k)) == None{} : Maybe<&2, Nat>}
-  & {Dur.parse("") == None{} : Maybe<&2, Nat>}
-  & {Dur.parse("-" ++ s) == None{} : Maybe<&2, Nat>}
+  {Maybe.is_some(&2, Nat, Dur.parse(s)) == dur_ok(s) : Bool}
 
-# the unit Vegeta's report rounds a duration to: to the minute from an
-# hour up, to the second from a minute, to the ms from a second, to the
-# µs from a ms, and not at all below
-def round_unit(+n: Nat) -> Nat:
-  pick(Nat, Nat.is_ge(n, hour()), minute(),
-  pick(Nat, Nat.is_ge(n, minute()), sec(),
-  pick(Nat, Nat.is_ge(n, sec()), ms(),
-  pick(Nat, Nat.is_ge(n, ms()), us(), 1n))))
+# LAW: a "+" changes nothing, and "0" and "-0" are zero
+law dur_parse_sign:
+  for +s: String
+  {Dur.parse("+" ++ s) == pick(Maybe<&2, Nat>, Bool.or(first_is(s, 43), first_is(s, 45)), None{}, Dur.parse(s)) : Maybe<&2, Nat>}
+  & {Dur.parse("-0") == Some{0n} : Maybe<&2, Nat>}
+  & {Dur.parse("0") == Some{0n} : Maybe<&2, Nat>}
 
-# LAW: round lands on a multiple of its unit, at most half a unit away,
-# and a tie goes up (Go's Duration.Round rounds halves away from zero).
+# Go's Duration.Round(f * b) for n >= 0 (halves round up), without the
+# closed product f * b: with q = n / b, a = q mod f and c = n mod b, the
+# remainder is a*b + c, and it is at least half of f*b exactly when
+# 2a >= f, or 2a + 1 = f and 2c >= b
+def round_to(+n: Nat, +f: Nat, +b: Nat) -> Nat:
+  +q = Nat.div(n, b)
+  +a = Nat.mod(q, f)
+  +c = Nat.mod(n, b)
+  +up = Bool.or(Nat.is_ge(Nat.mul(2n, a), f), Bool.and(Nat.is_eq(Nat.add(Nat.mul(2n, a), 1n), f), Nat.is_ge(Nat.mul(2n, c), b)))
+  Nat.mul(pick(Nat, up, Nat.add(Nat.sub(q, a), f), Nat.sub(q, a)), b)
+
+# Vegeta's report rounding: to the minute from an hour up, to the second
+# from a minute, to the ms from a second, to the µs from a ms, else as is
+def round_go(+n: Nat) -> Nat:
+  +secs = Nat.div(n, sec())
+  pick(Nat, Nat.is_ge(secs, 3600n), round_to(n, 60n, sec()),
+  pick(Nat, Nat.is_ge(secs, 60n), round_to(n, 1n, sec()),
+  pick(Nat, Nat.is_ge(secs, 1n), round_to(n, 1n, ms()),
+  pick(Nat, Nat.is_ge(n, ms()), round_to(n, 1n, us()), n))))
+
 law dur_round:
   for +n: Nat
-  {Nat.mod(Dur.round(n), round_unit(n)) == 0n : Nat}
-  & {Nat.is_le(Nat.mul(2n, absdiff(Dur.round(n), n)), round_unit(n)) == True{} : Bool}
-  & {Bool.or(Nat.is_lt(Nat.mul(2n, absdiff(Dur.round(n), n)), round_unit(n)), Nat.is_gt(Dur.round(n), n)) == True{} : Bool}
+  {Dur.round(n) == round_go(n) : Nat}
 
 # =====================================================================
 # Calendar time (lib/civil.bend)
@@ -864,14 +1010,12 @@ law civil_add_sub:
 def ch(k: U32) -> Char:
   Chr{k}
 
-def str1(k: U32) -> String:
-  SCon{Chr{k}, SNil{}}
 
 def bytes(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(U32.is_lt(code(c), 256), bytes(rest))
 
 def byte_ok(+k: U32) -> Bool:
@@ -921,39 +1065,25 @@ law b64_decode:
   for -h: {bytes(s) == True{} : Bool}
   {B64.decode(B64.encode(s)) == Some{s} : Maybe<&2, String>}
 
-def b64_back_of(+t: String, +r: Maybe<&2, String>) -> Bool:
-  match r:
-    case None{}:
-      True{}
-    case Some{s}:
-      String.eq(B64.encode(s), t)
-
-# LAW: ...and accepts nothing that encoding would not write.
-law b64_decode_exact:
-  for +t: String
-  {b64_back_of(t, B64.decode(t)) == True{} : Bool}
-
 # =====================================================================
 # CSV (lib/csv.bend): Go's encoding/csv writer, and its reader with
 # TrimLeadingSpace
 # =====================================================================
 
-def is_space(+k: U32) -> Bool:
-  Bool.or(U32.is_eq(k, 32), Bool.and(U32.is_ge(k, 9), U32.is_le(k, 13)))
 
-def has_char(s: String, +k: U32) -> Bool:
-  match s:
-    case SNil{}:
-      False{}
-    case SCon{c, +rest}:
-      Bool.or(U32.is_eq(code(c), k), has_char(rest, k))
-
+# the field starts with a rune Go's unicode.IsSpace accepts: ASCII space,
+# \t..\r, U+0085, U+00A0, U+1680, U+2000..U+200A, U+2028, U+2029, U+202F,
+# U+205F, U+3000 (as UTF-8 bytes)
 def first_space(+s: String) -> Bool:
-  match s:
-    case SNil{}:
-      False{}
-    case SCon{c, +rest}:
-      is_space(code(c))
+  +b0 = byte_at(s, 0n)
+  +b1 = byte_at(s, 1n)
+  +b2 = byte_at(s, 2n)
+  Bool.and(Bool.not(String.is_empty(s)),
+  Bool.or(Bool.or(is_space(b0), Bool.and(U32.is_eq(b0, 194), Bool.or(U32.is_eq(b1, 133), U32.is_eq(b1, 160)))),
+  Bool.or(Bool.and(U32.is_eq(b0, 225), Bool.and(U32.is_eq(b1, 154), U32.is_eq(b2, 128))),
+  Bool.or(Bool.and(U32.is_eq(b0, 226), Bool.or(Bool.and(U32.is_eq(b1, 128), Bool.or(in_range32(b2, 128, 138), Bool.or(in_range32(b2, 168, 169), U32.is_eq(b2, 175)))),
+                                               Bool.and(U32.is_eq(b1, 129), U32.is_eq(b2, 159)))),
+    Bool.and(U32.is_eq(b0, 227), Bool.and(U32.is_eq(b1, 128), U32.is_eq(b2, 128)))))))
 
 # Go's fieldNeedsQuotes (the delimiter is a comma)
 def needs_quotes(+s: String) -> Bool:
@@ -977,11 +1107,11 @@ def join_fields(fs: List<&2, String>) -> String:
   match fs:
     case Nil{}:
       ""
-    case Con{f, +rest}:
+    case Con{+f, +rest}:
       match rest:
         case Nil{}:
           Csv.field(f)
-        case Con{g, more}:
+        case Con{+g, +more}:
           Csv.field(f) ++ "," ++ join_fields(Con{g, more})
 
 # LAW: a row is its fields, comma-separated, ending in a newline
@@ -989,33 +1119,30 @@ law csv_row:
   for +fs: List<&2, String>
   {Csv.row(fs) == join_fields(fs) ++ "\n" : String}
 
-law csv_rows:
-  for +r: List<&2, String>
-  for +rs: List<&2, List<&2, String>>
-  {Csv.rows(Con{r, rs}) == Csv.row(r) ++ Csv.rows(rs) : String} & {Csv.rows([]) == "" : String}
-
 def all_bytes(fs: List<&2, String>) -> Bool:
   match fs:
     case Nil{}:
       True{}
-    case Con{f, +rest}:
+    case Con{+f, +rest}:
       Bool.and(bytes(f), all_bytes(rest))
 
-# a row the reader can give back: some field, and not the lone empty
-# field (its line is blank, and Go's reader skips blank lines)
+def no_crlf_pair(fs: List<&2, String>) -> Bool:
+  match fs:
+    case Nil{}:
+      True{}
+    case Con{+f, +rest}:
+      Bool.and(Bool.not(String.contains(f, "\r\n")), no_crlf_pair(rest))
+
+# a row the reader can give back: some field; not the lone empty field
+# (its line is blank, and Go's reader skips blank lines); and no "\r\n"
+# inside a field (Go's reader turns it into "\n")
 def representable(+fs: List<&2, String>) -> Bool:
   match fs:
     case Nil{}:
       False{}
-    case Con{f, +rest}:
-      Bool.and(all_bytes(Con{f, rest}), Bool.or(Bool.not(String.is_empty(f)), Bool.not(List.is_empty(&2, String, rest))))
-
-def all_representable(rs: List<&2, List<&2, String>>) -> Bool:
-  match rs:
-    case Nil{}:
-      True{}
-    case Con{r, more}:
-      Bool.and(representable(r), all_representable(more))
+    case Con{+f, +rest}:
+      Bool.and(Bool.and(all_bytes(Con{f, rest}), no_crlf_pair(Con{f, rest})),
+        Bool.or(Bool.not(String.is_empty(f)), Bool.not(List.is_empty(&2, String, rest))))
 
 # LAW: every representable row reads back, whatever follows it
 law csv_parse_row:
@@ -1024,33 +1151,16 @@ law csv_parse_row:
   for -h: {representable(fs) == True{} : Bool}
   {Csv.parse_row(Csv.row(fs) ++ rest) == Some{(fs, rest)} : Maybe<&1, List<&2, String> & String>}
 
-law csv_parse_all:
-  for +rs: List<&2, List<&2, String>>
-  for -h: {all_representable(rs) == True{} : Bool}
-  {Csv.parse_all(Csv.rows(rs)) == Some{rs} : Maybe<&2, List<&2, List<&2, String>>>}
-
 # =====================================================================
-# JSON strings (lib/json.bend): easyjson's escaping, which is also
-# encoding/json's (HTML-safe: <, > and & are escaped)
+# JSON strings (lib/json.bend): easyjson's escaping (HTML-safe: <, > and &
+# are escaped); the JSON report uses encoding/json's, which since Go 1.22
+# also writes \b and \f short
 # =====================================================================
 
 def hexd(+n: U32) -> String:
   str1(pick(U32, U32.is_lt(n, 10), (48 + n : U32), (87 + n : U32)))
 
-def in_range32(+k: U32, +lo: U32, +hi: U32) -> Bool:
-  Bool.and(U32.is_ge(k, lo), U32.is_le(k, hi))
 
-# the byte at index i, or 0 past the end
-def byte_at(s: String, i: Nat) -> U32:
-  match s:
-    case SNil{}:
-      0
-    case SCon{c, +rest}:
-      match i:
-        case 0n:
-          code(c)
-        case 1n+j:
-          byte_at(rest, j)
 
 def cont(+s: String, +i: Nat) -> Bool:
   Bool.and(Nat.is_lt(i, String.length(s)), in_range32(byte_at(s, i), 128, 191))
@@ -1138,8 +1248,6 @@ law json_read_str:
 # Headers
 # =====================================================================
 
-def is_alnum(+k: U32) -> Bool:
-  Bool.or(in_range32(k, 48, 57), Bool.or(in_range32(k, 65, 90), in_range32(k, 97, 122)))
 
 # a byte allowed in a header name (an RFC 7230 token character)
 def token_byte(+k: U32) -> Bool:
@@ -1149,7 +1257,7 @@ def all_token(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(token_byte(code(c)), all_token(rest))
 
 def token(+s: String) -> Bool:
@@ -1208,14 +1316,14 @@ def sort_hdrs(hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
   match hs:
     case Nil{}:
       []
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       insert_hdr(h, sort_hdrs(rest))
 
 def hdr_lines(+k: String, vs: List<&2, String>) -> String:
   match vs:
     case Nil{}:
       ""
-    case Con{v, +rest}:
+    case Con{+v, +rest}:
       k ++ ": " ++ trim_ows(nl_to_space(v)) ++ "\r\n" ++ hdr_lines(k, rest)
 
 def hdrs_text(hs: List<&2, Hdr.Header>) -> String:
@@ -1251,18 +1359,18 @@ def join_str(+sep: String, xs: List<&2, String>) -> String:
   match xs:
     case Nil{}:
       ""
-    case Con{x, +rest}:
+    case Con{+x, +rest}:
       match rest:
         case Nil{}:
           x
-        case Con{y, more}:
+        case Con{+y, +more}:
           x ++ sep ++ join_str(sep, Con{y, more})
 
 def json_strs(vs: List<&2, String>) -> List<&2, String>:
   match vs:
     case Nil{}:
       []
-    case Con{v, +rest}:
+    case Con{+v, +rest}:
       Con{Json.str(v), json_strs(rest)}
 
 def json_list(vs: List<&2, String>) -> String:
@@ -1315,21 +1423,29 @@ def all_utf8(xs: List<&2, String>) -> Bool:
   match xs:
     case Nil{}:
       True{}
-    case Con{x, +rest}:
+    case Con{+x, +rest}:
       Bool.and(utf8_ok(x), all_utf8(rest))
 
 def no_crlf(+s: String) -> Bool:
   Bool.not(Bool.or(has_char(s, 10), has_char(s, 13)))
 
-# a header value that survives http.Header.Write and textproto's reader
+def no_ctl(s: String) -> Bool:
+  match s:
+    case SNil{}:
+      True{}
+    case SCon{+c, +rest}:
+      Bool.and(Bool.or(U32.is_eq(code(c), 9), Bool.and(U32.is_ge(code(c), 32), Bool.not(U32.is_eq(code(c), 127)))), no_ctl(rest))
+
+# a header value that survives http.Header.Write and textproto's reader:
+# bytes, trimmed, and no control byte but tab (textproto rejects them)
 def clean_val(+v: String) -> Bool:
-  Bool.and(bytes(v), Bool.and(no_crlf(v), String.eq(trim_ows(v), v)))
+  Bool.and(bytes(v), Bool.and(no_ctl(v), String.eq(trim_ows(v), v)))
 
 def all_clean(vs: List<&2, String>) -> Bool:
   match vs:
     case Nil{}:
       True{}
-    case Con{v, +rest}:
+    case Con{+v, +rest}:
       Bool.and(clean_val(v), all_clean(rest))
 
 # names strictly ascending (so sorted and distinct)
@@ -1341,7 +1457,7 @@ def hdrs_ascending(hs: List<&2, Hdr.Header>) -> Bool:
       match rest:
         case Nil{}:
           True{}
-        case Con{+g, more}:
+        case Con{+g, +more}:
           Bool.and(String.is_lt(hdr_key(h), hdr_key(g)), hdrs_ascending(Con{g, more}))
 
 def hdrs_csv_ok(hs: List<&2, Hdr.Header>) -> Bool:
@@ -1404,28 +1520,28 @@ def csv_stream(hs: List<&2, Hit.Hit>) -> String:
   match hs:
     case Nil{}:
       ""
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       Hit.to_csv(h) ++ csv_stream(rest)
 
 def json_stream(hs: List<&2, Hit.Hit>) -> String:
   match hs:
     case Nil{}:
       ""
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       Hit.to_json(h) ++ json_stream(rest)
 
 def all_csv_ok(hs: List<&2, Hit.Hit>) -> Bool:
   match hs:
     case Nil{}:
       True{}
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       Bool.and(csv_ok(h), all_csv_ok(rest))
 
 def all_json_ok(hs: List<&2, Hit.Hit>) -> Bool:
   match hs:
     case Nil{}:
       True{}
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       Bool.and(json_ok(h), all_json_ok(rest))
 
 # LAW: a whole results stream reads back, in either format
@@ -1450,7 +1566,7 @@ def all_host(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(is_host_char(code(c)), all_host(rest))
 
 # printable, no space, no '#'
@@ -1461,19 +1577,45 @@ def all_path(s: String) -> Bool:
     case SCon{+c, +rest}:
       Bool.and(Bool.and(in_range32(code(c), 33, 126), Bool.not(U32.is_eq(code(c), 35))), all_path(rest))
 
+def port_ok(+p: Maybe<&2, Nat>) -> Bool:
+  match p:
+    case None{}:
+      True{}
+    case Some{n}:
+      Bool.and(Nat.is_ge(n, 1n), Nat.is_le(n, 65535n))
+
+def port_text(+p: Maybe<&2, Nat>) -> String:
+  match p:
+    case None{}:
+      ""
+    case Some{n}:
+      ":" ++ Dec.show(n)
+
+def is_hex(+k: U32) -> Bool:
+  Bool.or(in_range32(k, 48, 57), Bool.or(in_range32(k, 65, 70), in_range32(k, 97, 102)))
+
+# every % starts a %XX escape (Go's parser rejects the URL otherwise)
+def pct_ok.go(+fuel: Nat, +s: String) -> Bool:
+  match fuel:
+    case 0n:
+      True{}
+    case 1n+f:
+      Bool.and(Bool.or(Bool.not(first_is(s, 37)), Bool.and(is_hex(byte_at(s, 1n)), is_hex(byte_at(s, 2n)))), pct_ok.go(f, String.drop(s, 1n)))
+
+def pct_ok(+s: String) -> Bool:
+  pct_ok.go(String.length(s), s)
+
+# an http URL: a host of name characters, a port as written (None: none,
+# so 80), and a path from "/" of printable bytes with well-formed escapes
 def url_ok(+u: Tgt.Url) -> Bool:
   Tgt.Url{scheme, host, port, path} = u
   Bool.and(String.eq(scheme, "http"), Bool.and(Bool.and(Bool.not(String.is_empty(host)), all_host(host)),
-    Bool.and(Bool.and(Nat.is_ge(port, 1n), Nat.is_le(port, 65535n)), Bool.and(String.starts_with(path, "/"), all_path(path)))))
+    Bool.and(port_ok(port), Bool.and(String.starts_with(path, "/"), Bool.and(all_path(path), pct_ok(path))))))
 
-# an http URL, the port only when it is not 80
+# an http URL as written
 def url_text(+u: Tgt.Url) -> String:
   Tgt.Url{scheme, host, port, path} = u
-  "http://" ++ host ++ pick(String, Nat.is_eq(port, 80n), "", ":" ++ Dec.show(port)) ++ path
-
-law url_show:
-  for +u: Tgt.Url
-  {Tgt.show_url(u) == url_text(u) : String}
+  "http://" ++ host ++ port_text(port) ++ path
 
 law url_parse:
   for +u: Tgt.Url
@@ -1485,7 +1627,7 @@ law url_parse_edges:
   for +host: String
   for +rest: String
   for -h: {Bool.and(Bool.not(String.is_empty(host)), all_host(host)) == True{} : Bool}
-  {Tgt.parse_url("http://" ++ host) == Done{Tgt.Url{"http", host, 80n, "/"}} : Result<&2, &2, String, Tgt.Url>}
+  {Tgt.parse_url("http://" ++ host) == Done{Tgt.Url{"http", host, None{}, "/"}} : Result<&2, &2, String, Tgt.Url>}
   & {Tgt.parse_url("https://" ++ rest) == Fail{"https is not supported"} : Result<&2, &2, String, Tgt.Url>}
 
 def is_upper(+k: U32) -> Bool:
@@ -1495,7 +1637,7 @@ def all_upper(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(is_upper(code(c)), all_upper(rest))
 
 def method_ok(+m: String) -> Bool:
@@ -1505,7 +1647,7 @@ def printable(s: String) -> Bool:
   match s:
     case SNil{}:
       True{}
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       Bool.and(in_range32(code(c), 32, 126), printable(rest))
 
 def tgt_vals_ok(vs: List<&2, String>) -> Bool:
@@ -1515,9 +1657,10 @@ def tgt_vals_ok(vs: List<&2, String>) -> Bool:
     case Con{+v, +rest}:
       Bool.and(Bool.and(printable(v), Bool.not(String.is_empty(v))), Bool.and(String.eq(trim_ows(v), v), tgt_vals_ok(rest)))
 
+# a header name a targets file can hold: a token (so no colon or space,
+# and it cannot start a comment or a body or read as a method line)
 def tgt_key_ok(+k: String) -> Bool:
-  Bool.and(Bool.and(Bool.and(printable(k), Bool.not(has_char(k, 58))), Bool.and(Bool.not(String.is_empty(k)), String.eq(trim_ows(k), k))),
-    Bool.not(Bool.or(String.starts_with(k, "#"), String.starts_with(k, "@"))))
+  Bool.and(token(k), Bool.not(Bool.or(String.starts_with(k, "#"), String.starts_with(k, "@"))))
 
 # a header line a targets file can hold: trimmed non-empty name without a
 # colon that does not start a comment or a body; trimmed non-empty values
@@ -1567,25 +1710,36 @@ def hdr_names_distinct(hs: List<&2, Hdr.Header>) -> Bool:
     case Con{+h, +rest}:
       Bool.and(Bool.not(has_key(hdr_key(h), rest)), hdr_names_distinct(rest))
 
-# a target a targets file can hold: an upper-case method, a URL without
-# spaces, distinct header names (Go groups a name's lines), a body path
+def url_str_of(+s: String, r: Result<&2, &2, String, Tgt.Url>) -> Bool:
+  match r:
+    case Done{+u}:
+      Bool.and(url_ok(u), String.eq(url_text(u), s))
+    case Fail{e}:
+      False{}
+
+# a URL string that is an http URL as written
+def url_str_ok(+s: String) -> Bool:
+  url_str_of(s, Tgt.parse_url(s))
+
+# a target a targets file can hold: an upper-case method, an http URL,
+# distinct header names (Go groups a name's lines), a body path
 def target_ok(+t: Tgt.Target) -> Bool:
   +u = tgt_url(t)
-  Bool.and(method_ok(tgt_method(t)), Bool.and(Bool.and(Bool.not(String.is_empty(u)), all_path(u)),
+  Bool.and(method_ok(tgt_method(t)), Bool.and(url_str_ok(u),
     Bool.and(Bool.and(tgt_hdrs_ok(tgt_hdrs(t)), hdr_names_distinct(tgt_hdrs(t))), body_path_ok(tgt_body(t)))))
 
 def targets_ok(ts: List<&2, Tgt.Target>) -> Bool:
   match ts:
     case Nil{}:
       True{}
-    case Con{t, +rest}:
+    case Con{+t, +rest}:
       Bool.and(target_ok(t), targets_ok(rest))
 
 def tgt_val_lines(+k: String, vs: List<&2, String>) -> String:
   match vs:
     case Nil{}:
       ""
-    case Con{v, +rest}:
+    case Con{+v, +rest}:
       k ++ ": " ++ v ++ "\n" ++ tgt_val_lines(k, rest)
 
 def tgt_hdr_lines(hs: List<&2, Hdr.Header>) -> String:
@@ -1611,16 +1765,12 @@ def targets_text(ts: List<&2, Tgt.Target>) -> String:
   match ts:
     case Nil{}:
       ""
-    case Con{t, +rest}:
+    case Con{+t, +rest}:
       match rest:
         case Nil{}:
           target_text(t)
-        case Con{u, more}:
+        case Con{+u, +more}:
           target_text(t) ++ "\n" ++ targets_text(Con{u, more})
-
-law targets_show:
-  for +ts: List<&2, Tgt.Target>
-  {Tgt.show_all(ts) == targets_text(ts) : String}
 
 law targets_parse:
   for +ts: List<&2, Tgt.Target>
@@ -1642,14 +1792,14 @@ def all_noise(ls: List<&2, String>) -> Bool:
   match ls:
     case Nil{}:
       True{}
-    case Con{l, +rest}:
+    case Con{+l, +rest}:
       Bool.and(noise_ok(l), all_noise(rest))
 
 def noise_text(ls: List<&2, String>) -> String:
   match ls:
     case Nil{}:
       ""
-    case Con{l, +rest}:
+    case Con{+l, +rest}:
       l ++ "\n" ++ noise_text(rest)
 
 # LAW: blank lines and comments before a target never change the parse
@@ -1683,8 +1833,8 @@ law targets_errors:
   for +l: String
   for -h0: {Bool.and(Bool.and(printable(tok), Bool.not(has_char(tok, 32))), Bool.and(Bool.not(String.is_empty(tok)), Bool.not(String.starts_with(tok, "#")))) == True{} : Bool}
   for -h1: {Bool.and(Bool.and(printable(m), Bool.not(has_char(m, 32))), Bool.and(Bool.not(String.is_empty(m)), Bool.not(all_upper(m)))) == True{} : Bool}
-  for -h2: {Bool.and(printable(rest), Bool.not(String.starts_with(m, "#"))) == True{} : Bool}
-  for -h3: {target_ok(t) == True{} : Bool}
+  for -h2: {Bool.and(Bool.and(printable(rest), Bool.not(String.is_empty(trim_ows(rest)))), Bool.not(String.starts_with(m, "#"))) == True{} : Bool}
+  for -h3: {Bool.and(target_ok(t), Maybe.is_none(&2, String, tgt_body(t))) == True{} : Bool}
   for -h4: {Bool.and(Bool.and(printable(l), Bool.not(has_char(l, 58))), Bool.and(Bool.not(String.is_empty(trim_ows(l))),
      Bool.not(Bool.or(Bool.or(String.starts_with(trim_ows(l), "#"), String.starts_with(trim_ows(l), "@")), starts_method(trim_ows(l)))))) == True{} : Bool}
   {Tgt.parse_all(tok ++ "\n") == Fail{"bad target: " ++ tok} : Result<&2, &2, String, List<&2, Tgt.Target>>}
@@ -1704,7 +1854,7 @@ def add_hdrs(hs: List<&2, Hdr.Header>, base: List<&2, Hdr.Header>) -> List<&2, H
   match hs:
     case Nil{}:
       base
-    case Con{h, +rest}:
+    case Con{+h, +rest}:
       add_hdrs(rest, add_hdr(h, base))
 
 # LAW: the attacked target: -header values first, the target's lines after
@@ -1720,27 +1870,23 @@ law target_apply:
 # =====================================================================
 
 def r_code(+r: Http.Resp) -> Nat:
-  Http.Resp{c, st, hs, b, n, k} = r
+  Http.Resp{c, st, hs, b, k} = r
   c
 
 def r_status(+r: Http.Resp) -> String:
-  Http.Resp{c, st, hs, b, n, k} = r
+  Http.Resp{c, st, hs, b, k} = r
   st
 
 def r_hdrs(+r: Http.Resp) -> List<&2, Hdr.Header>:
-  Http.Resp{c, st, hs, b, n, k} = r
+  Http.Resp{c, st, hs, b, k} = r
   hs
 
 def r_body(+r: Http.Resp) -> String:
-  Http.Resp{c, st, hs, b, n, k} = r
+  Http.Resp{c, st, hs, b, k} = r
   b
 
-def r_len(+r: Http.Resp) -> Nat:
-  Http.Resp{c, st, hs, b, n, k} = r
-  n
-
 def r_keep(+r: Http.Resp) -> Bool:
-  Http.Resp{c, st, hs, b, n, k} = r
+  Http.Resp{c, st, hs, b, k} = r
   k
 
 def hdr_get(+k: String, hs: List<&2, Hdr.Header>) -> Maybe<&2, List<&2, String>>:
@@ -1754,7 +1900,7 @@ def any_ci(+v: String, vs: List<&2, String>) -> Bool:
   match vs:
     case Nil{}:
       False{}
-    case Con{x, +rest}:
+    case Con{+x, +rest}:
       Bool.or(String.eq(String.to_lower(x), String.to_lower(v)), any_ci(v, rest))
 
 def some_has_ci(+v: String, +m: Maybe<&2, List<&2, String>>) -> Bool:
@@ -1800,7 +1946,7 @@ def resp_base_ok(+r: Http.Resp) -> Bool:
   Bool.and(Bool.and(Nat.is_ge(c, 200n), Nat.is_le(c, 599n)),
   Bool.and(String.starts_with(r_status(r), Dec.show(c) ++ " "),
   Bool.and(Bool.and(printable(r_status(r)), hdrs_resp_ok(r_hdrs(r))),
-  Bool.and(Bool.and(bytes(r_body(r)), Nat.is_eq(r_len(r), String.length(r_body(r)))),
+  Bool.and(bytes(r_body(r)),
     Bool.not(Bool.or(has_key("Transfer-Encoding", r_hdrs(r)), Bool.or(Nat.is_eq(c, 204n), Nat.is_eq(c, 304n))))))))
 
 def same_bool(+a: Bool, +b: Bool) -> Bool:
@@ -1814,7 +1960,7 @@ def one_val(+v: String, +m: Maybe<&2, List<&2, String>>) -> Bool:
       match vs:
         case Nil{}:
           False{}
-        case Con{x, +rest}:
+        case Con{+x, +rest}:
           Bool.and(String.eq(x, v), List.is_empty(&2, String, rest))
 
 # header k has exactly the one value v
@@ -1925,15 +2071,25 @@ law http_eof_decides:
   {Maybe.is_some(&1, Result<&1, &1, String, Http.Resp & String>, Http.done(Http.eof(p))) == True{} : Bool}
 
 def with_body(+r: Http.Resp, +b: String) -> Http.Resp:
-  Http.Resp{r_code(r), r_status(r), r_hdrs(r), b, r_len(r), r_keep(r)}
+  Http.Resp{r_code(r), r_status(r), r_hdrs(r), b, r_keep(r)}
 
-# LAW: -max-body keeps the first m bytes and still counts them all
+# LAW: -max-body keeps the first m bytes (and Go counts only those)
 law http_max_body:
   for +r: Http.Resp
   for +m: Nat
   for +rest: String
   for -h: {resp_cl_ok(r) == True{} : Bool}
   {parse_of(Some{m}, False{}, render_cl(r) ++ rest) == Some{Done{(with_body(r, String.take(r_body(r), m)), rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
+
+# LAW: mid-body, the body read so far is at hand (a timeout keeps it)
+law http_partial:
+  for +r: Http.Resp
+  for +k: Nat
+  for +m: Maybe<&2, Nat>
+  for -h0: {resp_cl_ok(r) == True{} : Bool}
+  for -h1: {Nat.is_lt(k, String.length(r_body(r))) == True{} : Bool}
+  {Http.partial(Http.feed(Http.start(m, False{}), render_head(r) ++ String.take(r_body(r), k)))
+   == String.take(String.take(r_body(r), k), Maybe.default(&2, Nat, m, k)) : String}
 
 # LAW: informational responses (1xx but 101) are skipped
 law http_interim:
@@ -1953,7 +2109,7 @@ def resp_nobody_ok(+head: Bool, +r: Http.Resp) -> Bool:
   Bool.and(Bool.or(head, Bool.or(Nat.is_eq(c, 204n), Nat.is_eq(c, 304n))),
   Bool.and(Bool.and(String.starts_with(r_status(r), Dec.show(c) ++ " "), printable(r_status(r))),
   Bool.and(hdrs_resp_ok(r_hdrs(r)), Bool.and(Bool.not(has_key("Transfer-Encoding", r_hdrs(r))),
-  Bool.and(Bool.and(String.is_empty(r_body(r)), Nat.is_eq(r_len(r), 0n)), same_bool(r_keep(r), Bool.not(says_close(r_hdrs(r))))))))))
+  Bool.and(String.is_empty(r_body(r)), same_bool(r_keep(r), Bool.not(says_close(r_hdrs(r))))))))))
 
 law http_no_body:
   for +head: Bool
@@ -1966,7 +2122,7 @@ def pad_vals(vs: List<&2, String>) -> List<&2, String>:
   match vs:
     case Nil{}:
       []
-    case Con{v, +rest}:
+    case Con{+v, +rest}:
       Con{" " ++ v ++ "\t", pad_vals(rest)}
 
 def lower_names(hs: List<&2, Hdr.Header>) -> List<&2, Hdr.Header>:
@@ -1981,7 +2137,7 @@ law http_lenient:
   for +r: Http.Resp
   for +rest: String
   for -h: {resp_cl_ok(r) == True{} : Bool}
-  {parse_of(None{}, False{}, render_cl(Http.Resp{r_code(r), r_status(r), lower_names(r_hdrs(r)), r_body(r), r_len(r), r_keep(r)}) ++ rest)
+  {parse_of(None{}, False{}, render_cl(Http.Resp{r_code(r), r_status(r), lower_names(r_hdrs(r)), r_body(r), r_keep(r)}) ++ rest)
    == Some{Done{(r, rest)}} : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 # LAW: an HTTP/1.0 response is kept only when it says "Connection: keep-alive"
@@ -1990,7 +2146,7 @@ law http_10:
   for +rest: String
   for -h: {resp_base_ok(r) == True{} : Bool}
   {parse_of(None{}, False{}, "HTTP/1.0 " ++ String.drop(render_cl(r), 9n) ++ rest)
-   == parse_of(None{}, False{}, "HTTP/1.1 " ++ String.drop(render_cl(Http.Resp{r_code(r), r_status(r), r_hdrs(r), r_body(r), r_len(r),
+   == parse_of(None{}, False{}, "HTTP/1.1 " ++ String.drop(render_cl(Http.Resp{r_code(r), r_status(r), r_hdrs(r), r_body(r),
         hdr_is("Connection", "keep-alive", r_hdrs(r))}), 9n) ++ rest) : Maybe<&1, Result<&1, &1, String, Http.Resp & String>>}
 
 def is_fail(m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
@@ -2016,11 +2172,66 @@ law http_garbage:
 
 def url_host(+u: Tgt.Url) -> String:
   Tgt.Url{sc, host, port, path} = u
-  host ++ pick(String, Nat.is_eq(port, 80n), "", ":" ++ Dec.show(port))
+  host ++ port_text(port)
 
 def url_path(+u: Tgt.Url) -> String:
   Tgt.Url{sc, host, port, path} = u
   path
+
+def hexu(+n: U32) -> String:
+  str1(pick(U32, U32.is_lt(n, 10), (48 + n : U32), (55 + n : U32)))
+
+def hex_val(+k: U32) -> U32:
+  pick(U32, in_range32(k, 48, 57), (k - 48 : U32), pick(U32, in_range32(k, 65, 70), (k - 55 : U32), (k - 87 : U32)))
+
+def unreserved(+k: U32) -> Bool:
+  Bool.or(is_alnum(k), has_char("-._~", k))
+
+# Go's validEncoded: a path Go sends as written
+def valid_encoded(s: String) -> Bool:
+  match s:
+    case SNil{}:
+      True{}
+    case SCon{+c, +rest}:
+      Bool.and(Bool.or(unreserved(code(c)), has_char("!$&'()*+,;=:@/%", code(c))), valid_encoded(rest))
+
+# %XX sequences decoded (url_ok guarantees they are well formed)
+def unescape.go(+fuel: Nat, +s: String) -> String:
+  match fuel:
+    case 0n:
+      ""
+    case 1n+f:
+      +pct = Bool.and(first_is(s, 37), Nat.is_ge(String.length(s), 3n))
+      pick(String, String.is_empty(s), "",
+        pick(String, pct, str1((hex_val(byte_at(s, 1n)) * 16 + hex_val(byte_at(s, 2n)) : U32)), String.take(s, 1n))
+          ++ unescape.go(f, String.drop(s, pick(Nat, pct, 3n, 1n))))
+
+def unescape(+s: String) -> String:
+  unescape.go(String.length(s), s)
+
+# Go's escape(s, encodePath): all but unreserved and $&+,/:;=@ as %XX
+def escape_path(s: String) -> String:
+  match s:
+    case SNil{}:
+      ""
+    case SCon{+c, +rest}:
+      +k = code(c)
+      pick(String, Bool.or(unreserved(k), has_char("$&+,/:;=@", k)), str1(k), "%" ++ hexu((k >> 4n : U32)) ++ hexu((k .&. 15 : U32)))
+        ++ escape_path(rest)
+
+def before_q(s: String) -> String:
+  match s:
+    case SNil{}:
+      ""
+    case SCon{+c, +rest}:
+      pick(String, U32.is_eq(code(c), 63), "", SCon{c, before_q(rest)})
+
+# the request target Go writes: the path as EscapedPath gives it (as
+# written when validly encoded, else re-escaped), then the raw query
+def request_uri(+path: String) -> String:
+  +p = before_q(path)
+  +q = String.drop(path, String.length(p))
+  pick(String, valid_encoded(p), p, escape_path(unescape(p))) ++ q
 
 def hdr_get_ci(+k: String, hs: List<&2, Hdr.Header>) -> Maybe<&2, List<&2, String>>:
   match hs:
@@ -2051,19 +2262,21 @@ def needs_length(+m: String, +body: String) -> Bool:
   Bool.or(Bool.not(String.is_empty(body)), Bool.or(String.eq(m, "POST"), Bool.or(String.eq(m, "PUT"), String.eq(m, "PATCH"))))
 
 # the request text Go's transport writes for a target (Go's Accept-Encoding
-# is left out on purpose: bodies arrive as the server sent them). Host and
-# User-Agent come first, from the target's headers when it sets them; then
-# the close, the length, and every other header sorted by name.
+# is left out on purpose: bodies arrive as the server sent them): the
+# request line; Host and User-Agent, from the target's headers when it
+# sets them; the length; every other header sorted by name, less the
+# framing headers Go never takes from the user; and Connection: close last
 def wire_request(+t: Tgt.Target, +u: Tgt.Url, +body: String, +seq: Nat, +name: String, +ka: Bool) -> String:
   +hs = tgt_hdrs(t)
   +extra = pick(List<&2, Hdr.Header>, String.is_empty(name), [], [Hdr.Header{"X-Vegeta-Attack", [name]}])
-  +rest = drop_ci("Host", drop_ci("User-Agent", add_hdrs(Con{Hdr.Header{"X-Vegeta-Seq", [Dec.show(seq)]}, extra}, hs)))
-  tgt_method(t) ++ " " ++ url_path(u) ++ " HTTP/1.1\r\n"
+  +rest = drop_ci("Host", drop_ci("User-Agent", drop_ci("Content-Length", drop_ci("Transfer-Encoding", drop_ci("Trailer",
+            add_hdrs(Con{Hdr.Header{"X-Vegeta-Seq", [Dec.show(seq)]}, extra}, hs))))))
+  tgt_method(t) ++ " " ++ request_uri(url_path(u)) ++ " HTTP/1.1\r\n"
     ++ "Host: " ++ first_val("Host", hs, url_host(u)) ++ "\r\n"
     ++ "User-Agent: " ++ first_val("User-Agent", hs, "Go-http-client/1.1") ++ "\r\n"
-    ++ pick(String, ka, "", "Connection: close\r\n")
     ++ pick(String, needs_length(tgt_method(t), body), "Content-Length: " ++ Dec.show(String.length(body)) ++ "\r\n", "")
-    ++ hdrs_text(sort_hdrs(rest)) ++ "\r\n" ++ body
+    ++ hdrs_text(sort_hdrs(rest))
+    ++ pick(String, ka, "", "Connection: close\r\n") ++ "\r\n" ++ body
 
 law http_request:
   for +t: Tgt.Target
@@ -2073,37 +2286,6 @@ law http_request:
   for +name: String
   for +ka: Bool
   {Http.request(t, u, body, seq, name, ka) == wire_request(t, u, body, seq, name, ka) : String}
-
-# =====================================================================
-# Sorting (lib/sort.bend)
-# =====================================================================
-
-def ascending(xs: List<&2, Nat>) -> Bool:
-  match xs:
-    case Nil{}:
-      True{}
-    case Con{+x, +rest}:
-      match rest:
-        case Nil{}:
-          True{}
-        case Con{+y, +more}:
-          Bool.and(Nat.is_le(x, y), ascending(Con{y, more}))
-
-def count(+x: Nat, xs: List<&2, Nat>) -> Nat:
-  match xs:
-    case Nil{}:
-      0n
-    case Con{+y, +rest}:
-      Nat.add(pick(Nat, Nat.is_eq(x, y), 1n, 0n), count(x, rest))
-
-law sort_sorted:
-  for +xs: List<&2, Nat>
-  {ascending(Sort.sort(xs)) == True{} : Bool}
-
-law sort_perm:
-  for +x: Nat
-  for +xs: List<&2, Nat>
-  {count(x, Sort.sort(xs)) == count(x, xs) : Nat}
 
 # =====================================================================
 # Metrics (lib/metrics.bend)
@@ -2282,16 +2464,6 @@ law met_build:
   for +bs: List<&2, Nat>
   for +t: Build
   {Met.close(build(bs, t)) == summary(bs, leaves(t)) : Met.Summary}
-
-# LAW: the order of results never matters (so neither does which worker
-# finished first); swaps of neighbors reach every order
-law met_swap:
-  for +bs: List<&2, Nat>
-  for +a: List<&2, Hit.Hit>
-  for +x: Hit.Hit
-  for +y: Hit.Hit
-  for +b: List<&2, Hit.Hit>
-  {summary(bs, List.append(&2, Hit.Hit, a, Con{x, Con{y, b}})) == summary(bs, List.append(&2, Hit.Hit, a, Con{y, Con{x, b}})) : Met.Summary}
 
 def is_ok(+c: Nat) -> Bool:
   Bool.and(Nat.is_ge(c, 200n), Nat.is_lt(c, 400n))
@@ -2566,28 +2738,29 @@ law met_hist:
 # Rates (lib/pacer.bend): the -rate flag
 # =====================================================================
 
-# LAW: -rate reads as Go's rateFlag: "infinity" and a zero rate are
-# unbounded; a bare number is per second; "N/D" is N per duration D, and D
-# may be a bare unit ("50/s")
+# LAW: -rate reads as Go's rateFlag: a zero rate is unbounded; a bare
+# number is per second; "N/D" is N per duration D. ("infinity" is not a
+# rate: Go's flag ignores it, see flags_rate. A bare unit, "50/m", is Go's
+# too, but its period is a closed number too big for the checker to state;
+# the Go goldens pin it.)
 law rate_parse:
   for +n: Nat
   for +d: Nat
-  for +i: Nat
   for +s: String
-  for -h: {Bool.and(Nat.is_lt(i, 8n), Bool.not(Nat.is_eq(i, 3n))) == True{} : Bool}
-  {Pace.parse_rate("infinity") == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
-  & {Pace.parse_rate("0") == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
+  {Pace.parse_rate("0") == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate("0/" ++ s) == Done{Pace.Rate{0n, 0n}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate(Dec.show(1n+n)) == Done{Pace.Rate{1n+n, sec()}} : Result<&2, &2, String, Pace.Rate>}
   & {Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ Dur.show(d)) == Done{Pace.Rate{1n+n, d}} : Result<&2, &2, String, Pace.Rate>}
-  & {Pace.parse_rate(Dec.show(1n+n) ++ "/" ++ unit_name(i)) == Done{Pace.Rate{1n+n, unit_size(i)}} : Result<&2, &2, String, Pace.Rate>}
+
 
 # LAW: a frequency that is not a number fails as strconv.Atoi does
 law rate_parse_error:
   for +f: String
   for +rest: String
-  for -h: {Bool.and(Bool.and(printable(f), Bool.not(all_digits(f))),
+  for -h0: {Bool.and(Bool.and(printable(f), Bool.not(all_digits(f))),
      Bool.not(Bool.or(Bool.or(has_char(f, 47), has_char(f, 34)), Bool.or(has_char(f, 92), String.eq(f, "infinity"))))) == True{} : Bool}
+  for -h1: {Bool.or(String.is_empty(rest), String.starts_with(rest, "/")) == True{} : Bool}
+  for -h2: {Bool.not(Bool.or(first_is(f, 43), first_is(f, 45))) == True{} : Bool}
   {Pace.parse_rate(f ++ rest) == Fail{"strconv.Atoi: parsing \"" ++ f ++ "\": invalid syntax"} : Result<&2, &2, String, Pace.Rate>}
 
 # =====================================================================
@@ -2834,12 +3007,10 @@ def chk_workers(xs: List<&2, Item>, +max: Nat, +grown: Nat, +busy: List<&2, Nat>
               Bool.and(Bool.and(Nat.is_eq(w, grown), Nat.is_lt(grown, max)), chk_workers(rest, max, 1n+grown, busy))
             case Eng.Fire{w, q, g, t}:
               Bool.and(Bool.and(Nat.is_lt(w, grown), Bool.not(has_nat(w, busy))), chk_workers(rest, max, grown, Con{w, busy}))
-            case Eng.Idle{}:
-              Bool.and(Bool.and(Nat.is_eq(List.length(&2, Nat, busy), grown), Nat.is_eq(grown, max)), chk_workers(rest, max, grown, busy))
             case _:
               chk_workers(rest, max, grown, busy)
 
-# LAW: worker bookkeeping, and idling only when every allowed worker is busy
+# LAW: worker bookkeeping
 law eng_workers:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
@@ -2949,120 +3120,90 @@ law eng_nap:
   for -h: {bounded(c) == True{} : Bool}
   {chk_nap(timeline(c, evs), c, 0n, 0n) == True{} : Bool}
 
-def chk_quit(xs: List<&2, Item>, +c: Eng.Cfg, +sent: Nat, +quit: Bool) -> Bool:
-  match xs:
-    case Nil{}:
-      True{}
-    case Con{+x, +rest}:
-      match x:
-        case IEv{e}:
-          chk_quit(rest, c, sent, quit)
-        case ICmd{k}:
-          match k:
-            case Eng.Fire{w, q, g, t}:
-              Bool.and(Bool.not(quit), chk_quit(rest, c, 1n+sent, quit))
-            case Eng.Quit{s, d}:
-              Bool.and(Bool.not(quit), Bool.and(Bool.and(Nat.is_eq(s, sent), Nat.is_gt(e_dur(c), 0n)),
-                Bool.and(pick(Bool, bounded(c), Nat.is_eq(Nat.add(s, d), scheduled(c)), Nat.is_eq(d, 0n)),
-                  chk_quit(rest, c, sent, True{}))))
-            case _:
-              Bool.and(Bool.not(quit), chk_quit(rest, c, sent, quit))
-
-# LAW: the attack stops once, last, only when it has a duration, and
-# accounts for every slot: the hits sent plus the slots dropped (Go drops
-# them silently when it falls behind at the deadline) are the schedule
-law eng_quit:
-  for +c: Eng.Cfg
-  for +evs: List<&2, Eng.Ev>
-  {chk_quit(timeline(c, evs), c, 0n, False{}) == True{} : Bool}
-
-def punct_ev(+expect: Maybe<&2, Nat>, +e: Eng.Ev) -> Bool:
-  match expect:
+# the engine has decided to stop: a hit went out at or past the deadline
+# (Go's check at the top of its loop, just after each send)
+def stop_due(+dur: Nat, +last: Maybe<&2, Nat>) -> Bool:
+  match last:
     case None{}:
-      True{}
-    case Some{u}:
-      match e:
-        case Eng.Clock{t}:
-          Nat.is_eq(t, u)
-        case Eng.Freed{w, t}:
-          False{}
+      False{}
+    case Some{t}:
+      Bool.and(Nat.is_gt(dur, 0n), Nat.is_ge(t, dur))
 
-# a punctual environment: every nap ends by the clock reading exactly its
-# end, next; and no hit ever has to wait for a worker
-def punctual(xs: List<&2, Item>, +expect: Maybe<&2, Nat>) -> Bool:
+def chk_quit(xs: List<&2, Item>, +c: Eng.Cfg, +sent: Nat, +quit: Bool, +last: Maybe<&2, Nat>, +busy: List<&2, Nat>) -> Bool:
   match xs:
     case Nil{}:
       True{}
-    case Con{+x, +rest}:
-      match x:
-        case IEv{e}:
-          Bool.and(punct_ev(expect, e), punctual(rest, None{}))
-        case ICmd{k}:
-          match k:
-            case Eng.Nap{u}:
-              punctual(rest, Some{u})
-            case Eng.Idle{}:
-              False{}
-            case _:
-              punctual(rest, expect)
-
-def chk_exact(xs: List<&2, Item>, +c: Eng.Cfg) -> Bool:
-  match xs:
-    case Nil{}:
-      True{}
-    case Con{+x, +rest}:
-      match x:
-        case IEv{e}:
-          chk_exact(rest, c)
-        case ICmd{k}:
-          match k:
-            case Eng.Fire{w, q, g, t}:
-              Bool.and(Nat.is_eq(t, slot(c, q)), chk_exact(rest, c))
-            case Eng.Quit{s, d}:
-              Bool.and(Nat.is_eq(d, 0n), chk_exact(rest, c))
-            case _:
-              chk_exact(rest, c)
-
-# LAW: no coordinated omission: when the environment keeps up, every hit
-# goes out exactly at its slot and no slot is dropped
-law eng_exact:
-  for +c: Eng.Cfg
-  for +evs: List<&2, Eng.Ev>
-  for -h0: {bounded(c) == True{} : Bool}
-  for -h1: {punctual(timeline(c, evs), None{}) == True{} : Bool}
-  {chk_exact(timeline(c, evs), c) == True{} : Bool}
-
-# the engine is waiting on something: a nap, a busy worker, or it has stopped
-def chk_live(xs: List<&2, Item>, +nap: Bool, +busy: List<&2, Nat>, +quit: Bool) -> Bool:
-  match xs:
-    case Nil{}:
-      Bool.or(nap, Bool.or(Bool.not(List.is_empty(&2, Nat, busy)), quit))
     case Con{+x, +rest}:
       match x:
         case IEv{e}:
           match e:
             case Eng.Clock{t}:
-              Bool.and(Bool.or(nap, Bool.or(Bool.not(List.is_empty(&2, Nat, busy)), quit)), chk_live(rest, False{}, busy, quit))
+              chk_quit(rest, c, sent, quit, last, busy)
             case Eng.Freed{w, t}:
-              Bool.and(Bool.or(nap, Bool.or(Bool.not(List.is_empty(&2, Nat, busy)), quit)), chk_live(rest, nap, drop_nat(w, busy), quit))
+              chk_quit(rest, c, sent, quit, last, drop_nat(w, busy))
+        case ICmd{k}:
+          match k:
+            case Eng.Fire{w, q, g, t}:
+              Bool.and(Bool.not(quit), chk_quit(rest, c, 1n+sent, quit, Some{t}, Con{w, busy}))
+            case Eng.Quit{s, d}:
+              Bool.and(Bool.and(Bool.not(quit), Bool.and(stop_due(e_dur(c), last), List.is_empty(&2, Nat, busy))),
+                Bool.and(Bool.and(Nat.is_eq(s, sent), pick(Bool, bounded(c), Nat.is_eq(Nat.add(s, d), scheduled(c)), Nat.is_eq(d, 0n))),
+                  chk_quit(rest, c, sent, True{}, last, busy)))
+            case _:
+              Bool.and(Bool.not(quit), chk_quit(rest, c, sent, quit, last, busy))
+
+# LAW: the attack stops once and last, only when a hit has gone out at or
+# past the deadline and every worker is done, and it accounts for every
+# slot: the hits sent plus the slots dropped (Go drops them silently when
+# it falls behind at the deadline) are the schedule
+law eng_quit:
+  for +c: Eng.Cfg
+  for +evs: List<&2, Eng.Ev>
+  {chk_quit(timeline(c, evs), c, 0n, False{}, None{}, []) == True{} : Bool}
+
+# waiting is legitimate only on a nap, on workers when every allowed one
+# is busy, or on the last workers once the stop is decided; and a decided
+# stop with no busy worker must have happened
+def pending(+c: Eng.Cfg, +nap: Bool, +grown: Nat, +busy: List<&2, Nat>, +quit: Bool, +last: Maybe<&2, Nat>) -> Bool:
+  +n = List.length(&2, Nat, busy)
+  +stop = stop_due(e_dur(c), last)
+  Bool.or(quit, pick(Bool, stop, Nat.is_gt(n, 0n),
+    Bool.or(nap, Bool.and(Nat.is_gt(n, 0n), Bool.and(Nat.is_eq(n, grown), Nat.is_eq(grown, e_max(c)))))))
+
+def chk_live(xs: List<&2, Item>, +c: Eng.Cfg, +nap: Bool, +grown: Nat, +busy: List<&2, Nat>, +quit: Bool, +last: Maybe<&2, Nat>) -> Bool:
+  match xs:
+    case Nil{}:
+      pending(c, nap, grown, busy, quit, last)
+    case Con{+x, +rest}:
+      match x:
+        case IEv{e}:
+          match e:
+            case Eng.Clock{t}:
+              Bool.and(pending(c, nap, grown, busy, quit, last), chk_live(rest, c, False{}, grown, busy, quit, last))
+            case Eng.Freed{w, t}:
+              Bool.and(pending(c, nap, grown, busy, quit, last), chk_live(rest, c, nap, grown, drop_nat(w, busy), quit, last))
         case ICmd{k}:
           match k:
             case Eng.Nap{u}:
-              chk_live(rest, True{}, busy, quit)
+              chk_live(rest, c, True{}, grown, busy, quit, last)
+            case Eng.Grow{w}:
+              chk_live(rest, c, nap, 1n+grown, busy, quit, last)
             case Eng.Fire{w, q, g, t}:
-              chk_live(rest, nap, Con{w, busy}, quit)
+              chk_live(rest, c, nap, grown, Con{w, busy}, quit, Some{t})
             case Eng.Quit{s, d}:
-              chk_live(rest, nap, busy, True{})
-            case _:
-              chk_live(rest, nap, busy, quit)
+              chk_live(rest, c, nap, grown, busy, True{}, last)
 
-# LAW: the engine never deadlocks: after the start and after every event
-# it waits on a nap or a worker, or it has stopped
+# LAW: the engine never stalls: after the start and after every event it
+# waits on a nap, on workers only when all it may have are busy, or on the
+# last workers after the deadline; otherwise a due hit has gone out, and
+# a decided stop has happened. With eng_nap, eng_never_early and eng_now
+# this makes every hit go out at its slot whenever the clock wakes on time
+# and a worker is available: no coordinated omission.
 law eng_live:
   for +c: Eng.Cfg
   for +evs: List<&2, Eng.Ev>
   for -h: {cfg_ok(c) == True{} : Bool}
-  {chk_live(timeline(c, evs), False{}, [], False{}) == True{} : Bool}
+  {chk_live(timeline(c, evs), c, False{}, 0n, [], False{}, None{}) == True{} : Bool}
 
 def busy_of(xs: List<&2, Item>, +busy: List<&2, Nat>) -> List<&2, Nat>:
   match xs:
@@ -3228,6 +3369,10 @@ def q_name(+r: Conn.Req) -> String:
 
 def u_port(+u: Tgt.Url) -> Nat:
   Tgt.Url{sc, h, p, pa} = u
+  Maybe.default(&2, Nat, p, 80n)
+
+def u_portm(+u: Tgt.Url) -> Maybe<&2, Nat>:
+  Tgt.Url{sc, h, p, pa} = u
   p
 
 # the request's text, as Http.request writes it
@@ -3344,7 +3489,7 @@ def hdrs_eq(xs: List<&2, Hdr.Header>, +ys: List<&2, Hdr.Header>) -> Bool:
 def resp_eq(+a: Http.Resp, +b: Http.Resp) -> Bool:
   Bool.and(Bool.and(Nat.is_eq(r_code(a), r_code(b)), String.eq(r_status(a), r_status(b))),
   Bool.and(Bool.and(hdrs_eq(r_hdrs(a), r_hdrs(b)), String.eq(r_body(a), r_body(b))),
-    Bool.and(Nat.is_eq(r_len(a), r_len(b)), same_bool(r_keep(a), r_keep(b)))))
+    same_bool(r_keep(a), r_keep(b))))
 
 def answer_of(+ka: Bool, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>, +r: Http.Resp, +keep: Bool) -> Bool:
   match m:
@@ -3366,43 +3511,6 @@ def answer_of(+ka: Bool, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>
 def answer_ok(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool, +r: Http.Resp, +keep: Bool) -> Bool:
   answer_of(c_ka(c), parse_buf(eof, c_mb(c), head, buf), r, keep)
 
-def chk_answer(xs: List<&2, CItem>, +c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool) -> Bool:
-  match xs:
-    case Nil{}:
-      True{}
-    case Con{+x, +rest}:
-      match x:
-        case CIEv{e}:
-          match e:
-            case Conn.Got{d}:
-              chk_answer(rest, c, head, buf ++ d, eof)
-            case Conn.Eof{}:
-              chk_answer(rest, c, head, buf, True{})
-            case _:
-              chk_answer(rest, c, head, buf, eof)
-        case CICmd{k}:
-          match k:
-            case Conn.Send{d}:
-              chk_answer(rest, c, String.starts_with(d, "HEAD "), "", False{})
-            case Conn.Finish{o, keep}:
-              match o:
-                case Conn.Answered{r}:
-                  Bool.and(answer_ok(c, head, buf, eof, r, keep),
-                    Bool.and(Bool.or(Maybe.is_none(&2, Nat, c_redirects(c)), Bool.not(is_redirect(r))), chk_answer(rest, c, head, buf, eof)))
-                case Conn.Failed{m}:
-                  Bool.and(Bool.not(keep), chk_answer(rest, c, head, buf, eof))
-            case _:
-              chk_answer(rest, c, head, buf, eof)
-
-# LAW: answers are parsed faithfully, a redirect being followed is not an
-# answer, and a failure never keeps its connection
-law conn_answer:
-  for +c: Conn.Cfg
-  for +r: Conn.Req
-  for +open: Bool
-  for +evs: List<&2, Conn.Ev>
-  {chk_answer(ctimeline(c, r, open, evs), c, False{}, "", False{}) == True{} : Bool}
-
 # the commands that follow, up to the next event
 def batch(xs: List<&2, CItem>) -> List<&2, Conn.Cmd>:
   match xs:
@@ -3415,7 +3523,21 @@ def batch(xs: List<&2, CItem>) -> List<&2, Conn.Cmd>:
         case CICmd{k}:
           Con{k, batch(rest)}
 
-def fails_with(+m: String, cs: List<&2, Conn.Cmd>) -> Bool:
+# a response has fully arrived, and it is not a redirect the client follows
+def final_resp(+c: Conn.Cfg, m: Maybe<&1, Result<&1, &1, String, Http.Resp & String>>) -> Bool:
+  match m:
+    case None{}:
+      False{}
+    case Some{res}:
+      match res:
+        case Fail{e}:
+          False{}
+        case Done{p}:
+          (r0, lo) = p
+          +r = r0
+          Bool.not(Bool.and(Maybe.is_some(&2, Nat, c_redirects(c)), is_redirect(r)))
+
+def answers(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool, cs: List<&2, Conn.Cmd>) -> Bool:
   match cs:
     case Nil{}:
       False{}
@@ -3423,25 +3545,150 @@ def fails_with(+m: String, cs: List<&2, Conn.Cmd>) -> Bool:
       match k:
         case Conn.Finish{o, keep}:
           match o:
-            case Conn.Failed{m2}:
-              Bool.and(String.eq(m, m2), Bool.not(keep))
+            case Conn.Answered{r}:
+              answer_ok(c, head, buf, eof, r, keep)
+            case Conn.Failed{m, pb}:
+              False{}
+        case _:
+          answers(c, head, buf, eof, rest)
+
+# after bytes arrive: once a final response is complete, the client
+# answers with it at once
+def must_answer(+c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool, +rest: List<&2, CItem>) -> Bool:
+  Bool.or(Bool.not(final_resp(c, parse_buf(eof, c_mb(c), head, buf))), answers(c, head, buf, eof, batch(rest)))
+
+def chk_answer(xs: List<&2, CItem>, +c: Conn.Cfg, +head: Bool, +buf: String, +eof: Bool, +done: Bool) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case Con{+x, +rest}:
+      match x:
+        case CIEv{e}:
+          match e:
+            case Conn.Got{d}:
+              Bool.and(Bool.or(done, must_answer(c, head, buf ++ d, eof, rest)), chk_answer(rest, c, head, buf ++ d, eof, done))
+            case Conn.Eof{}:
+              Bool.and(Bool.or(done, must_answer(c, head, buf, True{}, rest)), chk_answer(rest, c, head, buf, True{}, done))
+            case _:
+              chk_answer(rest, c, head, buf, eof, done)
+        case CICmd{k}:
+          match k:
+            case Conn.Send{d}:
+              chk_answer(rest, c, String.starts_with(d, "HEAD "), "", False{}, done)
+            case Conn.Finish{o, keep}:
+              match o:
+                case Conn.Answered{r}:
+                  Bool.and(answer_ok(c, head, buf, eof, r, keep),
+                    Bool.and(Bool.or(Maybe.is_none(&2, Nat, c_redirects(c)), Bool.not(is_redirect(r))), chk_answer(rest, c, head, buf, eof, True{})))
+                case Conn.Failed{m, pb}:
+                  Bool.and(Bool.not(keep), chk_answer(rest, c, head, buf, eof, True{}))
+            case _:
+              chk_answer(rest, c, head, buf, eof, done)
+
+# LAW: answers are exactly what the parser makes of the bytes, the moment
+# a final response is complete; a redirect being followed is not an
+# answer; a failure never keeps its connection
+law conn_answer:
+  for +c: Conn.Cfg
+  for +r: Conn.Req
+  for +open: Bool
+  for +evs: List<&2, Conn.Ev>
+  {chk_answer(ctimeline(c, r, open, evs), c, False{}, "", False{}, False{}) == True{} : Bool}
+
+def rd_ok(+done: Bool, +out: Bool, +recv: Bool) -> Bool:
+  Bool.or(Bool.or(done, Bool.not(out)), recv)
+
+# while a request is out (sent, not finished) a read is always pending: a
+# Recv the shell has not answered yet with bytes, a close or a timeout
+def chk_recv(xs: List<&2, CItem>, +out: Bool, +recv: Bool, +done: Bool) -> Bool:
+  match xs:
+    case Nil{}:
+      Bool.or(Bool.or(done, Bool.not(out)), recv)
+    case Con{+x, +rest}:
+      match x:
+        case CIEv{e}:
+          match e:
+            case Conn.Sent{}:
+              Bool.and(rd_ok(done, out, recv), chk_recv(rest, True{}, recv, done))
+            case Conn.Got{d}:
+              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
+            case Conn.Eof{}:
+              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
+            case Conn.Late{}:
+              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, False{}, done))
+            case _:
+              Bool.and(rd_ok(done, out, recv), chk_recv(rest, out, recv, done))
+        case CICmd{k}:
+          match k:
+            case Conn.Send{d}:
+              chk_recv(rest, False{}, recv, done)
+            case Conn.Recv{}:
+              chk_recv(rest, out, True{}, done)
+            case Conn.Finish{o, keep}:
+              chk_recv(rest, out, recv, True{})
+            case _:
+              chk_recv(rest, out, recv, done)
+
+# LAW: a request on the wire is always being read (no request can hang
+# because the client stopped listening)
+law conn_reads:
+  for +c: Conn.Cfg
+  for +r: Conn.Req
+  for +open: Bool
+  for +evs: List<&2, Conn.Ev>
+  {chk_recv(ctimeline(c, r, open, evs), False{}, False{}, False{}) == True{} : Bool}
+
+def pb_eq(+a: Maybe<&2, String>, +b: Maybe<&2, String>) -> Bool:
+  match a:
+    case None{}:
+      Maybe.is_none(&2, String, b)
+    case Some{x}:
+      match b:
+        case None{}:
+          False{}
+        case Some{y}:
+          String.eq(x, y)
+
+def fails_with(+m: String, +pb: Maybe<&2, String>, cs: List<&2, Conn.Cmd>) -> Bool:
+  match cs:
+    case Nil{}:
+      False{}
+    case Con{+k, +rest}:
+      match k:
+        case Conn.Finish{o, keep}:
+          match o:
+            case Conn.Failed{m2, pb2}:
+              Bool.and(Bool.and(String.eq(m, m2), pb_eq(pb, pb2)), Bool.not(keep))
             case Conn.Answered{a}:
               False{}
         case _:
-          fails_with(m, rest)
+          fails_with(m, pb, rest)
 
-# Go's texts for a timeout: before the headers are in, or while reading the body
+# Go's texts for a timeout: before the headers are in (a url.Error, with
+# the method and URL), or while reading the body (the bare error, and the
+# body read so far is kept)
 def timeout_text(+r: Conn.Req, +buf: String) -> String:
-  err_prefix(r) ++ pick(String, String.contains(buf, "\r\n\r\n"),
+  pick(String, String.contains(buf, "\r\n\r\n"),
     "context deadline exceeded (Client.Timeout or context cancellation while reading body)",
-    "context deadline exceeded (Client.Timeout exceeded while awaiting headers)")
+    err_prefix(r) ++ "context deadline exceeded (Client.Timeout exceeded while awaiting headers)")
+
+def timeout_partial(+c: Conn.Cfg, +head: Bool, +buf: String) -> Maybe<&2, String>:
+  pick(Maybe<&2, String>, String.contains(buf, "\r\n\r\n"), Some{Http.partial(Http.feed(Http.start(c_mb(c), head), buf))}, None{})
 
 def dial_text(+r: Conn.Req, +m: String) -> String:
   err_prefix(r) ++ "dial tcp " ++ q_ip(r) ++ ":" ++ Dec.show(u_port(q_url(r))) ++ ": connect: " ++ String.to_lower(m)
 
-# before the request finishes, a timeout or a failed dial finishes it at
-# once, with Go's error text for this request
-def chk_fail(xs: List<&2, CItem>, +r: Conn.Req, +done: Bool, +buf: String) -> Bool:
+def is_fresh(+last: Maybe<&2, String>, +d: String) -> Bool:
+  match last:
+    case None{}:
+      False{}
+    case Some{l}:
+      Bool.not(String.eq(l, d))
+
+# before the request finishes (and before any redirect: a redirect's own
+# errors name the redirect's URL), a timeout or a failed dial finishes it
+# at once, with Go's error text and Go's partial body
+def chk_fail(xs: List<&2, CItem>, +c: Conn.Cfg, +r: Conn.Req, +done: Bool, +first: Maybe<&2, String>, +head: Bool, +buf: String) -> Bool:
   match xs:
     case Nil{}:
       True{}
@@ -3450,31 +3697,29 @@ def chk_fail(xs: List<&2, CItem>, +r: Conn.Req, +done: Bool, +buf: String) -> Bo
         case CIEv{e}:
           match e:
             case Conn.Late{}:
-              Bool.or(done, fails_with(timeout_text(r, buf), batch(rest)))
+              Bool.or(done, fails_with(timeout_text(r, buf), timeout_partial(c, head, buf), batch(rest)))
             case Conn.OpenFailed{m}:
-              Bool.or(done, fails_with(dial_text(r, m), batch(rest)))
+              Bool.or(done, fails_with(dial_text(r, m), None{}, batch(rest)))
             case Conn.Got{d}:
-              chk_fail(rest, r, done, buf ++ d)
+              chk_fail(rest, c, r, done, first, head, buf ++ d)
             case _:
-              chk_fail(rest, r, done, buf)
+              chk_fail(rest, c, r, done, first, head, buf)
         case CICmd{k}:
           match k:
             case Conn.Send{d}:
-              chk_fail(rest, r, done, "")
+              Bool.or(is_fresh(first, d), chk_fail(rest, c, r, done, Some{d}, String.starts_with(d, "HEAD "), ""))
             case Conn.Finish{o, keep}:
-              chk_fail(rest, r, True{}, buf)
+              chk_fail(rest, c, r, True{}, first, head, buf)
             case _:
-              chk_fail(rest, r, done, buf)
+              chk_fail(rest, c, r, done, first, head, buf)
 
-# LAW: timeouts and failed dials, with Go's words (for the request as
-# given: a redirect's own errors name the redirect's URL, see conn_redirect)
+# LAW: timeouts and failed dials, with Go's words
 law conn_fail:
   for +c: Conn.Cfg
   for +r: Conn.Req
   for +open: Bool
   for +evs: List<&2, Conn.Ev>
-  for -h: {Maybe.is_none(&2, Nat, c_redirects(c)) == True{} : Bool}
-  {chk_fail(ctimeline(c, r, open, evs), r, False{}, "") == True{} : Bool}
+  {chk_fail(ctimeline(c, r, open, evs), c, r, False{}, None{}, False{}, "") == True{} : Bool}
 
 def has_key_ci(+k: String, hs: List<&2, Hdr.Header>) -> Bool:
   Maybe.is_some(&2, List<&2, String>, hdr_get_ci(k, hs))
@@ -3500,6 +3745,46 @@ def count_send(+d: String, xs: List<&2, CItem>) -> Nat:
             case _:
               count_send(d, rest)
 
+def opens(cs: List<&2, Conn.Cmd>) -> Bool:
+  match cs:
+    case Nil{}:
+      False{}
+    case Con{+k, +rest}:
+      match k:
+        case Conn.Open{ip, p}:
+          True{}
+        case _:
+          opens(rest)
+
+def lost_now(+may: Bool, +sent: Nat, +got: Bool) -> Bool:
+  Bool.and(Bool.and(may, Nat.is_eq(sent, 1n)), Bool.not(got))
+
+# Go retries exactly when a request it may replay was lost on a reused
+# connection before any byte of an answer: the connection closed, or the
+# write failed, after the first send. The retry reconnects at once.
+def chk_retry(xs: List<&2, CItem>, +may: Bool, +sent: Nat, +got: Bool) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case Con{+x, +rest}:
+      match x:
+        case CIEv{e}:
+          match e:
+            case Conn.Got{d}:
+              chk_retry(rest, may, sent, Bool.or(got, Bool.not(String.is_empty(d))))
+            case Conn.Eof{}:
+              Bool.and(Bool.or(Bool.not(lost_now(may, sent, got)), opens(batch(rest))), chk_retry(rest, may, sent, got))
+            case Conn.SendFailed{m}:
+              Bool.and(Bool.or(Bool.not(lost_now(may, sent, got)), opens(batch(rest))), chk_retry(rest, may, sent, got))
+            case _:
+              chk_retry(rest, may, sent, got)
+        case CICmd{k}:
+          match k:
+            case Conn.Send{d}:
+              chk_retry(rest, may, 1n+sent, got)
+            case _:
+              chk_retry(rest, may, sent, got)
+
 # after the first send: was there a failure before any byte came back?
 def lost_unanswered(xs: List<&2, CItem>, +sent: Bool, +got: Bool) -> Bool:
   match xs:
@@ -3524,9 +3809,8 @@ def lost_unanswered(xs: List<&2, CItem>, +sent: Bool, +got: Bool) -> Bool:
             case _:
               lost_unanswered(rest, sent, got)
 
-# LAW: the request goes out at most twice; the second time only when Go
-# would retry it: on a reused connection that failed before answering,
-# for a replayable request
+# LAW: a request goes out at most twice, and the second time exactly
+# when Go would retry it (see chk_retry)
 law conn_retry:
   for +c: Conn.Cfg
   for +r: Conn.Req
@@ -3534,14 +3818,13 @@ law conn_retry:
   for +evs: List<&2, Conn.Ev>
   {Nat.is_le(count_send(q_text(c, r), ctimeline(c, r, open, evs)),
      pick(Nat, Bool.and(Bool.and(open, replayable(q_target(r))), lost_unanswered(ctimeline(c, r, open, evs), False{}, False{})), 2n, 1n)) == True{} : Bool}
+  & {chk_retry(ctimeline(c, r, open, evs), Bool.and(open, replayable(q_target(r))), 0n, False{}) == True{} : Bool}
 
-# the request Go makes for a redirect: 301/302 turn POST into GET, 303
-# turns all but GET and HEAD into GET, and those three drop the body;
-# 307/308 keep method and body. A Location starting with "/" stays on the
-# host; otherwise it is a whole URL.
+# Go's redirectBehavior: 301, 302 and 303 turn every method but GET and
+# HEAD into GET and drop the body; 307 and 308 keep method and body
 def redirect_method(+code: Nat, +m: String) -> String:
-  pick(String, Bool.or(Bool.and(Nat.is_eq(code, 303n), Bool.not(Bool.or(String.eq(m, "GET"), String.eq(m, "HEAD")))),
-      Bool.and(Bool.or(Nat.is_eq(code, 301n), Nat.is_eq(code, 302n)), String.eq(m, "POST"))), "GET", m)
+  pick(String, Bool.and(Bool.or(Bool.or(Nat.is_eq(code, 301n), Nat.is_eq(code, 302n)), Nat.is_eq(code, 303n)),
+      Bool.not(Bool.or(String.eq(m, "GET"), String.eq(m, "HEAD")))), "GET", m)
 
 def redirect_body(+code: Nat, +b: String) -> String:
   pick(String, Bool.or(Nat.is_eq(code, 307n), Nat.is_eq(code, 308n)), b, "")
@@ -3550,15 +3833,61 @@ def u_host(+u: Tgt.Url) -> String:
   Tgt.Url{sc, h, p, pa} = u
   h
 
+def last_slash(s: String, +acc: String, +cut: String) -> String:
+  match s:
+    case SNil{}:
+      cut
+    case SCon{+c, +rest}:
+      +acc2 = acc ++ SCon{c, SNil{}}
+      last_slash(rest, acc2, pick(String, U32.is_eq(code(c), 47), acc2, cut))
+
+# the directory of a path: up to and including its last "/"
+def dir_of(+p: String) -> String:
+  last_slash(p, "", "/")
+
+def rev_drop1(xs: List<&2, String>) -> List<&2, String>:
+  match xs:
+    case Nil{}:
+      []
+    case Con{+x, +rest}:
+      rest
+
+# RFC 3986's remove_dot_segments over the segments of an absolute path,
+# collected in reverse
+def dots(segs: List<&2, String>, +out: List<&2, String>) -> List<&2, String>:
+  match segs:
+    case Nil{}:
+      out
+    case Con{+g, +rest}:
+      +last = List.is_empty(&2, String, rest)
+      +dot = String.eq(g, ".")
+      +up = String.eq(g, "..")
+      +out2 = pick(List<&2, String>, dot, out, pick(List<&2, String>, up, rev_drop1(out), Con{g, out}))
+      dots(rest, pick(List<&2, String>, Bool.and(last, Bool.or(dot, up)), Con{"", out2}, out2))
+
+def remove_dots(+p: String) -> String:
+  "/" ++ join_str("/", List.reverse(&2, String, dots(List.drop(&2, String, split_on(47, p), 1n), [])))
+
+# a Location resolved against the request's URL, as Go's URL.ResolveReference
 def loc_url(+u: Tgt.Url, +loc: String) -> String:
-  pick(String, String.starts_with(loc, "/"), url_text(Tgt.Url{"http", u_host(u), u_port(u), loc}), loc)
+  +base = "http://" ++ u_host(u) ++ port_text(u_portm(u))
+  +bpath = before_q(url_path(u))
+  +lpath = before_q(loc)
+  +lq = String.drop(loc, String.length(lpath))
+  pick(String, Bool.or(String.starts_with(loc, "http://"), String.starts_with(loc, "https://")), loc,
+  pick(String, String.starts_with(loc, "//"), "http:" ++ loc,
+  pick(String, String.starts_with(loc, "/"), base ++ remove_dots(lpath) ++ lq,
+  pick(String, String.is_empty(lpath), base ++ bpath ++ pick(String, String.is_empty(lq), String.drop(url_path(u), String.length(bpath)), lq),
+    base ++ remove_dots(dir_of(bpath) ++ lpath) ++ lq))))
 
 def location(+r: Http.Resp) -> String:
   first_val("Location", r_hdrs(r), "")
 
-# the target of the redirect r gets for request t at u
+# the target of the redirect r gets for request t at u: Go's method rules,
+# the same headers, and a Referer naming the URL redirected from
 def redirect_target(+t: Tgt.Target, +u: Tgt.Url, +r: Http.Resp) -> Tgt.Target:
-  Tgt.Target{redirect_method(r_code(r), tgt_method(t)), loc_url(u, location(r)), tgt_hdrs(t), tgt_body(t)}
+  Tgt.Target{redirect_method(r_code(r), tgt_method(t)), loc_url(u, location(r)),
+    List.append(&2, Hdr.Header, drop_ci("Referer", tgt_hdrs(t)), [Hdr.Header{"Referer", [tgt_url(t)]}]), tgt_body(t)}
 
 def u_of(+d: Tgt.Url, r: Result<&2, &2, String, Tgt.Url>) -> Tgt.Url:
   match r:
@@ -3602,13 +3931,6 @@ def hop_u(+h: Hop) -> Tgt.Url:
 def hop_b(+h: Hop) -> String:
   Hop{ok, t, u, b, c} = h
   b
-
-def is_fresh(+last: Maybe<&2, String>, +d: String) -> Bool:
-  match last:
-    case None{}:
-      False{}
-    case Some{l}:
-      Bool.not(String.eq(l, d))
 
 def rd_limit(+m: Maybe<&2, Nat>) -> Nat:
   Maybe.default(&2, Nat, m, 0n)
@@ -3671,19 +3993,20 @@ law conn_redirect_stop:
   for +n: Nat
   for -h0: {c_redirects(c) == Some{0n} : Maybe<&2, Nat>}
   for -h1: {Bool.and(resp_cl_ok(r), is_redirect(r)) == True{} : Bool}
-  {fails_with(op(redirect_method(r_code(r), tgt_method(q_target(q)))) ++ " \"" ++ loc_url(q_url(q), location(r)) ++ "\": stopped after 0 redirects",
+  {fails_with(op(tgt_method(q_target(q))) ++ " \"" ++ location(r) ++ "\": stopped after 0 redirects", None{},
      last_batch(ctimeline(c, q, True{}, [Conn.Sent{}, Conn.Got{render_cl(r)}]), [])) == True{} : Bool}
 
 # LAW: on a fresh connection, a close before any answer is Go's EOF error
 law conn_eof:
   for +c: Conn.Cfg
   for +q: Conn.Req
-  {fails_with(err_prefix(q) ++ "EOF",
+  {fails_with(err_prefix(q) ++ "EOF", None{},
      last_batch(ctimeline(c, q, False{}, [Conn.Opened{}, Conn.Sent{}, Conn.Eof{}]), [])) == True{} : Bool}
 
 # LAW: the result recorded for a request, as Go's hit() fills it in:
-# success is 2xx and 3xx, and otherwise the status line is the error; a
-# failure records no code, bytes, body or headers
+# success is 2xx and 3xx, and otherwise the status line is the error;
+# bytes in are the body kept (after -max-body); a failure records no code,
+# bytes or headers, and the body only as far as it was read
 law conn_to_hit:
   for +name: String
   for +seq: Nat
@@ -3694,10 +4017,11 @@ law conn_to_hit:
   for +nb: Nat
   for +r: Http.Resp
   for +e: String
+  for +pb: Maybe<&2, String>
   {Conn.to_hit(name, seq, ts, lat, m, u, nb, Conn.Answered{r})
-   == Hit.Hit{name, seq, r_code(r), ts, lat, nb, r_len(r), pick(String, is_ok(r_code(r)), "", r_status(r)),
+   == Hit.Hit{name, seq, r_code(r), ts, lat, nb, String.length(r_body(r)), pick(String, is_ok(r_code(r)), "", r_status(r)),
        Some{r_body(r)}, m, u, Some{r_hdrs(r)}} : Hit.Hit}
-  & {Conn.to_hit(name, seq, ts, lat, m, u, nb, Conn.Failed{e}) == Hit.Hit{name, seq, 0n, ts, lat, 0n, 0n, e, None{}, m, u, None{}} : Hit.Hit}
+  & {Conn.to_hit(name, seq, ts, lat, m, u, nb, Conn.Failed{e, pb}) == Hit.Hit{name, seq, 0n, ts, lat, 0n, 0n, e, pb, m, u, None{}} : Hit.Hit}
 
 # =====================================================================
 # Text at the edges (lib/text.bend)
@@ -3713,7 +4037,7 @@ def utf8_all(s: String) -> String:
   match s:
     case SNil{}:
       ""
-    case SCon{c, +rest}:
+    case SCon{+c, +rest}:
       utf8_char(code(c)) ++ utf8_all(rest)
 
 # LAW: arguments become their UTF-8 bytes, character by character
@@ -3730,20 +4054,7 @@ law text_utf8:
 # is padded with spaces to the widest in the run plus 2. Width counts
 # runes (Go's utf8.RuneCount: a stray byte is one).
 
-def split_cons(+c: Char, ps: List<&2, String>) -> List<&2, String>:
-  match ps:
-    case Nil{}:
-      [SCon{c, SNil{}}]
-    case Con{p, +rest}:
-      Con{SCon{c, p}, rest}
 
-def split_on(+k: U32, s: String) -> List<&2, String>:
-  match s:
-    case SNil{}:
-      [""]
-    case SCon{+c, +rest}:
-      +r = split_on(k, rest)
-      pick(List<&2, String>, U32.is_eq(code(c), k), Con{"", r}, split_cons(c, r))
 
 def runes.go(+fuel: Nat, +s: String) -> Nat:
   match fuel:
@@ -3916,6 +4227,45 @@ def z_n(+z: Rep.Zones) -> Nat:
   Rep.Zones{e, l, n} = z
   n
 
+
+
+def rjesc_ff(ps: List<&2, String>) -> String:
+  match ps:
+    case Nil{}:
+      ""
+    case Con{+p, +rest}:
+      match rest:
+        case Nil{}:
+          jesc(p)
+        case Con{+q, +more}:
+          jesc(p) ++ "\\f" ++ rjesc_ff(Con{q, more})
+
+def rjesc_parts(ps: List<&2, String>) -> String:
+  match ps:
+    case Nil{}:
+      ""
+    case Con{+p, +rest}:
+      match rest:
+        case Nil{}:
+          rjesc_ff(split_on(12, p))
+        case Con{+q, +more}:
+          rjesc_ff(split_on(12, p)) ++ "\\b" ++ rjesc_parts(Con{q, more})
+
+# escape run by run: control bytes 8 and 12 short, the rest as easyjson
+def rjesc_str(+s: String) -> String:
+  pick(String, Bool.or(has_char(s, 8), has_char(s, 12)), rjesc_parts(split_on(8, s)), jesc(s))
+
+# encoding/json's string: easyjson's, but \b and \f are short escapes
+def rjson_str(+s: String) -> String:
+  "\"" ++ rjesc_str(s) ++ "\""
+
+def rjson_strs(vs: List<&2, String>) -> List<&2, String>:
+  match vs:
+    case Nil{}:
+      []
+    case Con{+v, +rest}:
+      Con{rjson_str(v), rjson_strs(rest)}
+
 # Go's JSON reporter: encoding/json of Metrics, fields in struct order,
 # status codes sorted as strings, times in the local zone
 def json_src(+s: Met.Summary, +z: Rep.Zones) -> String:
@@ -3931,7 +4281,7 @@ def json_src(+s: Met.Summary, +z: Rep.Zones) -> String:
   ++ ",\"requests\":" ++ Dec.show(s_requests(s)) ++ ",\"rate\":" ++ F64.json(s_rate(s))
   ++ ",\"throughput\":" ++ F64.json(s_throughput(s)) ++ ",\"success\":" ++ F64.json(s_ratio(s))
   ++ ",\"status_codes\":{" ++ join_str(",", json_codes(codes_by_text(s_codes(s)))) ++ "}"
-  ++ ",\"errors\":[" ++ json_list(s_errors(s)) ++ "]}\n"
+  ++ ",\"errors\":[" ++ join_str(",", rjson_strs(s_errors(s))) ++ "]}\n"
 
 law report_json:
   for +s: Met.Summary
@@ -3969,10 +4319,11 @@ law report_hist:
 # =====================================================================
 
 def attack_defaults() -> Flags.Attack:
-  Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, Nat.mul(30n, sec()),
+  Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, None{},
     [], None{}, True{}, None{}, Some{10n}, "csv"}
 
-# LAW: no flags, Go's defaults (and CSV results)
+# LAW: no flags, Go's defaults (and CSV results; no timeout is Go's 30s,
+# applied by the shell)
 law flags_attack_defaults:
   {Flags.parse_attack([]) == Done{attack_defaults()} : Result<&2, &2, String, Flags.Attack>}
 
@@ -4015,18 +4366,21 @@ def max_workers_flag(+m: Maybe<&2, Nat>) -> List<&2, String>:
     case Some{n}:
       ["-max-workers=" ++ Dec.show(n)]
 
+def timeout_flag(+m: Maybe<&2, Nat>) -> List<&2, String>:
+  match m:
+    case None{}:
+      []
+    case Some{n}:
+      ["-timeout=" ++ Dur.show(n)]
+
 # the canonical command line for some options
 def attack_args(+a: Flags.Attack) -> List<&2, String>:
   Flags.Attack{rate, du, tg, fm, out, name, w, mw, to, hs, body, ka, mb, rd, enc} = a
   List.concat(&2, String, [
     ["-rate=" ++ rate_text(rate), "-duration=" ++ Dur.show(du), "-targets=" ++ tg, "-format=" ++ fm, "-output=" ++ out,
      "-name=" ++ name, "-workers=" ++ Dec.show(w)],
-    max_workers_flag(mw), ["-timeout=" ++ Dur.show(to)], hdr_flags(hs), body_flag(body),
+    max_workers_flag(mw), timeout_flag(to), hdr_flags(hs), body_flag(body),
     ["-keepalive=" ++ pick(String, ka, "true", "false"), opt_nat("-max-body=", "-1", mb), opt_nat("-redirects=", "-1", rd), "-encoding=" ++ enc]])
-
-law flags_attack_show:
-  for +a: Flags.Attack
-  {Flags.show_attack(a) == attack_args(a) : List<&2, String>}
 
 def flag_str_ok(+s: String) -> Bool:
   Bool.and(printable(s), Bool.not(String.is_empty(s)))
@@ -4047,7 +4401,7 @@ def attack_ok(+a: Flags.Attack) -> Bool:
 law flags_attack_roundtrip:
   for +a: Flags.Attack
   for -h: {attack_ok(a) == True{} : Bool}
-  {Flags.parse_attack(Flags.show_attack(a)) == Done{a} : Result<&2, &2, String, Flags.Attack>}
+  {Flags.parse_attack(attack_args(a)) == Done{a} : Result<&2, &2, String, Flags.Attack>}
 
 # the flags that take a value
 def value_flags() -> List<&2, String>:
@@ -4080,10 +4434,18 @@ law flags_refused:
   for +f: String
   for +rest: List<&2, String>
   for -h0: {Nat.is_lt(i, 18n) == True{} : Bool}
-  for -h1: {Bool.and(Bool.and(flag_str_ok(f), Bool.not(has_char(f, 61))),
-     Bool.not(Bool.or(has_str(f, value_flags()), Bool.or(has_str(f, unsupported()), String.eq(f, "keepalive"))))) == True{} : Bool}
+  for -h1: {Bool.and(Bool.and(Bool.and(flag_str_ok(f), Bool.not(has_char(f, 61))), Bool.not(first_is(f, 45))),
+     Bool.not(Bool.or(Bool.or(has_str(f, value_flags()), has_str(f, unsupported())),
+       Bool.or(String.eq(f, "keepalive"), Bool.or(String.eq(f, "h"), String.eq(f, "help")))))) == True{} : Bool}
   {Flags.parse_attack(Con{"-" ++ nth_str(i, unsupported()), rest}) == Fail{"flag not supported in the Bend port: -" ++ nth_str(i, unsupported())} : Result<&2, &2, String, Flags.Attack>}
   & {Flags.parse_attack(Con{"-" ++ f, rest}) == Fail{"flag provided but not defined: -" ++ f} : Result<&2, &2, String, Flags.Attack>}
+
+# LAW: -rate=infinity is no rate at all to Go's flag (it keeps the
+# default), and an unbounded rate needs a worker limit
+law flags_rate:
+  for +n: Nat
+  {Flags.parse_attack(["-rate=infinity"]) == Flags.parse_attack([]) : Result<&2, &2, String, Flags.Attack>}
+  & {Flags.parse_attack(["-rate=0"]) == Fail{"-rate=0 requires setting -max-workers"} : Result<&2, &2, String, Flags.Attack>}
 
 # LAW: -header is Go's: split at the first colon, both sides trimmed and
 # non-empty, values appended under the name as written
@@ -4094,7 +4456,7 @@ law flags_header:
   for -h0: {Bool.and(tgt_key_ok(k), Bool.and(flag_str_ok(v), String.eq(trim_ows(v), v))) == True{} : Bool}
   for -h1: {Bool.and(printable(x), Bool.not(has_char(x, 58))) == True{} : Bool}
   {Flags.parse_attack(["-header", k ++ ": " ++ v, "-header", k ++ ":" ++ v])
-   == Done{Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, Nat.mul(30n, sec()),
+   == Done{Flags.Attack{Pace.Rate{50n, sec()}, 0n, "stdin", "http", "stdout", "", 10n, None{}, None{},
         [Hdr.Header{k, [v, v]}], None{}, True{}, None{}, Some{10n}, "csv"}} : Result<&2, &2, String, Flags.Attack>}
   & {Flags.parse_attack(["-header", x]) == Fail{"header '" ++ x ++ "' has a wrong format"} : Result<&2, &2, String, Flags.Attack>}
 

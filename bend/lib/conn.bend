@@ -26,7 +26,7 @@ type Ev is Data:
 
 type Out is Data:
   Answered{resp: Http.Resp}
-  Failed{msg: String}
+  Failed{msg: String, partial: Maybe<&2, String>}
 
 type Cmd is Data:
   Resolve{host: String}

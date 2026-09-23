@@ -15,7 +15,6 @@ type Cmd is Data:
   Nap{until: Nat}
   Grow{w: Nat}
   Fire{w: Nat, seq: Nat, target: Nat, t: Nat}
-  Idle{}
   Quit{sent: Nat, dropped: Nat}
 
 type State is Data:

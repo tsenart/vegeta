@@ -17,11 +17,11 @@ the pure core specified by laws in `bend/LAWS.bend` and proven in
 | Transport | HTTP/1.1 over plain TCP, keep-alive. No TLS, no HTTP/2 in v1. |
 | DNS | Custom effect over `getaddrinfo`, run on a helper thread (`io_work`). |
 | Result formats | CSV (default) and JSON lines, byte-compatible with Go's `NewCSVEncoder`/`NewJSONEncoder`. No gob. |
-| Laws | `bend/LAWS.bend` is the spec: 130 laws over the whole pure core, written before the code against stub signatures, owned by the human. IO code is exempt. |
+| Laws | `bend/LAWS.bend` is the spec: 124 laws over the whole pure core, written before the code against stub signatures, owned by the human. IO code is exempt. |
 | Location | `bend/` directory, branch `bend-port`. |
 | Percentiles | Exact nearest-rank on a proven sort. Go uses a t-digest (approximate), so differential tests compare percentiles with a tolerance and all other fields exactly. |
 | Law style | Bend's: laws state properties that characterize the code (sorted and a permutation; the exact value rounded to nearest even; any interleaving of events), not twin implementations. Byte formats that must match Go are stated as definitions of the text, since there the format is the spec. Every helper a law uses lives in `LAWS.bend`, so the implementer cannot redefine what a law means. |
-| Fast to check | `bend LAWS.bend` ≤ 10 s, `bend PROOF.bend` ≤ 60 s, enforced by the gate. Theory `Nat`s are unary in the checker (`3.6e15 < 2^60` does not finish in 2 min), so laws never force big closed numbers: anything big is a `Big`. |
+| Fast to check | `bend LAWS.bend` ≤ 10 s, `bend PROOF.bend` ≤ 60 s, enforced by the gate. Theory `Nat`s are unary in the checker (`3.6e15 < 2^60` does not finish in 2 min), so laws never force big closed numbers: anything big is a `Big`. The checker also unfolds closed arithmetic on literals past ~10^5 (`1e6 + 86400` overflows), so neither laws nor implementation code a proof evaluates may do closed arithmetic on big literals; constants are literal limbs, and multiples are written with the symbolic factor first. |
 | Strings | Bytes: one `Chr` per byte, as on the wire. Bend strings are code points and its IO encodes UTF-8, so the shell converts arguments with `Text.utf8` and uses byte-faithful effects. |
 | Architecture | Sans-IO. The HTTP client (`lib/conn.bend`) and the attack scheduler (`lib/engine.bend`) are pure state machines `step(state, event) -> (state, commands)`, proven over every event interleaving. The only unproven code is the C effects and `shell.bend`, a small interpreter of commands. |
 | Error set | Sorted, not first-seen. Go's first-seen order depends on result arrival order, which makes `report` nondeterministic and breaks the order-independence law. |
@@ -106,6 +106,8 @@ TLS/HTTPS, HTTP/2 and h2c, gob, `-lazy`, JSON target format, `-unix-socket`,
 - Dropped slots are reported by `attack` on stderr (only when non-zero); Go drops them silently.
 - The latency minimum is the true minimum; Go's treats 0 as unset, so a 0 ns latency makes its minimum depend on arrival order.
 - Response headers in JSON results are in sorted key order; Go's are in random map order.
+- Negative durations (`-duration=-1s`) are rejected; Go accepts them. PENDING the owner's approval.
+- A `-rate` with a bare multi-second unit (`50/m`) behaves as Go's, but no law can state its period (a closed number past the checker's reach); Go goldens pin it.
 - Dial error strings follow Go's shape (`Get "URL": dial tcp IP:PORT:
   connect: connection refused`) but not every Go error text is reproduced.
 - No `Accept-Encoding: gzip` is sent, so bodies arrive uncompressed (Go

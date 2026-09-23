@@ -1,11 +1,13 @@
-# Command-line flags for attack and report, with Go Vegeta's names and defaults. STUB.
+# Command-line flags for attack and report, with Go Vegeta's names and defaults.
+# A timeout of None is Go's default (30s), applied by the shell: 30s is a
+# closed number too big for the checker to state. STUB.
 import Base
 import ./pacer.bend as Pace
 import ./hdr.bend as Hdr
 
 type Attack is Data:
   Attack{rate: Pace.Rate, duration: Nat, targets: String, format: String, output: String,
-         name: String, workers: Nat, max_workers: Maybe<&2, Nat>, timeout: Nat,
+         name: String, workers: Nat, max_workers: Maybe<&2, Nat>, timeout: Maybe<&2, Nat>,
          headers: List<&2, Hdr.Header>, body: Maybe<&2, String>, keepalive: Bool,
          max_body: Maybe<&2, Nat>, redirects: Maybe<&2, Nat>, encoding: String}
 
@@ -20,11 +22,5 @@ type Report is Data:
 def parse_attack(args: List<&2, String>) -> Result<&2, &2, String, Attack>:
   Fail{"stub"}
 
-def show_attack(+a: Attack) -> List<&2, String>:
-  []
-
 def parse_report(args: List<&2, String>) -> Result<&2, &2, String, Report>:
   Fail{"stub"}
-
-def show_report(+r: Report) -> List<&2, String>:
-  []

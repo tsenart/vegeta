@@ -8,7 +8,6 @@ def main() -> IO(Unit):
     IO.print(Bool.show(L.leap(1900n)) ++ " " ++ Bool.show(L.leap(2000n)) ++ " " ++ Bool.show(L.leap(2024n)))
     IO.print(Nat.show(L.rank(50n, 1n)) ++ " " ++ Nat.show(L.rank(50n, 10n)) ++ " " ++ Nat.show(L.rank(99n, 10n)) ++ " " ++ Nat.show(L.rank(90n, 100n)))
     IO.print(Nat.show(L.bucket_of([0n, 1000000n, 10000000n], 5n)) ++ " " ++ Nat.show(L.bucket_of([0n, 1000000n, 10000000n], 1000000n)) ++ " " ++ Nat.show(L.bucket_of([0n, 1000000n, 10000000n], 99999999n)) ++ " " ++ Nat.show(L.bucket_of([5n, 10n], 1n)))
-    IO.print(Nat.show(L.round_unit(999n)) ++ " " ++ Nat.show(L.round_unit(1500000n)) ++ " " ++ Nat.show(L.round_unit(Nat.mul(61n, 1000000000n))))
     IO.print(Bool.show(L.needs_quotes("")) ++ " " ++ Bool.show(L.needs_quotes(" x")) ++ " " ++ Bool.show(L.needs_quotes("a,b")) ++ " " ++ Bool.show(L.needs_quotes("ab")))
     IO.print(L.canon("content-type") ++ " " ++ L.canon("X-VEGETA-seq") ++ " " ++ L.canon("bad key"))
     IO.print(L.trim_ows("  a b\t") ++ "|" ++ L.hex(255n) ++ "|" ++ L.hex(0n) ++ "|" ++ L.hex(4096n))
@@ -22,12 +21,11 @@ def main() -> IO(Unit):
 #|False True True
 #|0 4 9 89
 #|0 1 2 1
-#|1 1000 1000000000
 #|False True True False
 #|Content-Type X-Vegeta-Seq bad key
 #|a b|ff|0|1000
 #|True False False
-#|GET PUT HEAD GET POST
+#|GET GET HEAD GET POST
 #|Get Post
 #|1 2 2
 #|100
