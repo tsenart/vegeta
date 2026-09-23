@@ -108,3 +108,25 @@ Every module with a byte format or a Go-defined behavior has a golden
 test: a small Go program under `scripts/` writes `tests/golden/*`, and a
 `tests/*.bend` compares. Run Go with the repo's module (`go run
 ./bend/scripts/gen-x.go` from the repo root).
+
+## Performance rules (measured on Bend 2.0.25)
+
+- Parallel calls in pure code (`a b = f(x) g(y)`) spread over the cores:
+  an 8-leaf tree ran 6.6x faster at `--threads 8`. IO computations
+  (`IO.spawn`, `IO.fork`) do not: eight spawned computations ran 1.4x
+  faster, and `--threads` does not change that.
+- While any computation evaluates pure code, the event loop makes no
+  progress: 200 one-ms sleeps took 265 ms alone and 339 ms beside a
+  forked 81 ms parallel tree (the sum). An IO loop cannot overlap its IO
+  with its own parallel steps.
+- A `String` is a cons list: about 36 ns per byte to walk, 11-17 ns per
+  byte for `++`, and each node is freed one by one. Pack text four bytes
+  to a word (lib/sys.bend's Packed) where it crosses into C, and do the
+  packing and unpacking inside the parallel step.
+- Whatever crosses into an effect is consumed and freed on the loop's
+  thread: keep it small (packed), and free big structures in parallel
+  tasks (return only what the loop needs).
+- Profile with `sample <pid> 3 -file out.txt` (macOS); the self time per
+  thread shows the loop's share (`__psynch_cvwait` there is the loop
+  waiting on the parallel pool).
+

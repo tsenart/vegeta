@@ -104,6 +104,28 @@ parallel call tree, and merges them with the metrics monoid.
 - **`sh scripts/bench.sh [seconds] [results]`** compares throughput,
   latency and report speed with Go Vegeta.
 
+## Performance
+
+On an M-series Mac against a local Go server (`scripts/bench.sh`), with
+Go Vegeta built from this repo alongside:
+
+| | Go | Bend |
+|---|---|---|
+| attack, unbounded rate, 1 worker | 15k req/s | 10k req/s |
+| attack, unbounded rate, 10 workers | 56k req/s | 12k req/s |
+| attack, unbounded rate, 50 workers | 86k req/s | 17k req/s |
+| attack, 10000/s with 8 workers | exact | exact |
+| report, 1M results (CSV / JSON) | 1.9 s / 1.3 s | about 4 s / 7 s |
+
+Per-hit latency matches Go's (p50 about 45 us with one worker). The
+attack's ceiling is its single event loop: Bend spreads parallel calls
+over the cores but runs IO computations on one, and the loop makes no
+progress while pure code runs, so IO cannot overlap the parallel step.
+`docs/IMPLEMENTING.md` has the measured rules. With `-max-workers`
+unbounded, a paced attack past what the loop sustains grows a worker
+(and a connection) per late hit, as Go does, and falls further behind;
+cap `-max-workers` for high paced rates.
+
 ## Deviations from Go Vegeta
 
 HTTP/1.1 over plain TCP only. Percentiles are exact nearest-rank, where
