@@ -1066,11 +1066,17 @@ law civil_cmp:
   for +b: Civil.Time
   {Civil.cmp(a, b) == Nat.cmp(total_ns(a), total_ns(b)) : Cmp}
 
-# LAW: the CSV timestamp column is the decimal nanosecond count
+# LAW: the CSV timestamp column is the decimal nanosecond count, stated as
+# the text Go writes (a byte format, so the law defines the text): for
+# b < 10^9, FormatInt(a*10^9 + b) is show(a) ++ pad9(b) when a > 0 and
+# show(b) when a = 0 -- e.g. (0, 999) is "999", (1, 5) is "1000000005".
+# Stating the integer a*10^9 + b instead would make every proof count to
+# a billion in the checker's unary Nats.
 law civil_unix_nanos:
   for +t: Civil.Time
-  for h: {Nat.is_lt(time_nsec(t), sec()) == True{} : Bool}
-  {Civil.unix_nanos(t) == Dec.show(total_ns(t)) : String}
+  for h: {nsec_ok(time_nsec(t)) == True{} : Bool}
+  {Civil.unix_nanos(t) == pick(String, Nat.is_eq(time_sec(t), 0n), Dec.show(time_nsec(t)),
+                               Dec.show(time_sec(t)) ++ Dec.pad(9n, time_nsec(t))) : String}
 
 # LAW: adding moves the instant and keeps the zone; subtracting measures
 # the distance (zero when b is later)
@@ -2847,9 +2853,11 @@ law met_span:
   & {s_duration(summary(bs, Con{h, hs})) == Nat.sub(max_of(total_ns(h_ts(h)), starts(hs)), min_of(total_ns(h_ts(h)), starts(hs))) : Nat}
   & {s_wait(summary(bs, Con{h, hs})) == Nat.sub(max_of(Nat.add(total_ns(h_ts(h)), h_lat(h)), ends(hs)), max_of(total_ns(h_ts(h)), starts(hs))) : Nat}
 
-# Go's Duration.Seconds(): float64(d / 1s) + float64(d % 1s) / 1e9
+# Go's Duration.Seconds(): float64(d / 1s) + float64(d % 1s) / 1e9 (1e9
+# as the literal f64_1e9, which is F64.of_nat(sec()): a closed
+# Big.of(10^9) would make the checker unfold 10^9)
 def seconds(+d: Nat) -> F64.F64:
-  F64.add(F64.of_nat(Nat.div(d, sec())), F64.div(F64.of_nat(Nat.mod(d, sec())), F64.of_nat(sec())))
+  F64.add(F64.of_nat(Nat.div(d, sec())), F64.div(F64.of_nat(Nat.mod(d, sec())), f64_1e9()))
 
 # LAW: the float fields are the float64 arithmetic Go does, step by step
 law met_floats:
