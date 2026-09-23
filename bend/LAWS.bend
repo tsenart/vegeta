@@ -1008,11 +1008,17 @@ def time_off(+t: Civil.Time) -> Nat:
 def total_ns(+t: Civil.Time) -> Nat:
   Nat.add(Nat.mul(time_sec(t), sec()), time_nsec(t))
 
+# nanoseconds below a second: at most nine digits (Dec.show is canonical,
+# so this is n < 10^9, stated by its digit count as nat_fits states its
+# bound, so a proof never counts up to a billion)
+def nsec_ok(+n: Nat) -> Bool:
+  Nat.is_lt(String.length(Dec.show(n)), 10n)
+
 # an instant Go prints in RFC3339: nsec below a second, a whole-minute
 # offset within a day (RFC3339 has no offset seconds), local time from 1970
 def valid_time(+t: Civil.Time) -> Bool:
   +off = time_off(t)
-  Bool.and(Nat.is_lt(time_nsec(t), sec()), Bool.and(Nat.is_le(off, 172800n),
+  Bool.and(nsec_ok(time_nsec(t)), Bool.and(Nat.is_le(off, 172800n),
     Bool.and(Nat.is_eq(Nat.mod(off, 60n), 0n), Nat.is_ge(Nat.add(time_sec(t), off), 86400n))))
 
 def pad2(+n: Nat) -> String:
@@ -1574,7 +1580,7 @@ def hit_fits(+seq: Nat, +lat: Nat, +bout: Nat, +bin: Nat) -> Bool:
 # Go's reader would canonicalize are already canonical
 def csv_ok(+h: Hit.Hit) -> Bool:
   Hit.Hit{attack, seq, code, ts, lat, bout, bin, err, body, method, url, hdrs} = h
-  Bool.and(Nat.is_lt(code, 65536n), Bool.and(Nat.is_lt(time_nsec(ts), sec()), Bool.and(Nat.is_eq(time_off(ts), 86400n),
+  Bool.and(Nat.is_lt(code, 65536n), Bool.and(nsec_ok(time_nsec(ts)), Bool.and(Nat.is_eq(time_off(ts), 86400n),
   Bool.and(Maybe.is_some(&2, String, body), Bool.and(bytes(body_or_empty(body)),
   Bool.and(Bool.and(all_bytes([attack, err, method, url]), no_crlf_pair([attack, err, method, url])),
   Bool.and(Bool.and(hit_fits(seq, lat, bout, bin), nat_fits(time_sec(ts))), maybe_hdrs_ok(True{}, hdrs))))))))
