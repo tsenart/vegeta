@@ -1,0 +1,11 @@
+Requests      [total, rate, throughput]         100, 101.01, 36.70
+Duration      [total, attack, wait]             1.09s, 990ms, 100ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  1ms, 50.5ms, 50.5ms, 90.5ms, 95.5ms, 99.5ms, 100ms
+Bytes In      [total, mean]                     14850, 148.50
+Bytes Out     [total, mean]                     700, 7.00
+Success       [ratio]                           40.00%
+Status Codes  [code:count]                      0:20  200:40  500:20  503:20  
+Error Set:
+500 Internal Server Error
+Get "http://h/": EOF
+503 Service Unavailable

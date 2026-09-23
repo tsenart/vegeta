@@ -1,0 +1,8 @@
+Requests      [total, rate, throughput]         2, 1.33, 1.33
+Duration      [total, attack, wait]             1.502s, 1.5s, 2ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  1ms, 1.5ms, 1.5ms, 2ms, 2ms, 2ms, 2ms
+Bytes In      [total, mean]                     0, 0.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:1  204:1  
+Error Set:

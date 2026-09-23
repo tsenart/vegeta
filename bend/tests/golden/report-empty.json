@@ -1,0 +1,1 @@
+{"latencies":{"total":0,"mean":0,"50th":0,"90th":0,"95th":0,"99th":0,"max":0,"min":0},"bytes_in":{"total":0,"mean":0},"bytes_out":{"total":0,"mean":0},"earliest":"0001-01-01T00:00:00Z","latest":"0001-01-01T00:00:00Z","end":"0001-01-01T00:00:00Z","duration":0,"wait":0,"requests":0,"rate":0,"throughput":0,"success":0,"status_codes":{},"errors":[]}
