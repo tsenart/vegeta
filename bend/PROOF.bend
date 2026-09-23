@@ -4,4 +4,5 @@
 # Nats are unary in the checker).
 import Base
 import ./LAWS.bend as L
+import ./proofs/nat.bend as PNat
 import ./proofs/dec.bend as PDec
