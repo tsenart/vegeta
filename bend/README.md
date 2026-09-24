@@ -170,9 +170,9 @@ cigarette.
   state machines at the center of this port, or the verified SHA-256 and
   EVM packages others have published for Bend.
 
-If we did it again, we'd write the tool in Go and extract only the
-scheduler and HTTP client state machines into something provable. That
-would give most of the value at a fraction of the cost.
+If we did it again, we'd leave vegeta in Go and bring only the scheduler
+and HTTP client state machines over to Bend. That would give most of the
+value at a fraction of the cost.
 
 
 
