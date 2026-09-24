@@ -170,9 +170,10 @@ cigarette.
   state machines at the center of this port, or the verified SHA-256 and
   EVM packages others have published for Bend.
 
-If we did it again, we'd leave vegeta in Go and bring only the scheduler
-and HTTP client state machines over to Bend. That would give most of the
-value at a fraction of the cost.
+Bend is all or nothing: a Bend program is its own binary with its own
+runtime, so there's no proving just the scheduler inside Go vegeta. What
+we'd keep is the laws. Writing them precisely is what found the bugs,
+including the two in Go vegeta, and that part needs no prover.
 
 
 
