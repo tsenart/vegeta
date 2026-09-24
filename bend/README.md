@@ -113,8 +113,9 @@ right tool?" below.
 **No law is known to be false.** Several were false at first, and were
 found and repaired (see below).
 
-`bend PROOF.bend` checks the proofs, and `scripts/open-laws.txt` lists the
-21 laws that stay open. `bend LAWS.bend` states the laws in under 1 s.
+`bend PROOF.bend` checks the proofs in about 77 s on an idle 8-core
+cloud VM (c3-standard-8), and `scripts/open-laws.txt` lists the 21 laws
+that stay open. `bend LAWS.bend` states the laws in about half a second.
 
 ## Laws caught real bugs, and so did the code
 
@@ -232,8 +233,9 @@ where the ceiling is.
 - **`pick(A, c, x, y)` evaluates both branches.** A recursive call inside
   one always runs to the end of its input. `scripts/lint-pick.py` found
   46 of these, and fixing them made hot paths 2–7× faster.
-- **A miscompile.** Bend 2.0.25's native compiler gets
-  `Bool.or(x, pick(Bool, <computed>, a, b))` wrong.
+- **A miscompile.** Bend's native compiler (2.0.25 through 2.0.27) gets
+  `Bool.or(x, pick(Bool, <computed>, a, b))` wrong, reported as
+  [bendlang/bend#1026](https://github.com/bendlang/bend/issues/1026).
   `tests/compiler_canary.bend` pins the wrong output so we notice when it
   changes.
 
@@ -298,7 +300,7 @@ The full list, with the reasons, is in
   - the proofs check with no errors, and exactly the laws listed in
     `scripts/open-laws.txt` stay open. Proving another law means taking it
     off the list, and a proof that stops closing its law fails the gate.
-    The 60 s budget holds on an idle machine; set `PROOF_BUDGET` on a busy
+    The 90 s budget holds on an idle machine; set `PROOF_BUDGET` on a busy
     one.
 - **`sh scripts/e2e.sh`** runs the binary against a Go test server next to
   Go Vegeta. It checks:

@@ -1,4 +1,5 @@
-# Compiler canary. Bend 2.0.25's native compiler gets
+# Compiler canary (github.com/bendlang/bend/issues/1026; still wrong in
+# 2.0.27). Bend 2.0.25's native compiler gets
 # Bool.or(x, pick(Bool, <computed condition>, a, b)) wrong: f and g below
 # must print True (the checker and bend's default lane do), but compiled
 # they print False. The expected lines pin today's wrong output: when this

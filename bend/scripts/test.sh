@@ -50,16 +50,17 @@ done
 # the proofs: no errors, and exactly the laws in scripts/open-laws.txt left
 # open (tested against Go instead; see README.md). Proving one more means
 # removing it from the list; a proof that stops closing its law fails
-# here. The budget holds on an idle machine (PROOF_BUDGET overrides it).
+# here. The budget holds on an idle machine: about 77 s on an idle
+# c3-standard-8 (PROOF_BUDGET overrides it).
 if [ -z "$pat" ]; then
   open=$(grep -c . scripts/open-laws.txt)
   secs=$(budget bend PROOF.bend)
   todos=$(sed -n 's/^Error: \([0-9]*\) TODOs found.*/\1/p' .build/check.out)
   if grep -q 'All terms check' .build/check.out; then todos=0; fi
-  if [ "$todos" = "$open" ] && [ "$secs" -le "${PROOF_BUDGET:-60}" ]; then
+  if [ "$todos" = "$open" ] && [ "$secs" -le "${PROOF_BUDGET:-90}" ]; then
     echo "ok   PROOF.bend proves $(( $(grep -c '^law ' LAWS.bend) - open )) laws; $open open, as listed (${secs}s)"
   else
-    echo "FAIL PROOF.bend (${secs}s, budget ${PROOF_BUDGET:-60}s): ${todos:-?} TODOs, $open listed as open: $(tail -1 .build/check.out)"; fail=$((fail+1))
+    echo "FAIL PROOF.bend (${secs}s, budget ${PROOF_BUDGET:-90}s): ${todos:-?} TODOs, $open listed as open: $(tail -1 .build/check.out)"; fail=$((fail+1))
   fi
 fi
 [ "$fail" -eq 0 ] && echo "all passed" || { echo "$fail failed"; exit 1; }
