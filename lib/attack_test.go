@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -561,4 +562,25 @@ func TestAttackConnectTo(t *testing.T) {
 	if diff := cmp.Diff(want, srvs); diff != "" {
 		t.Errorf("unexpected hits (-want +got):\n%s", diff)
 	}
+}
+
+func TestConnectToConcurrentRoundRobin(t *testing.T) {
+	atk := NewAttacker()
+	tr := atk.client.Transport.(*http.Transport)
+	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return nil, io.EOF
+	}
+	ConnectTo(map[string][]string{
+		"example.com:80": {"127.0.0.1:1", "127.0.0.1:2"},
+	})(atk)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = tr.DialContext(context.Background(), "tcp", "example.com:80")
+		}()
+	}
+	wg.Wait()
 }

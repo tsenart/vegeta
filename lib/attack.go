@@ -295,6 +295,7 @@ func ConnectTo(addrMap map[string][]string) func(*Attacker) {
 		}
 
 		type roundRobin struct {
+			mu    sync.Mutex
 			addrs []string
 			n     int
 		}
@@ -306,8 +307,10 @@ func ConnectTo(addrMap map[string][]string) func(*Attacker) {
 
 		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			if cm, ok := connectTo[addr]; ok {
+				cm.mu.Lock()
 				cm.n = (cm.n + 1) % len(cm.addrs)
 				addr = cm.addrs[cm.n]
+				cm.mu.Unlock()
 			}
 			return dial(ctx, network, addr)
 		}
