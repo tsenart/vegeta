@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// TestNewHTTPTargeter_BlockedBody blocks one target's body read with a named
+// pipe. Later regular-file and body-free targets must finish decoding before
+// the pipe is released; the blocked target must then receive its complete body.
 func TestNewHTTPTargeter_BlockedBody(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "body")
 	if err := syscall.Mkfifo(path, 0600); err != nil {
