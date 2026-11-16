@@ -438,6 +438,34 @@ func TestNewHTTPTargeter(t *testing.T) {
 	}
 }
 
+func TestNewHTTPTargeter_BodyScannerError(t *testing.T) {
+	path := t.TempDir() + "/body"
+	if err := os.WriteFile(path, []byte("payload"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name string
+		path string
+		want error
+	}{
+		{"readable", path, ErrNoTargets},
+		{"missing", path + ".missing", os.ErrNotExist},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// The unterminated body line arrives with a non-EOF scanner error.
+			src := io.MultiReader(strings.NewReader("POST http://example.com\n@"+tt.path), errReader{io.ErrUnexpectedEOF})
+			tr := NewHTTPTargeter(src, nil, nil)
+			var tgt Target
+			if err := tr(&tgt); !errors.Is(err, tt.want) {
+				t.Fatalf("got %v, want %v", err, tt.want)
+			}
+			if tt.want == ErrNoTargets && string(tgt.Body) != "payload" {
+				t.Fatalf("got body %q, want payload", tgt.Body)
+			}
+		})
+	}
+}
+
 func TestErrNilTarget(t *testing.T) {
 	t.Parallel()
 
@@ -479,6 +507,24 @@ func BenchmarkJSONTargetEncoding(b *testing.B) {
 	b.Run("decode", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			dec.Decode(&targets[i%len(targets)])
+		}
+	})
+}
+
+func BenchmarkHTTPTargeter(b *testing.B) {
+	path := b.TempDir() + "/body"
+	if err := os.WriteFile(path, []byte("Hello world!"), 0600); err != nil {
+		b.Fatal(err)
+	}
+	input := strings.Repeat("POST http://foobar.org/fnord\nAuthorization: x12345\n@"+path+"\n", b.N)
+	tr := NewHTTPTargeter(strings.NewReader(input), nil, nil)
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var tgt Target
+		for pb.Next() {
+			if err := tr(&tgt); err != nil {
+				b.Fatal(err)
+			}
 		}
 	})
 }
