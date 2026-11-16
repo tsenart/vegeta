@@ -264,7 +264,17 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 	sc := peekingScanner{src: bufio.NewScanner(src)}
 	return func(tgt *Target) (err error) {
 		mu.Lock()
-		defer mu.Unlock()
+		var bodyLine string
+		defer func() {
+			mu.Unlock()
+			// Body files can block independently of the target stream.
+			if bodyLine != "" {
+				var readErr error
+				if tgt.Body, readErr = os.ReadFile(bodyLine[1:]); readErr != nil {
+					err = fmt.Errorf("bad body: %w", readErr)
+				}
+			}
+		}()
 
 		if tgt == nil {
 			return ErrNilTarget
@@ -310,9 +320,7 @@ func NewHTTPTargeter(src io.Reader, body []byte, hdr http.Header) Targeter {
 			} else if strings.HasPrefix(line, "#") {
 				continue
 			} else if strings.HasPrefix(line, "@") {
-				if tgt.Body, err = os.ReadFile(line[1:]); err != nil {
-					return fmt.Errorf("bad body: %w", err)
-				}
+				bodyLine = line
 				break
 			}
 			tokens = strings.SplitN(line, ":", 2)
