@@ -1,6 +1,7 @@
 package vegeta
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"errors"
@@ -449,6 +450,40 @@ func TestErrNilTarget(t *testing.T) {
 		if got, want := tr(nil), ErrNilTarget; got != want {
 			t.Errorf("test #%d: got: %v, want: %v", i, got, want)
 		}
+	}
+}
+
+func TestStaticTargeter_Empty(t *testing.T) {
+	t.Parallel()
+
+	tr := NewStaticTargeter()
+	var tgt Target
+	if err := tr(&tgt); err != ErrNoTargets {
+		t.Errorf("expected ErrNoTargets for empty StaticTargeter, got %v", err)
+	}
+}
+
+func TestPeekingScanner_EmptyLine(t *testing.T) {
+	t.Parallel()
+
+	input := "line1\n\nline2\n"
+	sc := peekingScanner{src: bufio.NewScanner(strings.NewReader(input))}
+
+	if !sc.Scan() || sc.Text() != "line1" {
+		t.Fatalf("expected line1")
+	}
+
+	// Peeking empty line should not consume it prematurely
+	if peeked := sc.Peek(); peeked != "" {
+		t.Errorf("expected empty string peeked, got %q", peeked)
+	}
+
+	if !sc.Scan() || sc.Text() != "" {
+		t.Errorf("expected empty line, got %q", sc.Text())
+	}
+
+	if !sc.Scan() || sc.Text() != "line2" {
+		t.Errorf("expected line2, got %q", sc.Text())
 	}
 }
 

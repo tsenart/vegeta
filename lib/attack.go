@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/dnscache"
@@ -116,8 +117,9 @@ func MaxWorkers(n uint64) func(*Attacker) {
 // open connections per target host.
 func Connections(n int) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.MaxIdleConnsPerHost = n
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.MaxIdleConnsPerHost = n
+		}
 	}
 }
 
@@ -125,8 +127,9 @@ func Connections(n int) func(*Attacker) {
 // connections per target host.
 func MaxConnections(n int) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.MaxConnsPerHost = n
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.MaxConnsPerHost = n
+		}
 	}
 }
 
@@ -158,8 +161,9 @@ func Redirects(n int) func(*Attacker) {
 // the http.Client's Transport
 func Proxy(proxy func(*http.Request) (*url.URL, error)) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.Proxy = proxy
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.Proxy = proxy
+		}
 	}
 }
 
@@ -175,9 +179,10 @@ func Timeout(d time.Duration) func(*Attacker) {
 // an Attacker will use with its requests.
 func LocalAddr(addr net.IPAddr) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
-		tr.DialContext = a.dialer.DialContext
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			a.dialer.LocalAddr = &net.TCPAddr{IP: addr.IP, Zone: addr.Zone}
+			tr.DialContext = a.dialer.DialContext
+		}
 	}
 }
 
@@ -185,11 +190,12 @@ func LocalAddr(addr net.IPAddr) func(*Attacker) {
 // connections on the dialer and transport.
 func KeepAlive(keepalive bool) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.DisableKeepAlives = !keepalive
-		if !keepalive {
-			a.dialer.KeepAlive = 0
-			tr.DialContext = a.dialer.DialContext
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.DisableKeepAlives = !keepalive
+			if !keepalive {
+				a.dialer.KeepAlive = 0
+				tr.DialContext = a.dialer.DialContext
+			}
 		}
 	}
 }
@@ -198,8 +204,9 @@ func KeepAlive(keepalive bool) func(*Attacker) {
 // Attacker to use with its requests.
 func TLSConfig(c *tls.Config) func(*Attacker) {
 	return func(a *Attacker) {
-		tr := a.client.Transport.(*http.Transport)
-		tr.TLSClientConfig = c
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.TLSClientConfig = c
+		}
 	}
 }
 
@@ -207,11 +214,13 @@ func TLSConfig(c *tls.Config) func(*Attacker) {
 // on requests performed by an Attacker.
 func HTTP2(enabled bool) func(*Attacker) {
 	return func(a *Attacker) {
-		if tr := a.client.Transport.(*http.Transport); enabled {
-			http2.ConfigureTransport(tr)
-		} else {
-			tr.ForceAttemptHTTP2 = false
-			tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			if enabled {
+				http2.ConfigureTransport(tr)
+			} else {
+				tr.ForceAttemptHTTP2 = false
+				tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+			}
 		}
 	}
 }
@@ -253,9 +262,13 @@ func UnixSocket(socket string) func(*Attacker) {
 func SessionTickets(enabled bool) func(*Attacker) {
 	return func(a *Attacker) {
 		if enabled {
-			cf := a.client.Transport.(*http.Transport).TLSClientConfig
-			cf.SessionTicketsDisabled = false
-			cf.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+			if tr, ok := a.client.Transport.(*http.Transport); ok {
+				if tr.TLSClientConfig == nil {
+					tr.TLSClientConfig = &tls.Config{}
+				}
+				tr.TLSClientConfig.SessionTicketsDisabled = false
+				tr.TLSClientConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+			}
 		}
 	}
 }
@@ -295,8 +308,8 @@ func ConnectTo(addrMap map[string][]string) func(*Attacker) {
 		}
 
 		type roundRobin struct {
+			n     atomic.Uint64
 			addrs []string
-			n     int
 		}
 
 		connectTo := make(map[string]*roundRobin, len(addrMap))
@@ -305,9 +318,9 @@ func ConnectTo(addrMap map[string][]string) func(*Attacker) {
 		}
 
 		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			if cm, ok := connectTo[addr]; ok {
-				cm.n = (cm.n + 1) % len(cm.addrs)
-				addr = cm.addrs[cm.n]
+			if cm, ok := connectTo[addr]; ok && len(cm.addrs) > 0 {
+				idx := cm.n.Add(1) - 1
+				addr = cm.addrs[idx%uint64(len(cm.addrs))]
 			}
 			return dial(ctx, network, addr)
 		}
@@ -349,6 +362,7 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				}()
 			}
 
+			var rngMu sync.Mutex
 			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 			tr.DialContext = func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
@@ -369,7 +383,9 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				// Pick a random IP from each IP family and dial each concurrently.
 				// The first that succeeds wins, the other gets canceled.
 
+				rngMu.Lock()
 				rng.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
+				rngMu.Unlock()
 
 				ips = firstOfEachIPFamily(ips)
 
@@ -395,6 +411,8 @@ func DNSCaching(ttl time.Duration) func(*Attacker) {
 				for i := 0; i < cap(ch); i++ {
 					if r := <-ch; conn == nil {
 						conn, err = r.conn, r.err
+					} else if r.conn != nil {
+						_ = r.conn.Close()
 					}
 				}
 

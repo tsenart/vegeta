@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,5 +191,32 @@ func BenchmarkResultEncodings(b *testing.B) {
 				dec.Decode(&r)
 			}
 		})
+	}
+}
+
+func TestRoundRobinDecoder_Empty(t *testing.T) {
+	t.Parallel()
+
+	dec := NewRoundRobinDecoder()
+	var r Result
+	if err := dec.Decode(&r); err != io.EOF {
+		t.Errorf("expected io.EOF from empty RoundRobinDecoder, got %v", err)
+	}
+}
+
+func TestCSVDecoder_ClearHeaders(t *testing.T) {
+	t.Parallel()
+
+	csvData := "1500000000000000000,200,1000000,10,20,,body,atk,1,GET,http://example.com,\n"
+	dec := NewCSVDecoder(strings.NewReader(csvData))
+
+	r := Result{
+		Headers: http.Header{"X-Old-Header": []string{"leak"}},
+	}
+	if err := dec.Decode(&r); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Headers != nil {
+		t.Errorf("expected headers to be cleared, got %v", r.Headers)
 	}
 }

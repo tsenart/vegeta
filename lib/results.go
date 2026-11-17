@@ -122,6 +122,9 @@ func DecoderFor(r io.Reader) Decoder {
 // NewRoundRobinDecoder returns a new Decoder that round robins across the
 // given Decoders on every invocation or decoding error.
 func NewRoundRobinDecoder(dec ...Decoder) Decoder {
+	if len(dec) == 0 {
+		return func(*Result) error { return io.EOF }
+	}
 	// Optimization for single Decoder case.
 	if len(dec) == 1 {
 		return dec[0]
@@ -263,6 +266,8 @@ func NewCSVDecoder(r io.Reader) Decoder {
 				return err
 			}
 			r.Headers = http.Header(hdr)
+		} else {
+			r.Headers = nil
 		}
 
 		return err

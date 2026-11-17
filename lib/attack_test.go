@@ -562,3 +562,44 @@ func TestAttackConnectTo(t *testing.T) {
 		t.Errorf("unexpected hits (-want +got):\n%s", diff)
 	}
 }
+
+func TestSessionTickets_NilTLSClientConfig(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("SessionTickets panicked: %v", r)
+		}
+	}()
+
+	// Attacker with nil TLSClientConfig should not panic when SessionTickets is enabled
+	atk := NewAttacker(
+		TLSConfig(nil),
+		SessionTickets(true),
+	)
+	if tr, ok := atk.client.Transport.(*http.Transport); ok {
+		if tr.TLSClientConfig == nil || tr.TLSClientConfig.SessionTicketsDisabled {
+			t.Errorf("expected session tickets enabled in TLSClientConfig")
+		}
+	}
+}
+
+func TestFunctionalOptions_H2CTransport(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("functional options panicked on H2C transport: %v", r)
+		}
+	}()
+
+	// Applying transport-specific options after H2C should not panic with interface conversion
+	_ = NewAttacker(
+		H2C(true),
+		Connections(100),
+		MaxConnections(100),
+		KeepAlive(false),
+		SessionTickets(true),
+		HTTP2(false),
+	)
+}
