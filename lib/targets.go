@@ -217,12 +217,22 @@ func NewJSONTargetEncoder(w io.Writer) TargetEncoder {
 // NewStaticTargeter returns a Targeter which round-robins over the passed
 // Targets.
 func NewStaticTargeter(tgts ...Target) Targeter {
-	i := int64(-1)
+	if len(tgts) == 0 {
+		return func(tgt *Target) error {
+			if tgt == nil {
+				return ErrNilTarget
+			}
+			return ErrNoTargets
+		}
+	}
+
+	var i atomic.Uint64
 	return func(tgt *Target) error {
 		if tgt == nil {
 			return ErrNilTarget
 		}
-		*tgt = tgts[atomic.AddInt64(&i, 1)%int64(len(tgts))]
+		idx := i.Add(1) - 1
+		*tgt = tgts[idx%uint64(len(tgts))]
 		return nil
 	}
 }
@@ -355,8 +365,9 @@ func startsWithHTTPMethod(t string) bool {
 // Wrap a Scanner so we can cheat and look at the next value and react accordingly,
 // but still have it be around the next time we Scan() + Text()
 type peekingScanner struct {
-	src    *bufio.Scanner
-	peeked string
+	src       *bufio.Scanner
+	peeked    string
+	hasPeeked bool
 }
 
 func (s *peekingScanner) Err() error {
@@ -364,25 +375,29 @@ func (s *peekingScanner) Err() error {
 }
 
 func (s *peekingScanner) Peek() string {
-	if !s.src.Scan() {
-		return ""
+	if !s.hasPeeked {
+		if !s.src.Scan() {
+			return ""
+		}
+		s.peeked = s.src.Text()
+		s.hasPeeked = true
 	}
-	s.peeked = s.src.Text()
 	return s.peeked
 }
 
 func (s *peekingScanner) Scan() bool {
-	if s.peeked == "" {
+	if !s.hasPeeked {
 		return s.src.Scan()
 	}
 	return true
 }
 
 func (s *peekingScanner) Text() string {
-	if s.peeked == "" {
+	if !s.hasPeeked {
 		return s.src.Text()
 	}
 	t := s.peeked
 	s.peeked = ""
+	s.hasPeeked = false
 	return t
 }

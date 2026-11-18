@@ -62,7 +62,7 @@ func (cp ConstantPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration,
 		return 0, false
 	}
 	interval := uint64(cp.Per.Nanoseconds() / int64(cp.Freq))
-	if math.MaxInt64/interval < hits {
+	if interval != 0 && math.MaxInt64/interval < hits {
 		// We would overflow delta if we continued, so stop the attack.
 		return 0, true
 	}

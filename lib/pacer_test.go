@@ -54,6 +54,9 @@ func TestConstantPacer(t *testing.T) {
 		{1, time.Duration(math.MaxInt64) / 10, time.Duration(math.MaxInt64), 11, 0, true},
 		// Large hits, overflow int64.
 		{1, time.Hour, time.Duration(math.MaxInt64), 2562048, 0, true},
+		// High frequency relative to per (interval rounds down to 0 ns).
+		{2000, time.Microsecond, time.Microsecond, 0, 0, false},
+		{2, time.Nanosecond, time.Nanosecond, 1, 0, false},
 	} {
 		cp := &ConstantPacer{Freq: tt.freq, Per: tt.per}
 
