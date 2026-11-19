@@ -44,8 +44,9 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --to      Output encoding (gob | json | csv) [default: json]
-  --output  Output file [default: stdout]
+  --to        Output encoding (gob | json | csv) [default: json]
+  --output    Output file [default: stdout]
+  --protocol  Protocol of the results being encoded (http | gql) [default: http]
 
 Examples:
   echo "GET http://:80" | vegeta attack -rate=1/s > results.gob
@@ -57,6 +58,7 @@ func encodeCmd() command {
 	fs := flag.NewFlagSet("vegeta encode", flag.ExitOnError)
 	to := fs.String("to", encodingJSON, "Output encoding "+encs)
 	output := fs.String("output", "stdout", "Output file")
+	protocol := fs.String("protocol", "http", "Protocol of the results being encoded [http, gql]")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n", encodeUsage)
@@ -68,11 +70,11 @@ func encodeCmd() command {
 		if len(files) == 0 {
 			files = append(files, "stdin")
 		}
-		return encode(files, *to, *output)
+		return encode(files, *to, *output, *protocol)
 	}}
 }
 
-func encode(files []string, to, output string) error {
+func encode(files []string, to, output string, protocol string) error {
 	dec, mc, err := decoder(files)
 	defer mc.Close()
 	if err != nil {
@@ -113,7 +115,15 @@ func encode(files []string, to, output string) error {
 				break
 			}
 			return err
-		} else if err = enc.Encode(&r); err != nil {
+		}
+
+		if protocol == "gql" {
+			if err = vegeta.AsGraphQL(&r); err != nil {
+				return err
+			}
+		}
+
+		if err = enc.Encode(&r); err != nil {
 			return err
 		}
 	}

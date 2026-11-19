@@ -158,6 +158,8 @@ encode command:
     	Output file (default "stdout")
   -to string
     	Output encoding [csv, gob, json] (default "json")
+  -protocol string
+    	Protocol of the results being encoded [http, gql] (default "http")
 
 plot command:
   -output string
@@ -703,8 +705,9 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --to      Output encoding (gob | json | csv) [default: json]
-  --output  Output file [default: stdout]
+  --to        Output encoding (gob | json | csv) [default: json]
+  --output    Output file [default: stdout]
+  --protocol  Protocol of the results being encoded (http | gql) [default: gql]
 
 Examples:
   echo "GET http://:80" | vegeta attack -rate=1/s > results.gob
