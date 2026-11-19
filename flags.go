@@ -155,6 +155,27 @@ func (f *dnsTTLFlag) String() string {
 	return f.ttl.String()
 }
 
+type proxyProtoFlag struct{ v *uint8 }
+
+func (f *proxyProtoFlag) String() string {
+	if f.v == nil || *f.v == 0 {
+		return ""
+	}
+	return strconv.FormatUint(uint64(*f.v), 10)
+}
+
+func (f *proxyProtoFlag) Set(s string) error {
+	n, err := strconv.ParseUint(s, 10, 8)
+	if err != nil {
+		return err
+	}
+	if n != 1 && n != 2 {
+		return fmt.Errorf("invalid proxy protocol version %q, must be 1 or 2", s)
+	}
+	*f.v = uint8(n)
+	return nil
+}
+
 const connectToFormat = "src:port:dst:port"
 
 type connectToFlag struct {
