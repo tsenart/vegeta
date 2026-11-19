@@ -2,6 +2,7 @@ package vegeta
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"math/rand"
@@ -190,5 +191,30 @@ func BenchmarkResultEncodings(b *testing.B) {
 				dec.Decode(&r)
 			}
 		})
+	}
+}
+
+func TestWriteCSVHeader(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	if err := WriteCSVHeader(&buf); err != nil {
+		t.Fatal(err)
+	}
+
+	reader := csv.NewReader(&buf)
+	record, err := reader.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(record) != len(CSVHeader) {
+		t.Errorf("got %d columns, want %d", len(record), len(CSVHeader))
+	}
+
+	for i, col := range record {
+		if col != CSVHeader[i] {
+			t.Errorf("col %d: got %q, want %q", i, col, CSVHeader[i])
+		}
 	}
 }

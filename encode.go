@@ -44,8 +44,9 @@ Arguments:
           the supported encodings (gob | json | csv) [default: stdin]
 
 Options:
-  --to      Output encoding (gob | json | csv) [default: json]
-  --output  Output file [default: stdout]
+  --to          Output encoding (gob | json | csv) [default: json]
+  --output      Output file [default: stdout]
+  --csv-header  Write CSV header to the output file [default: false]
 
 Examples:
   echo "GET http://:80" | vegeta attack -rate=1/s > results.gob
@@ -57,6 +58,7 @@ func encodeCmd() command {
 	fs := flag.NewFlagSet("vegeta encode", flag.ExitOnError)
 	to := fs.String("to", encodingJSON, "Output encoding "+encs)
 	output := fs.String("output", "stdout", "Output file")
+	csvHeader := fs.Bool("csv-header", false, "Write CSV header to the output file")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n", encodeUsage)
@@ -68,11 +70,11 @@ func encodeCmd() command {
 		if len(files) == 0 {
 			files = append(files, "stdin")
 		}
-		return encode(files, *to, *output)
+		return encode(files, *to, *output, *csvHeader)
 	}}
 }
 
-func encode(files []string, to, output string) error {
+func encode(files []string, to, output string, csvHeader bool) error {
 	dec, mc, err := decoder(files)
 	defer mc.Close()
 	if err != nil {
@@ -84,6 +86,12 @@ func encode(files []string, to, output string) error {
 		return err
 	}
 	defer out.Close()
+
+	if to == encodingCSV && csvHeader {
+		if err := vegeta.WriteCSVHeader(out); err != nil {
+			return err
+		}
+	}
 
 	var enc vegeta.Encoder
 	switch to {
