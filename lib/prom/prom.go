@@ -67,7 +67,7 @@ func (pm *Metrics) Observe(res *vegeta.Result) {
 	pm.requestBytesOutCounter.WithLabelValues(res.Method, res.URL, code).Add(float64(res.BytesOut))
 	pm.requestLatencyHistogram.WithLabelValues(res.Method, res.URL, code).Observe(res.Latency.Seconds())
 	if res.Error != "" {
-		pm.requestFailCounter.WithLabelValues(res.Method, res.URL, code, res.Error)
+		pm.requestFailCounter.WithLabelValues(res.Method, res.URL, code, res.Error).Inc()
 	}
 }
 

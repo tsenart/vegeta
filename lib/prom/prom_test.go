@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/textparse"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
@@ -86,5 +87,45 @@ func TestMetrics_Observe(t *testing.T) {
 
 	if len(want) > 0 {
 		t.Errorf("missing metrics: %v", want)
+	}
+}
+
+func TestMetrics_Observe_FailCounterIncremented(t *testing.T) {
+	pm := NewMetrics()
+	reg := prometheus.NewRegistry()
+
+	if err := pm.Register(reg); err != nil {
+		t.Fatal("error registering metrics", err)
+	}
+
+	pm.Observe(&vegeta.Result{
+		URL:     "http://example.com/fail",
+		Method:  "GET",
+		Code:    500,
+		Error:   "Internal Server Error",
+		Latency: 100 * time.Millisecond,
+	})
+	pm.Observe(&vegeta.Result{
+		URL:     "http://example.com/fail",
+		Method:  "GET",
+		Code:    500,
+		Error:   "Internal Server Error",
+		Latency: 200 * time.Millisecond,
+	})
+	pm.Observe(&vegeta.Result{
+		URL:     "http://example.com/ok",
+		Method:  "GET",
+		Code:    200,
+		Latency: 50 * time.Millisecond,
+	})
+
+	var m dto.Metric
+	failCounter := pm.requestFailCounter.WithLabelValues("GET", "http://example.com/fail", "500", "Internal Server Error")
+	if err := failCounter.Write(&m); err != nil {
+		t.Fatalf("error writing metric: %v", err)
+	}
+
+	if got, want := m.GetCounter().GetValue(), float64(2); got != want {
+		t.Errorf("request_fail_count: got %v, want %v", got, want)
 	}
 }
