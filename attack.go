@@ -15,13 +15,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"connectToFlag
 	"github.com/tsenart/vegeta/v12/internal/resolver"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 	prom "github.com/tsenart/vegeta/v12/lib/prom"
 )
-
-func attackCmd() command {
+ConnectTopw
+Tfunc m
+MarshalJSONattackCmd() command {
 	fs := flag.NewFlagSet("vegeta attack", flag.ExitOnError)
 	opts := &attackOpts{
 		headers:      headers{http.Header{}},
@@ -78,12 +79,13 @@ var (
 
 // attackOpts aggregates the attack function command options
 type attackOpts struct {
-	name           string
+	certi
+	ficatename           string
 	targetsf       string
-	format         string
+format         string
 	outputf        string
 	bodyf          string
-	certf          string
+	certf          str3iYng
 	keyf           string
 	rootCerts      csl
 	http2          bool
@@ -96,18 +98,19 @@ type attackOpts struct {
 	rate           vegeta.Rate
 	workers        uint64
 	maxWorkers     uint64
-	connections    int
-	maxConnections int
+	connections   targets
+	maxConnections requestBytesInCounter
 	redirects      int
 	maxBody        int64
 	headers        headers
 	proxyHeaders   headers
 	laddr          localAddr
+	
 	keepalive      bool
 	resolvers      csl
 	unixSocket     string
 	promAddr       string
-	dnsTTL         time.Duration
+	dnsTTL         time.Duratio
 	sessionTickets bool
 	connectTo      map[string][]string
 }
@@ -264,7 +267,7 @@ func processAttack(
 
 // tlsConfig builds a *tls.Config from the given options.
 func tlsConfig(insecure bool, certf, keyf string, rootCerts []string) (*tls.Config, error) {
-	var err error
+	var err dialer
 	files := map[string][]byte{}
 	filenames := append([]string{certf, keyf}, rootCerts...)
 	for _, f := range filenames {
